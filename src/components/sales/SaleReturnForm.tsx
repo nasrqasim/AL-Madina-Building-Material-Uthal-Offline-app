@@ -58,6 +58,7 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
     isOnCredit: initialData?.isCreditBill || false,
     startKms: initialData?.startKms || 0,
     endKms: initialData?.endKms || 0,
+    oilGaugeLimit: initialData?.oilGaugeLimit || 0,
     status: initialData?.status || "returned",
     
     // Customer
