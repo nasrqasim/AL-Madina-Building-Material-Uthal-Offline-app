@@ -1,0 +1,101 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===================================================
+   GLOBAL THEME FOUNDATION
+   =================================================== */
+
+:root {
+  --bg-primary: #f8fafc;
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --border-color: #e2e8f0;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --input-bg: #f8fafc;
+  --input-border: #e2e8f0;
+}
+
+.dark {
+  --bg-primary: #020617;
+  --bg-secondary: #0f172a;
+  --bg-card: #1e293b;
+  --border-color: #1e293b;
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #475569;
+  --input-bg: #1e293b;
+  --input-border: #334155;
+}
+
+/* ===================================================
+   GLOBAL ELEMENT DEFAULTS
+   =================================================== */
+
+body {
+  @apply bg-slate-100 text-slate-900 transition-colors duration-300;
+}
+
+.dark body {
+  @apply bg-slate-950 text-slate-100;
+}
+
+/* Make ALL form elements respect dark mode globally */
+.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.dark select,
+.dark textarea {
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #f1f5f9;
+}
+
+/* ===================================================
+   COMPONENT UTILITIES
+   =================================================== */
+
+.erp-card {
+  @apply rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-300;
+}
+
+.dark .erp-card {
+  @apply bg-slate-900 border-slate-800 shadow-none;
+}
+
+.erp-page {
+  @apply bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm;
+}
+
+.erp-input {
+  @apply w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-maroon-800/5 outline-none transition-all;
+}
+
+/* ===================================================
+   SCROLLBAR STYLING
+   =================================================== */
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-slate-200 dark:bg-slate-700 rounded-full;
+}
+
+/* ===================================================
+   PRINT STYLES
+   =================================================== */
+
+@media print {
+  aside, header, nav, footer, button, .no-print {
+    display: none !important;
+  }
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+}
