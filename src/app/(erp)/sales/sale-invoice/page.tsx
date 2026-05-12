@@ -176,45 +176,67 @@ export default function SaleInvoicePage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-800/50/50 border-b border-slate-100 dark:border-slate-800">
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Invoice #</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Date</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Customer</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Linked Ref</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest text-right">Total</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest text-right">Balance</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Status</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center w-20">Actions</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Invoice #</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Customer</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Vehicle No</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">KMs (S/E/R)</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Oil Limit</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Location</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Employee</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Terms</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Remarks</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Total</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Balance</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center w-20">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {filteredInvoices.length > 0 ? (
                 filteredInvoices.map((inv) => (
-                  <tr key={inv._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors group">
+                  <tr key={inv._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group text-[11px]">
                     <td className="px-6 py-4">
-                      <span className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-maroon-800 transition-colors">{inv.invoiceNo}</span>
+                      <span className="font-bold text-slate-900 group-hover:text-maroon-800 transition-colors">{inv.invoiceNo}</span>
+                      {inv.reference && <span className="block text-[9px] text-maroon-600 mt-1">Ref: {inv.reference}</span>}
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-sm font-bold text-slate-600 dark:text-slate-300">{inv.date}</span>
+                      <span className="font-bold text-slate-600">{inv.date ? new Date(inv.date).toLocaleDateString() : "-"}</span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{inv.partyId?.companyName || inv.partyId?.name || "N/A"}</span>
+                      <span className="font-bold text-slate-700">{inv.partyId?.companyName || inv.partyId?.name || "N/A"}</span>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-maroon-800">
-                        {inv.reference || "-"} <ExternalLink size={12} className="opacity-50" />
-                      </div>
+                      <span className="font-bold text-blue-600">{inv.regNo || "-"}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-medium text-slate-500">{inv.startKms || 0} / {inv.endKms || 0} / {inv.rangeKms || 0}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-bold text-orange-600">{inv.oilGaugeLimit || 0}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-medium text-slate-600">{inv.locationId?.name || "-"}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-medium text-slate-600">{inv.employeeId?.name || "-"}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-medium text-slate-600">{inv.paymentTerms || "-"}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-medium text-slate-500 truncate max-w-[150px] inline-block" title={inv.notes || "-"}>{inv.notes || "-"}</span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <span className="text-sm font-black text-slate-900 dark:text-white">{(inv.totalAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                      <span className="font-black text-slate-900">{(inv.totalAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                     </td>
-
                     <td className="px-6 py-4 text-right">
-                      <span className={`text-sm font-black ${(inv.balance || 0) > 0 ? "text-rose-600" : "text-emerald-600"}`}>
-                        {(inv.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      <span className={`font-black ${((inv.totalAmount || 0) - (inv.amountReceived || 0)) > 0 ? "text-rose-600" : "text-emerald-600"}`}>
+                        {((inv.totalAmount || 0) - (inv.amountReceived || 0)).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
                         inv.status?.toLowerCase() === "paid" ? "bg-emerald-100 text-emerald-700" : 
                         inv.status?.toLowerCase() === "posted" ? "bg-blue-100 text-blue-700" : 
                         "bg-orange-100 text-orange-700"

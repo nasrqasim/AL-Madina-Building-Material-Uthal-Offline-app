@@ -92,27 +92,33 @@ export default function SaleInvoiceDetails({ invoice, onClose, onEdit }: SaleInv
               <p className="text-sm font-bold text-slate-900 dark:text-white">{invoice.partyId?.companyName || invoice.partyId?.name || invoice.customer}</p>
             </div>
             <div className="space-y-1">
-              <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Linked Reference</p>
-              <div className="flex items-center gap-1 text-sm font-bold text-maroon-800">
-                {invoice.reference || invoice.linkedRef || "N/A"} <Link2 size={14} />
-              </div>
+              <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Terms</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white">{invoice.paymentTerms || "Cash"}</p>
             </div>
             <div className="space-y-1">
-              <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Payment Method</p>
-              <p className="text-sm font-bold text-slate-900 dark:text-white">Credit (30 Days)</p>
+              <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Vehicle No</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white">{invoice.regNo || "-"}</p>
             </div>
             <div className="space-y-1">
-              <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Currency</p>
-              <p className="text-sm font-bold text-slate-900 dark:text-white">PKR - Pakistani Rupee</p>
+              <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">KMs (S/E/R)</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white">{invoice.startKms || 0} / {invoice.endKms || 0} / {invoice.rangeKms || 0}</p>
             </div>
 
             <div className="space-y-1">
-              <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Shipping Address</p>
-              <p className="text-sm font-bold text-slate-900 dark:text-white line-clamp-1">Industrial Area, Karachi</p>
+              <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Location</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white">{invoice.locationId?.name || "-"}</p>
             </div>
             <div className="space-y-1">
               <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Sales Person</p>
-              <p className="text-sm font-bold text-slate-900 dark:text-white">{invoice.employeeId?.name || "N/A"}</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white">{invoice.employeeId?.name || "-"}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Oil Gauge Limit</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white">{invoice.oilGaugeLimit || 0}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Remarks</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white">{invoice.notes || "-"}</p>
             </div>
           </div>
         </section>
@@ -128,23 +134,23 @@ export default function SaleInvoiceDetails({ invoice, onClose, onEdit }: SaleInv
                 <tr>
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-12 text-center">#</th>
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest min-w-[200px]">Description</th>
-                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Qty</th>
-                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Unit Price</th>
-                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Disc</th>
-                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Tax %</th>
-                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-right">Total</th>
+                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Cartons</th>
+                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Rate</th>
+                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Gross Amt</th>
+                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Disc %</th>
+                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-right">Net Amount</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50 font-bold">
                 {items.map((item: any, index: number) => (
                   <tr key={item.id || index} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors">
                     <td className="px-8 py-6 text-xs font-bold text-slate-400 dark:text-slate-500 text-center">{index + 1}</td>
-                    <td className="px-8 py-6 text-sm text-slate-600 dark:text-slate-300 font-bold">{item.description || item.itemName}</td>
-                    <td className="px-8 py-6 text-sm text-slate-900 dark:text-white text-center">{item.qty}</td>
-                    <td className="px-8 py-6 text-sm text-slate-900 dark:text-white text-center">{(item.unitPrice || item.rate || 0).toLocaleString()}</td>
-                    <td className="px-8 py-6 text-sm text-rose-600 text-center">{item.discPercent || item.discountPercent || 0}%</td>
-                    <td className="px-8 py-6 text-sm text-slate-900 dark:text-white text-center">{item.taxPercent || 0}%</td>
-                    <td className="px-8 py-6 text-sm font-black text-slate-900 dark:text-white text-right">{(item.total || item.netAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                    <td className="px-8 py-6 text-sm text-slate-600 dark:text-slate-300 font-bold">{item.description || item.itemId?.name || item.itemName}</td>
+                    <td className="px-8 py-6 text-sm text-slate-900 dark:text-white text-center">{item.cartons || item.qty || 0}</td>
+                    <td className="px-8 py-6 text-sm text-slate-900 dark:text-white text-center">{(item.rate || item.unitPrice || 0).toLocaleString()}</td>
+                    <td className="px-8 py-6 text-sm text-slate-900 dark:text-white text-center">{(item.grossAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                    <td className="px-8 py-6 text-sm text-rose-600 text-center">{item.discountPercent || item.discPercent || 0}%</td>
+                    <td className="px-8 py-6 text-sm font-black text-slate-900 dark:text-white text-right">{(item.netAmount || item.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                   </tr>
                 ))}
               </tbody>

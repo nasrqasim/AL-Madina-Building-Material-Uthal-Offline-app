@@ -164,39 +164,59 @@ export default function SaleReturnPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-800/50/50 border-b border-slate-100 dark:border-slate-800">
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Return #</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Date</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Customer</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Invoice Ref</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest text-right">Amount (PKR)</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Status</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center w-20">Actions</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Return #</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Customer</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Vehicle No</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">KMs (S/E/R)</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Oil Limit</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Location</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Employee</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Remarks</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Amount</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center w-20">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {isLoading ? (
-                <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400 font-bold">Loading...</td></tr>
+                <tr><td colSpan={12} className="px-6 py-12 text-center text-slate-400 font-bold">Loading...</td></tr>
               ) : filteredReturns.length > 0 ? (
                 filteredReturns.map((ret) => (
-                  <tr key={ret._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors group">
+                  <tr key={ret._id} className="hover:bg-slate-50 transition-colors group text-[11px]">
                     <td className="px-6 py-4">
-                      <span className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-maroon-800 transition-colors">{ret.invoiceNo || ret.returnNo}</span>
+                      <span className="font-bold text-slate-900 group-hover:text-maroon-800 transition-colors">{ret.invoiceNo || ret.returnNo}</span>
+                      {ret.reference && <span className="block text-[9px] text-maroon-600 mt-1">Ref: {ret.reference}</span>}
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-sm font-bold text-slate-600 dark:text-slate-300">{ret.date ? ret.date.split('T')[0] : "-"}</span>
+                      <span className="font-bold text-slate-600">{ret.date ? new Date(ret.date).toLocaleDateString() : "-"}</span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{ret.partyId?.companyName || ret.partyId?.name || ret.customer}</span>
+                      <span className="font-bold text-slate-700">{ret.partyId?.companyName || ret.partyId?.name || ret.customer}</span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-xs font-bold text-maroon-800 bg-maroon-50 px-2 py-0.5 rounded">{ret.reference || ret.invoiceRef}</span>
+                      <span className="font-bold text-blue-600">{ret.regNo || "-"}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-medium text-slate-500">{ret.startKms || 0} / {ret.endKms || 0} / {ret.rangeKms || 0}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-bold text-orange-600">{ret.oilGaugeLimit || 0}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-medium text-slate-600">{ret.locationId?.name || "-"}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-medium text-slate-600">{ret.employeeId?.name || "-"}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-medium text-slate-500 truncate max-w-[150px] inline-block" title={ret.notes || "-"}>{ret.notes || "-"}</span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <span className="text-sm font-black text-slate-900 dark:text-white">{(ret.totalAmount || ret.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                      <span className="font-black text-slate-900">{(ret.totalAmount || ret.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                     </td>
-
                     <td className="px-6 py-4 text-center">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
                         ret.status?.toLowerCase() === "posted" ? "bg-emerald-100 text-emerald-700" : "bg-orange-100 text-orange-700"
                       }`}>
                         {ret.status}
