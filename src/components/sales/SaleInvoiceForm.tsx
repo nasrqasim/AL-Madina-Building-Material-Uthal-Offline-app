@@ -471,7 +471,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                 <div className="space-y-1"><div className="text-[10px] font-black text-slate-400 uppercase">Selling Price PKR</div><div className="text-xl font-black text-blue-700 font-mono">{(selectedItemDetails?.retailRate || 0).toFixed(2)}</div></div>
                 <div className="space-y-1"><div className="text-[10px] font-black text-slate-400 uppercase">Balance Stock</div><div className="text-xl font-black text-emerald-600 font-mono">{selectedItemDetails?.stock || 0} <span className="text-xs font-bold text-slate-500">Pcs</span></div></div>
                 <div className="space-y-1"><div className="text-[10px] font-black text-slate-400 uppercase">Category</div><div className="text-xs font-bold">{selectedItemDetails?.category || "N/A"}</div></div>
-                <div className="space-y-1"><div className="text-[10px] font-black text-slate-400 uppercase">Description</div><div className="text-xs font-medium text-slate-600 italic">"{selectedItemDetails?.name || "Select item"}"</div></div>
+                <div className="space-y-1"><div className="text-[10px] font-black text-slate-400 uppercase">Description</div><div className="text-xs font-medium text-slate-600 italic">&quot;{selectedItemDetails?.name || "Select item"}&quot;</div></div>
                 <div className="pt-4 border-t border-slate-200"><div className="text-[10px] font-black text-slate-400 uppercase mb-2 flex items-center gap-1"><History size={12}/> Recent History</div><div className="text-[10px] text-slate-400 italic text-center py-4 border border-dashed rounded">No history found.</div></div>
              </div>
           </div>
