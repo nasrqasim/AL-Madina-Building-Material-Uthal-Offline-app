@@ -180,44 +180,65 @@ export default function CustomersPage() {
         <ERPStatCard label="Total Outstanding" value={`Rs. ${(customers.reduce((acc, c) => acc + (c.balance > 0 ? c.balance : 0), 0) / 1000000).toFixed(1)}M`} icon={Wallet} variant="maroon" />
       </div>
 
+      {/* Search & Add Section */}
+      <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mb-8">
+        <div className="p-6 bg-white dark:bg-slate-900 flex flex-col md:flex-row gap-4 items-center justify-between">
+          <div className="relative flex-1 max-w-xl">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={18} />
+            <input 
+              type="text" 
+              placeholder="Search by customer name, contact person, NTN, phone..." 
+              className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 outline-none transition-all dark:text-white"
+            />
+          </div>
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={handleAdd}
+              className="flex items-center gap-2 px-8 py-3 bg-maroon-800 text-white rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-maroon-900 transition-all shadow-lg shadow-maroon-800/20"
+            >
+              <Plus size={18} />
+              New Customer
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Separate Tables for each Category */}
       <div className="space-y-12">
         {categories.map(cat => {
           const catCustomers = customers.filter(c => (c.category || "Short term") === cat);
-          if (catCustomers.length === 0) return null;
 
           return (
             <div key={cat} className="space-y-4">
               <div className="flex items-center gap-4 px-6">
-                <div className="h-px flex-1 bg-slate-200 dark:border-slate-800"></div>
-                <h2 className="text-sm font-black uppercase tracking-[0.3em] text-maroon-800 bg-maroon-50 px-6 py-2 rounded-full shadow-sm">
+                <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800"></div>
+                <h2 className="text-sm font-black uppercase tracking-[0.3em] text-maroon-800 bg-maroon-50 dark:bg-maroon-900/30 dark:text-maroon-400 px-6 py-2 rounded-full shadow-sm">
                   {cat} Customers
                 </h2>
-                <div className="h-px flex-1 bg-slate-200 dark:border-slate-800"></div>
+                <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800"></div>
               </div>
 
-              <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-all hover:shadow-xl hover:shadow-maroon-900/5">
-                <ERPDataTable 
-                  columns={columns} 
-                  data={catCustomers} 
-                  actions={[
-                    { label: "Edit", onClick: handleEdit, icon: Edit2 },
-                    { label: "View Ledger", onClick: () => {}, icon: FileText },
-                    { label: "Receive Payment", onClick: (row: any) => { setActiveCustomer(row); setIsReceiptModalOpen(true); }, icon: Wallet },
-                    { label: "Delete", onClick: (row: any) => handleDelete(row._id), icon: Trash2, variant: "danger" },
-                  ]}
-                />
+              <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-all hover:shadow-xl hover:shadow-maroon-900/5 min-h-[100px]">
+                {catCustomers.length > 0 ? (
+                  <ERPDataTable 
+                    columns={columns} 
+                    data={catCustomers} 
+                    actions={[
+                      { label: "Edit", onClick: handleEdit, icon: Edit2 },
+                      { label: "View Ledger", onClick: () => {}, icon: FileText },
+                      { label: "Receive Payment", onClick: (row: any) => { setActiveCustomer(row); setIsReceiptModalOpen(true); }, icon: Wallet },
+                      { label: "Delete", onClick: (row: any) => handleDelete(row._id), icon: Trash2, variant: "danger" },
+                    ]}
+                  />
+                ) : (
+                  <div className="py-12 text-center">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest italic">No customers in this category</p>
+                  </div>
+                )}
               </div>
             </div>
           );
         })}
-
-        {/* Show a message if no customers exist in any category */}
-        {customers.length === 0 && !isLoading && (
-          <div className="text-center py-20 bg-slate-50 dark:bg-slate-800/50 rounded-[3rem] border-2 border-dashed border-slate-200 dark:border-slate-800">
-            <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">No customers found</p>
-          </div>
-        )}
       </div>
 
       <CustomerModal 
