@@ -15,10 +15,10 @@ export async function POST(req: Request) {
     console.log("Creating item with body:", body);
     
     // Sanitize ObjectIds
-    if (body.mainCategoryId && !mongoose.Types.ObjectId.isValid(body.mainCategoryId)) {
+    if (body.mainCategoryId === "" || (body.mainCategoryId && !mongoose.Types.ObjectId.isValid(body.mainCategoryId))) {
       delete body.mainCategoryId;
     }
-    if (body.subCategoryId && !mongoose.Types.ObjectId.isValid(body.subCategoryId)) {
+    if (body.subCategoryId === "" || (body.subCategoryId && !mongoose.Types.ObjectId.isValid(body.subCategoryId))) {
       delete body.subCategoryId;
     }
 

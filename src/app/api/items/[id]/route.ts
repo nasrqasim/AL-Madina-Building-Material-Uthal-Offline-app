@@ -19,10 +19,10 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     const body = await req.json();
 
     // Sanitize ObjectIds
-    if (body.mainCategoryId && !mongoose.Types.ObjectId.isValid(body.mainCategoryId)) {
+    if (body.mainCategoryId === "" || (body.mainCategoryId && !mongoose.Types.ObjectId.isValid(body.mainCategoryId))) {
       delete body.mainCategoryId;
     }
-    if (body.subCategoryId && !mongoose.Types.ObjectId.isValid(body.subCategoryId)) {
+    if (body.subCategoryId === "" || (body.subCategoryId && !mongoose.Types.ObjectId.isValid(body.subCategoryId))) {
       delete body.subCategoryId;
     }
 
