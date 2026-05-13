@@ -19,6 +19,7 @@ export interface IParty extends mongoose.Document {
   creditLimit: number;
   creditDays?: number;
   openingBalance: number;
+  category?: "Urgent/COD" | "Short term" | "Long term";
   status?: string;
   notes?: string;
 }
