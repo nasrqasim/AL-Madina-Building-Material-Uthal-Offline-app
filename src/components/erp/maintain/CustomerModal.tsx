@@ -13,9 +13,8 @@ interface CustomerModalProps {
 
 export default function CustomerModal({ isOpen, onClose, customer, onSave }: CustomerModalProps) {
   const [formData, setFormData] = useState({
-    companyName: "",
+    name: "",
     contactPerson: "",
-    email: "",
     phone: "",
     ntn: "",
     strn: "",
@@ -24,6 +23,7 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
     area: "",
     postalCode: "",
     country: "Pakistan",
+    category: "Short term",
     creditLimit: 0,
     creditDays: 30,
     openingBalance: 0,
@@ -34,9 +34,8 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
   useEffect(() => {
     if (customer) {
       setFormData({
-        companyName: customer.companyName || "",
+        name: customer.companyName || customer.name || "",
         contactPerson: customer.contactPerson || "",
-        email: customer.email || "",
         phone: customer.phone || "",
         ntn: customer.ntn || "",
         strn: customer.strn || "",
@@ -45,6 +44,7 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
         area: customer.area || "",
         postalCode: customer.postalCode || "",
         country: customer.country || "Pakistan",
+        category: customer.category || "Short term",
         creditLimit: customer.creditLimit || 0,
         creditDays: customer.creditDays || 30,
         openingBalance: customer.openingBalance || 0,
@@ -53,9 +53,8 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
       });
     } else {
       setFormData({
-        companyName: "",
+        name: "",
         contactPerson: "",
-        email: "",
         phone: "",
         ntn: "",
         strn: "",
@@ -64,6 +63,7 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
         area: "",
         postalCode: "",
         country: "Pakistan",
+        category: "Short term",
         creditLimit: 0,
         creditDays: 30,
         openingBalance: 0,
@@ -110,14 +110,14 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-2">
-              <Building size={14} className="text-maroon-800" /> Company Name *
+              <User size={14} className="text-maroon-800" /> Customer Name *
             </label>
             <input
               type="text"
-              value={formData.companyName}
-              onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
-              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 dark:bg-slate-900 focus:ring-4 focus:ring-maroon-800/5 outline-none transition-all dark:text-white"
-              placeholder="ABC Traders Pvt Ltd"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-maroon-800/5 outline-none transition-all dark:text-white"
+              placeholder="Full Name"
               required
             />
           </div>
@@ -139,15 +139,18 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-2">
-              <FileText size={14} className="text-maroon-800" /> Email
+              Category *
             </label>
-            <input
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 dark:bg-slate-900 focus:ring-4 focus:ring-maroon-800/5 outline-none transition-all dark:text-white"
-              placeholder="info@company.pk"
-            />
+            <select
+              value={formData.category}
+              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 outline-none transition-all dark:text-white"
+              required
+            >
+              <option value="Urgent/COD">Urgent/COD</option>
+              <option value="Short term">Short term</option>
+              <option value="Long term">Long term</option>
+            </select>
           </div>
           <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-2">
@@ -157,7 +160,7 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
               type="tel"
               value={formData.phone}
               onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 dark:bg-slate-900 focus:ring-4 focus:ring-maroon-800/5 outline-none transition-all dark:text-white"
+              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-maroon-800/5 outline-none transition-all dark:text-white"
               placeholder="+92 300 1234567"
               required
             />

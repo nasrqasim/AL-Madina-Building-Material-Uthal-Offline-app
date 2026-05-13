@@ -4,8 +4,8 @@ const ItemSchema = new Schema(
   {
     code: { type: String, required: true, unique: true },
     name: { type: String, required: true },
-    mainCategoryId: { type: Schema.Types.ObjectId, ref: "Category", required: true },
-    subCategoryId: { type: Schema.Types.ObjectId, ref: "Category", required: true },
+    mainCategoryId: { type: Schema.Types.ObjectId, ref: "Category", required: false },
+    subCategoryId: { type: Schema.Types.ObjectId, ref: "Category", required: false },
     litersInCtn: { type: Number, default: 0 },
     gallonsInCtn: { type: Number, default: 0 },
     purchaseRate: { type: Number, default: 0 },

@@ -43,6 +43,7 @@ const PartySchema = new Schema<IParty>(
     creditLimit: { type: Number, default: 0 },
     creditDays: { type: Number, default: 30 },
     openingBalance: { type: Number, default: 0 },
+    category: { type: String, enum: ["Urgent/COD", "Short term", "Long term"], default: "Short term" },
     status: { type: String, default: "Active" },
     notes: String,
   },

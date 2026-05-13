@@ -73,7 +73,8 @@ export default function CustomersPage() {
   const handleSave = async (data: any) => {
     const payload = {
       ...data,
-      name: data.companyName || data.contactPerson || "Unknown",
+      companyName: data.name, // Mapping for backward compatibility if needed
+      name: data.name || "Unknown",
       code: data.code || `CUST-${Date.now()}`,
       type: "Customer"
     };
@@ -102,24 +103,22 @@ export default function CustomersPage() {
 
   const columns = [
     { 
-      header: "Company Name", 
-      accessor: "companyName",
+      header: "Customer Name", 
+      accessor: "name",
       render: (val: string, row: any) => (
         <div className="flex flex-col">
           <span className="font-black text-slate-900 dark:text-white">{val}</span>
-          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500">NTN: {row.ntn}</span>
+          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500">NTN: {row.ntn || "-"}</span>
         </div>
       )
     },
+    { header: "Category", accessor: "category" },
     { header: "Contact Person", accessor: "contactPerson" },
     { 
-      header: "Phone / Email", 
+      header: "Phone", 
       accessor: "phone",
-      render: (val: string, row: any) => (
-        <div className="flex flex-col">
-          <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{val}</span>
-          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500">{row.email}</span>
-        </div>
+      render: (val: string) => (
+        <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{val}</span>
       )
     },
     { 
@@ -135,15 +134,14 @@ export default function CustomersPage() {
     { 
       header: "Udhaar (Balance)", 
       accessor: "balance", 
-      render: (val: number) => (
+      render: (val: number, row: any) => (
         <div className="flex flex-col">
-          <div className="flex items-center gap-1.5 px-3 py-1 bg-maroon-50 text-maroon-800 rounded-lg w-fit mb-1">
-            <Wallet size={12} />
-            <span className="text-[10px] font-black tracking-tighter">11201001</span>
-          </div>
-          <span className={`text-sm font-black ${val > 0 ? "text-red-600" : "text-emerald-600"}`}>
+          <span className={`text-sm font-black ${val > (row.creditLimit || 0) ? "text-red-600 animate-pulse" : val > 0 ? "text-orange-600" : "text-emerald-600"}`}>
             Rs.{val?.toLocaleString() || "0"}
           </span>
+          {val > (row.creditLimit || 0) && (
+            <span className="text-[8px] font-black text-red-600 uppercase tracking-tighter">Over Limit! (Max: {row.creditLimit?.toLocaleString()})</span>
+          )}
         </div>
       )
     },
@@ -159,6 +157,8 @@ export default function CustomersPage() {
       )
     },
   ];
+
+  const categories = ["Urgent/COD", "Short term", "Long term"];
 
   return (
     <div className="space-y-6">
@@ -180,39 +180,44 @@ export default function CustomersPage() {
         <ERPStatCard label="Total Outstanding" value={`Rs. ${(customers.reduce((acc, c) => acc + (c.balance > 0 ? c.balance : 0), 0) / 1000000).toFixed(1)}M`} icon={Wallet} variant="maroon" />
       </div>
 
-      {/* Main Content Area */}
-      <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-        {/* Search Bar matching image */}
-        <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col md:flex-row gap-4 items-center justify-between">
-          <div className="relative flex-1 max-w-xl">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500" size={18} />
-            <input 
-              type="text" 
-              placeholder="Search by company name, contact person, NTN, phone..." 
-              className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 dark:bg-slate-900 dark:focus:bg-slate-900 dark:bg-slate-900 focus:ring-4 focus:ring-maroon-800/5 outline-none transition-all"
-            />
-          </div>
-          <div className="flex items-center gap-3">
-            <button 
-              onClick={handleAdd}
-              className="flex items-center gap-2 px-8 py-3 bg-maroon-800 text-white rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-maroon-900 transition-all shadow-lg shadow-maroon-800/20"
-            >
-              <Plus size={18} />
-              New Customer
-            </button>
-          </div>
-        </div>
+      {/* Separate Tables for each Category */}
+      <div className="space-y-12">
+        {categories.map(cat => {
+          const catCustomers = customers.filter(c => (c.category || "Short term") === cat);
+          if (catCustomers.length === 0) return null;
 
-        <ERPDataTable 
-          columns={columns} 
-          data={customers} 
-          actions={[
-            { label: "Edit", onClick: handleEdit, icon: Edit2 },
-            { label: "View Ledger", onClick: () => {}, icon: FileText },
-            { label: "Receive Payment", onClick: (row: any) => { setActiveCustomer(row); setIsReceiptModalOpen(true); }, icon: Wallet },
-            { label: "Delete", onClick: (row: any) => handleDelete(row._id), icon: Trash2, variant: "danger" },
-          ]}
-        />
+          return (
+            <div key={cat} className="space-y-4">
+              <div className="flex items-center gap-4 px-6">
+                <div className="h-px flex-1 bg-slate-200 dark:border-slate-800"></div>
+                <h2 className="text-sm font-black uppercase tracking-[0.3em] text-maroon-800 bg-maroon-50 px-6 py-2 rounded-full shadow-sm">
+                  {cat} Customers
+                </h2>
+                <div className="h-px flex-1 bg-slate-200 dark:border-slate-800"></div>
+              </div>
+
+              <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-all hover:shadow-xl hover:shadow-maroon-900/5">
+                <ERPDataTable 
+                  columns={columns} 
+                  data={catCustomers} 
+                  actions={[
+                    { label: "Edit", onClick: handleEdit, icon: Edit2 },
+                    { label: "View Ledger", onClick: () => {}, icon: FileText },
+                    { label: "Receive Payment", onClick: (row: any) => { setActiveCustomer(row); setIsReceiptModalOpen(true); }, icon: Wallet },
+                    { label: "Delete", onClick: (row: any) => handleDelete(row._id), icon: Trash2, variant: "danger" },
+                  ]}
+                />
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Show a message if no customers exist in any category */}
+        {customers.length === 0 && !isLoading && (
+          <div className="text-center py-20 bg-slate-50 dark:bg-slate-800/50 rounded-[3rem] border-2 border-dashed border-slate-200 dark:border-slate-800">
+            <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">No customers found</p>
+          </div>
+        )}
       </div>
 
       <CustomerModal 
