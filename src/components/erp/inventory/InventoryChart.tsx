@@ -59,8 +59,8 @@ export default function InventoryChart() {
       const catData = await catRes.json();
       const itemData = await itemRes.json();
       
-      if (catData.success) setCategories(catData.data);
-      if (itemData.success) setItems(itemData.data);
+      if (catData.ok) setCategories(catData.data);
+      if (itemData.ok) setItems(itemData.data);
     } catch (e) {
       console.error(e);
     } finally {

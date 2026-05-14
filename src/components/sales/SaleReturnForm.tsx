@@ -372,8 +372,8 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
                 </div>
                 <div className="grid grid-cols-2 gap-2 pt-2">
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2"><label className="text-[10px] font-black w-20">Start KMs</label><input type="number" value={formData.startKms} onChange={e => setFormData({...formData, startKms: Number(e.target.value)})} className="flex-1 border border-[#cbd5e1] rounded px-2 py-1 text-xs" /></div>
-                    <div className="flex items-center gap-2"><label className="text-[10px] font-black w-20">End KMs</label><input type="number" value={formData.endKms} onChange={e => setFormData({...formData, endKms: Number(e.target.value)})} className="flex-1 border border-[#cbd5e1] rounded px-2 py-1 text-xs" /></div>
+                    <div className="flex items-center gap-2"><label className="text-[10px] font-black w-20">Start KMs</label><input type="number" value={formData.startKms} onChange={e => { const v = Number(e.target.value); setFormData({...formData, startKms: v, rangeKms: Math.max(0, formData.endKms - v)}); }} className="flex-1 border border-[#cbd5e1] rounded px-2 py-1 text-xs" /></div>
+                    <div className="flex items-center gap-2"><label className="text-[10px] font-black w-20">End KMs</label><input type="number" value={formData.endKms} onChange={e => { const v = Number(e.target.value); setFormData({...formData, endKms: v, rangeKms: Math.max(0, v - formData.startKms)}); }} className="flex-1 border border-[#cbd5e1] rounded px-2 py-1 text-xs" /></div>
                   </div>
                   <div className="flex flex-col justify-end">
                     <div className="text-[10px] font-black text-slate-400 mb-1">Income Account</div>
