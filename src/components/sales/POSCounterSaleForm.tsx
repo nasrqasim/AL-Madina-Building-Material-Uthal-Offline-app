@@ -23,7 +23,9 @@ interface POSItem {
   id: string;
   name: string;
   price: number;
-  qty: number;
+  cartons: number;
+  gallons: number;
+  liters: number;
   total: number;
 }
 
@@ -78,9 +80,10 @@ export default function POSCounterSaleForm({ onClose }: POSCounterSaleFormProps)
         return {
           itemId: item.id,
           description: item.name,
-          qty: item.qty,
-          liters: (originalItem?.litersInCtn || 0) * item.qty,
-          gallons: (originalItem?.gallonsInCtn || 0) * item.qty,
+          cartons: item.cartons,
+          gallons: item.gallons,
+          liters: item.liters,
+          qty: item.cartons,
           rate: item.price,
           discountPercent: 0
         };
@@ -120,12 +123,13 @@ export default function POSCounterSaleForm({ onClose }: POSCounterSaleFormProps)
     const stockAvailable = product.stockQtyCartons || 0;
     
     if (existing) {
-      if (existing.qty + 1 > stockAvailable) {
+      const newCartons = existing.cartons + 1;
+      if (newCartons > stockAvailable) {
         return alert(`Insufficient Stock! Only ${stockAvailable} in stock.`);
       }
       setCart(cart.map(item => 
         item.id === product._id 
-          ? { ...item, qty: item.qty + 1, total: (item.qty + 1) * item.price } 
+          ? { ...item, cartons: newCartons, gallons: newCartons * 4, liters: newCartons * 16, total: newCartons * item.price } 
           : item
       ));
     } else {
@@ -133,23 +137,37 @@ export default function POSCounterSaleForm({ onClose }: POSCounterSaleFormProps)
         return alert("Item out of stock!");
       }
       const price = product.retailRate || product.wholesaleRate || 0;
-      setCart([...cart, { id: product._id, name: product.name, price: price, qty: 1, total: price }]);
+      setCart([...cart, { id: product._id, name: product.name, price: price, cartons: 1, gallons: 4, liters: 16, total: price }]);
     }
   };
 
-  const updateQty = (id: string, delta: number) => {
+  const updateItem = (id: string, field: "cartons" | "gallons" | "liters", value: number) => {
     const product = availableItems.find(p => p._id === id);
     const stockAvailable = product?.stockQtyCartons || 0;
 
     setCart(cart.map(item => {
       if (item.id === id) {
-        const newQty = item.qty + delta;
-        if (newQty > stockAvailable) {
+        let updated = { ...item, [field]: value };
+
+        if (field === "cartons") {
+          updated.gallons = value * 4;
+          updated.liters = value * 16;
+        } else if (field === "gallons") {
+          updated.cartons = value / 4;
+          updated.liters = value * 4;
+        } else if (field === "liters") {
+          updated.cartons = value / 16;
+          updated.gallons = value / 4;
+        }
+
+        if (updated.cartons > stockAvailable) {
           alert(`Insufficient Stock! Only ${stockAvailable} in stock.`);
           return item;
         }
-        if (newQty < 1) return item;
-        return { ...item, qty: newQty, total: newQty * item.price };
+        if (updated.cartons < 0) return item;
+        
+        updated.total = updated.cartons * item.price;
+        return updated;
       }
       return item;
     }));
@@ -256,14 +274,46 @@ export default function POSCounterSaleForm({ onClose }: POSCounterSaleFormProps)
                 >
                   <X size={12} />
                 </button>
-                <h4 className="text-xs font-black text-slate-900 dark:text-white leading-tight">{item.name}</h4>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-1">
-                    <button onClick={() => updateQty(item.id, -1)} className="w-6 h-6 flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 rounded-lg text-slate-400 dark:text-slate-500">-</button>
-                    <span className="w-8 text-center text-xs font-black">{item.qty}</span>
-                    <button onClick={() => updateQty(item.id, 1)} className="w-6 h-6 flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 rounded-lg text-slate-400 dark:text-slate-500">+</button>
+                <div className="flex justify-between items-start gap-2">
+                  <h4 className="text-xs font-black text-slate-900 dark:text-white leading-tight flex-1">{item.name}</h4>
+                  <span className="text-xs font-black text-slate-900 dark:text-white">Rs.{item.total.toLocaleString()}</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="flex flex-col items-center p-1 bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-800">
+                    <span className="text-[8px] font-black text-slate-400 uppercase">Ctns</span>
+                    <input 
+                      type="number" 
+                      value={item.cartons} 
+                      onChange={(e) => updateItem(item.id, "cartons", parseFloat(e.target.value) || 0)}
+                      className="w-full text-[10px] font-black text-center bg-transparent focus:outline-none"
+                    />
                   </div>
-                  <span className="text-sm font-black text-slate-900 dark:text-white">Rs.{item.total.toLocaleString()}</span>
+                  <div className="flex flex-col items-center p-1 bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-800">
+                    <span className="text-[8px] font-black text-slate-400 uppercase">Gals</span>
+                    <input 
+                      type="number" 
+                      value={item.gallons} 
+                      onChange={(e) => updateItem(item.id, "gallons", parseFloat(e.target.value) || 0)}
+                      className="w-full text-[10px] font-black text-center bg-transparent focus:outline-none"
+                    />
+                  </div>
+                  <div className="flex flex-col items-center p-1 bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-800">
+                    <span className="text-[8px] font-black text-slate-400 uppercase">Ltrs</span>
+                    <input 
+                      type="number" 
+                      value={item.liters} 
+                      onChange={(e) => updateItem(item.id, "liters", parseFloat(e.target.value) || 0)}
+                      className="w-full text-[10px] font-black text-center bg-transparent focus:outline-none"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pt-1">
+                  <div className="flex items-center gap-1 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-1">
+                    <button onClick={() => updateItem(item.id, "cartons", item.cartons - 1)} className="w-6 h-6 flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 rounded-lg text-slate-400 dark:text-slate-500">-</button>
+                    <span className="w-8 text-center text-xs font-black">{item.cartons}</span>
+                    <button onClick={() => updateItem(item.id, "cartons", item.cartons + 1)} className="w-6 h-6 flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 rounded-lg text-slate-400 dark:text-slate-500">+</button>
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-400">@ {item.price}/Ctn</span>
                 </div>
               </div>
             ))

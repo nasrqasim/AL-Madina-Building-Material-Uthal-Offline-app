@@ -19,9 +19,14 @@ import {
 interface GRNItem {
   id: string;
   itemId: string;
+  itemCode?: string;
   description: string;
-  ordered: number;
-  received: number;
+  orderedCartons: number;
+  orderedGallons: number;
+  orderedLiters: number;
+  receivedCartons: number;
+  receivedGallons: number;
+  receivedLiters: number;
   unitCost: number;
   total: number;
 }
@@ -33,8 +38,21 @@ interface GoodsReceiptFormProps {
 }
 
 export default function GoodsReceiptForm({ onClose, onSave, initialData }: GoodsReceiptFormProps) {
-  const [items, setItems] = useState<GRNItem[]>(initialData?.items || [
-    { id: "1", itemId: "", description: "", ordered: 0, received: 0, unitCost: 0, total: 0 }
+  const [items, setItems] = useState<GRNItem[]>(initialData?.lines?.map((l: any, i: number) => ({
+    id: i.toString(),
+    itemId: l.itemId?._id || l.itemId || "",
+    itemCode: l.itemId?.code || "",
+    description: l.description || "",
+    orderedCartons: l.orderedCartons || 0,
+    orderedGallons: l.orderedGallons || 0,
+    orderedLiters: l.orderedLiters || 0,
+    receivedCartons: l.cartons || l.qty || 0,
+    receivedGallons: l.gallons || 0,
+    receivedLiters: l.liters || 0,
+    unitCost: l.rate || 0,
+    total: l.netAmount || 0
+  })) || [
+    { id: "1", itemId: "", itemCode: "", description: "", orderedCartons: 0, orderedGallons: 0, orderedLiters: 0, receivedCartons: 1, receivedGallons: 4, receivedLiters: 16, unitCost: 0, total: 0 }
   ]);
   
   const [formData, setFormData] = useState({
@@ -88,22 +106,76 @@ export default function GoodsReceiptForm({ onClose, onSave, initialData }: Goods
     fetchData();
   }, []);
 
-  const addItem = () => setItems([...items, { id: Date.now().toString(), itemId: "", description: "", ordered: 0, received: 0, unitCost: 0, total: 0 }]);
+  const addItem = () => setItems([...items, { id: Date.now().toString(), itemId: "", description: "", orderedCartons: 0, orderedGallons: 0, orderedLiters: 0, receivedCartons: 0, receivedGallons: 0, receivedLiters: 0, unitCost: 0, total: 0 }]);
   const removeItem = (id: string) => setItems(items.filter(i => i.id !== id));
   
+  const [showItemSearch, setShowItemSearch] = useState<string | null>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const handleItemKeyDown = (e: React.KeyboardEvent, lineId: string, filteredItems: any[]) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex(prev => (prev < filteredItems.length - 1 ? prev + 1 : prev));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex(prev => (prev > 0 ? prev - 1 : prev));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (filteredItems[activeIndex]) {
+        updateItem(lineId, "itemId", filteredItems[activeIndex]._id);
+        setShowItemSearch(null);
+      }
+    } else if (e.key === "Escape") {
+      setShowItemSearch(null);
+    }
+  };
+
   const updateItem = (id: string, field: keyof GRNItem, value: any) => {
     setItems(items.map(i => {
       if (i.id === id) {
-        const updated = { ...i, [field]: value };
-        updated.total = updated.received * updated.unitCost;
+        let updated = { ...i, [field]: value };
+
+        // Conversion for Received
+        if (field === "receivedCartons") {
+          updated.receivedGallons = value * 4;
+          updated.receivedLiters = value * 16;
+        } else if (field === "receivedGallons") {
+          updated.receivedCartons = value / 4;
+          updated.receivedLiters = value * 4;
+        } else if (field === "receivedLiters") {
+          updated.receivedCartons = value / 16;
+          updated.receivedGallons = value / 4;
+        }
+
+        // Conversion for Ordered
+        if (field === "orderedCartons") {
+          updated.orderedGallons = value * 4;
+          updated.orderedLiters = value * 16;
+        } else if (field === "orderedGallons") {
+          updated.orderedCartons = value / 4;
+          updated.orderedLiters = value * 4;
+        } else if (field === "orderedLiters") {
+          updated.orderedCartons = value / 16;
+          updated.orderedGallons = value / 4;
+        }
+
+        if (field === "itemId") {
+          const selected = availableItems.find(ai => ai._id === value);
+          if (selected) {
+            updated.itemCode = selected.code;
+            updated.description = selected.name;
+            updated.unitCost = selected.purchaseRate || 0;
+          }
+        }
+        updated.total = (Number(updated.receivedCartons) || 0) * (updated.unitCost || 0);
         return updated;
       }
       return i;
     }));
   };
 
-  const totalReceived = items.reduce((sum, i) => sum + i.received, 0);
-  const totalAmount = items.reduce((sum, i) => sum + i.total, 0);
+  const totalReceivedCtns = items.reduce((sum, i) => sum + (Number(i.receivedCartons) || 0), 0);
+  const totalAmount = items.reduce((sum, i) => sum + (Number(i.total) || 0), 0);
 
   const handleSave = async (status: "Draft" | "Received") => {
     const isEdit = initialData && initialData._id;
@@ -116,7 +188,13 @@ export default function GoodsReceiptForm({ onClose, onSave, initialData }: Goods
       lines: items.map(i => ({
         itemId: i.itemId,
         description: i.description,
-        qty: i.received,
+        cartons: i.receivedCartons,
+        gallons: i.receivedGallons,
+        liters: i.receivedLiters,
+        orderedCartons: i.orderedCartons,
+        orderedGallons: i.orderedGallons,
+        orderedLiters: i.orderedLiters,
+        qty: i.receivedCartons,
         rate: i.unitCost,
         netAmount: i.total
       })),
@@ -268,37 +346,96 @@ export default function GoodsReceiptForm({ onClose, onSave, initialData }: Goods
               <thead className="bg-slate-50 dark:bg-slate-800/50/50 border-b border-slate-100 dark:border-slate-800">
                 <tr>
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-12 text-center">#</th>
-                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest min-w-[200px]">Item</th>
-                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Description</th>
-                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-20 text-center">Ordered</th>
-                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-20 text-center">Received</th>
-                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-28 text-center">Unit Cost</th>
+                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-40">Item Code</th>
+                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest min-w-[200px]">Description</th>
+                  <th className="px-2 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-20 text-center">Ord (Ctn)</th>
+                  <th className="px-2 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-20 text-center">Rec (Ctn)</th>
+                  <th className="px-2 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-20 text-center">Rec (Gal)</th>
+                  <th className="px-2 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-20 text-center">Rec (Ltr)</th>
+                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-32 text-center">Unit Cost</th>
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-32 text-right">Total</th>
                   <th className="px-8 py-4 w-12 text-center"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50 font-bold">
-                {items.map((item, index) => (
+                {items.map((item, index) => {
+                  const query = (item.itemCode || "").toLowerCase();
+                  const filteredItems = availableItems.filter(i => 
+                    i.code.toLowerCase().includes(query) || i.name.toLowerCase().includes(query)
+                  ).sort((a, b) => {
+                    const aStart = a.name.toLowerCase().startsWith(query) || a.code.toLowerCase().startsWith(query);
+                    const bStart = b.name.toLowerCase().startsWith(query) || b.code.toLowerCase().startsWith(query);
+                    if (aStart && !bStart) return -1;
+                    if (!aStart && bStart) return 1;
+                    return 0;
+                  });
+
+                  return (
                   <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/30 transition-colors group">
                     <td className="px-8 py-4 text-xs font-bold text-slate-300 text-center">{index + 1}</td>
-                    <td className="px-8 py-4">
-                      <select value={item.itemId} onChange={(e) => updateItem(item.id, "itemId", e.target.value)} className="w-full bg-transparent text-sm font-bold focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all">
-                        <option value="">Select Item</option>
-                        {availableItems.map(ai => (
-                          <option key={ai._id} value={ai._id}>{ai.code} - {ai.name}</option>
-                        ))}
-                      </select>
+                    <td className="px-4 py-4 relative">
+                      <input 
+                        type="text" 
+                        value={item.itemCode} 
+                        placeholder="Search Item..."
+                        onChange={e => { updateItem(item.id, "itemCode", e.target.value); setShowItemSearch(item.id); setActiveIndex(0); }} 
+                        onFocus={() => { setShowItemSearch(item.id); setActiveIndex(0); }}
+                        onKeyDown={(e) => handleItemKeyDown(e, item.id, filteredItems)}
+                        className="w-full bg-transparent text-sm font-bold focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" 
+                      />
+                      {showItemSearch === item.id && (
+                        <div className="absolute top-full left-0 w-[450px] bg-slate-900 text-white border border-slate-700 rounded-xl shadow-2xl z-50 max-h-80 overflow-auto py-2">
+                          {filteredItems.map((i, idx) => (
+                            <div 
+                              key={i._id} 
+                              className={`px-4 py-3 cursor-pointer border-b border-slate-800 transition-all ${idx === activeIndex ? 'bg-maroon-800 text-white' : 'hover:bg-slate-800'}`}
+                              onClick={() => { updateItem(item.id, "itemId", i._id); setShowItemSearch(null); }}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
+                                <div className="flex-1">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="text-xs font-black uppercase tracking-widest text-slate-400">{i.code}</span>
+                                    <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-800 rounded text-slate-400">{i.category || "Lubricants"}</span>
+                                  </div>
+                                  <div className="text-sm font-black mb-2">{i.name}</div>
+                                  <div className="grid grid-cols-3 gap-2">
+                                    <div className="flex flex-col">
+                                      <span className="text-[8px] font-black uppercase text-slate-500">Cartons</span>
+                                      <span className="text-xs font-black text-emerald-400">{i.stockQtyCartons || 0}</span>
+                                    </div>
+                                    <div className="flex flex-col">
+                                      <span className="text-[8px] font-black uppercase text-slate-500">Gallons</span>
+                                      <span className="text-xs font-black text-blue-400">{(i.stockQtyCartons || 0) * 4}</span>
+                                    </div>
+                                    <div className="flex flex-col items-end">
+                                      <span className="text-[8px] font-black uppercase text-slate-500">Price</span>
+                                      <span className="text-xs font-black text-yellow-400">Rs. {i.purchaseRate || 0}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </td>
                     <td className="px-8 py-4">
                       <input placeholder="Description" value={item.description} onChange={(e) => updateItem(item.id, "description", e.target.value)} className="w-full bg-transparent text-sm font-medium focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" />
                     </td>
-                    <td className="px-8 py-4">
-                      <input type="number" value={item.ordered} onChange={(e) => updateItem(item.id, "ordered", parseFloat(e.target.value) || 0)} className="w-full bg-transparent text-sm font-black focus:outline-none text-center border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" />
+                    <td className="px-2 py-4 text-center">
+                      <input type="number" value={item.orderedCartons} onChange={(e) => updateItem(item.id, "orderedCartons", parseFloat(e.target.value) || 0)} className="w-full bg-transparent text-sm font-black focus:outline-none text-center border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" />
                     </td>
-                    <td className="px-8 py-4">
-                      <input type="number" value={item.received} onChange={(e) => updateItem(item.id, "received", parseFloat(e.target.value) || 0)} className="w-full bg-transparent text-sm font-black focus:outline-none text-center border-b border-transparent focus:border-maroon-800/30 py-2 transition-all text-emerald-600" />
+                    <td className="px-2 py-4 text-center">
+                      <input type="number" value={item.receivedCartons} onChange={(e) => updateItem(item.id, "receivedCartons", parseFloat(e.target.value) || 0)} className="w-full bg-transparent text-sm font-black focus:outline-none text-center border-b border-transparent focus:border-maroon-800/30 py-2 transition-all text-emerald-600 font-black" />
                     </td>
-                    <td className="px-8 py-4">
+                    <td className="px-2 py-4 text-center">
+                      <input type="number" value={item.receivedGallons} onChange={(e) => updateItem(item.id, "receivedGallons", parseFloat(e.target.value) || 0)} className="w-full bg-transparent text-sm font-black focus:outline-none text-center border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" />
+                    </td>
+                    <td className="px-2 py-4 text-center">
+                      <input type="number" value={item.receivedLiters} onChange={(e) => updateItem(item.id, "receivedLiters", parseFloat(e.target.value) || 0)} className="w-full bg-transparent text-sm font-black focus:outline-none text-center border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" />
+                    </td>
+                    <td className="px-8 py-4 text-center">
                       <input type="number" value={item.unitCost} onChange={(e) => updateItem(item.id, "unitCost", parseFloat(e.target.value) || 0)} className="w-full bg-transparent text-sm font-black focus:outline-none text-center border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" />
                     </td>
                     <td className="px-8 py-4 text-right">
@@ -310,7 +447,8 @@ export default function GoodsReceiptForm({ onClose, onSave, initialData }: Goods
                       </button>
                     </td>
                   </tr>
-                ))}
+                );
+                })}
               </tbody>
             </table>
           </div>
@@ -322,8 +460,8 @@ export default function GoodsReceiptForm({ onClose, onSave, initialData }: Goods
                 <span className="font-bold text-slate-900 dark:text-white">{items.length}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-[10px]">Total Received</span>
-                <span className="font-bold text-emerald-600 font-black">{totalReceived}</span>
+                <span className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-[10px]">Total Received (Ctns)</span>
+                <span className="font-bold text-emerald-600 font-black">{totalReceivedCtns}</span>
               </div>
               <div className="pt-6 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center">
                 <span className="text-xs font-black text-maroon-800 uppercase tracking-[0.2em]">Total Value (PKR)</span>

@@ -63,6 +63,7 @@ export const erpModules: ERPNavItem[] = [
       { title: "Vendors", href: "/maintain/vendors", roles: ["admin", "dataentry"] },
       { title: "Banks", href: "/maintain/banks", roles: ["admin", "dataentry"] },
       { title: "Items / Products", href: "/maintain/items", roles: ["admin", "dataentry"] },
+      { title: "Chart of Inventory", href: "/inventory/chart", roles: ["admin", "dataentry"] },
       { title: "Inventory Locations", href: "/maintain/locations", roles: ["admin", "dataentry"] },
       { title: "Employees", href: "/maintain/employees", roles: ["admin", "dataentry"] },
       { title: "Regions", href: "/maintain/regions", roles: ["admin", "dataentry"] },

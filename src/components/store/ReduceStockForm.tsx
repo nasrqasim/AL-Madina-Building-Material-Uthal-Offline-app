@@ -22,7 +22,10 @@ import {
 interface AdjustmentItem {
   id: string;
   itemId: string;
-  qty: number;
+  itemCode?: string;
+  cartons: number;
+  gallons: number;
+  liters: number;
   uom: string;
   unitValue: number;
   total: number;
@@ -39,13 +42,16 @@ export default function ReduceStockForm({ onClose, initialData }: ReduceStockFor
       return initialData.lines.map((l: any, i: number) => ({
         id: i.toString(),
         itemId: l.itemId?._id || l.itemId || "",
-        qty: l.qty || 1,
+        itemCode: l.itemId?.code || "",
+        cartons: l.cartons || l.qty || 0,
+        gallons: l.gallons || 0,
+        liters: l.liters || 0,
         uom: l.uom || "",
         unitValue: l.rate || 0,
         total: (l.qty || 0) * (l.rate || 0)
       }));
     }
-    return [{ id: "1", itemId: "", qty: 1, uom: "", unitValue: 0, total: 0 }];
+    return [{ id: "1", itemId: "", itemCode: "", cartons: 1, gallons: 4, liters: 16, uom: "", unitValue: 0, total: 0 }];
   });
   
   const [formData, setFormData] = useState({
@@ -87,7 +93,10 @@ export default function ReduceStockForm({ onClose, initialData }: ReduceStockFor
         lines: items.map(i => ({
           itemId: i.itemId || "000000000000000000000000",
           description: "Stock Reduction",
-          qty: i.qty,
+          cartons: i.cartons,
+          gallons: i.gallons,
+          liters: i.liters,
+          qty: i.cartons,
           uom: i.uom,
           rate: i.unitValue,
           netAmount: i.total
@@ -117,23 +126,56 @@ export default function ReduceStockForm({ onClose, initialData }: ReduceStockFor
     }
   };
 
-  const addItem = () => setItems([...items, { id: Date.now().toString(), itemId: "", qty: 1, uom: "", unitValue: 0, total: 0 }]);
+  const addItem = () => setItems([...items, { id: Date.now().toString(), itemId: "", cartons: 0, gallons: 0, liters: 0, uom: "", unitValue: 0, total: 0 }]);
   const removeItem = (id: string) => setItems(items.filter(i => i.id !== id));
   
+  const [showItemSearch, setShowItemSearch] = useState<string | null>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const handleItemKeyDown = (e: React.KeyboardEvent, lineId: string, filteredItems: any[]) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex(prev => (prev < filteredItems.length - 1 ? prev + 1 : prev));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex(prev => (prev > 0 ? prev - 1 : prev));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (filteredItems[activeIndex]) {
+        updateItem(lineId, "itemId", filteredItems[activeIndex]._id);
+        setShowItemSearch(null);
+      }
+    } else if (e.key === "Escape") {
+      setShowItemSearch(null);
+    }
+  };
+
   const updateItem = (id: string, field: keyof AdjustmentItem, value: any) => {
     setItems(items.map((i: AdjustmentItem) => {
       if (i.id === id) {
         let updated = { ...i, [field]: value };
         
+        if (field === "cartons") {
+          updated.gallons = value * 4;
+          updated.liters = value * 16;
+        } else if (field === "gallons") {
+          updated.cartons = value / 4;
+          updated.liters = value * 4;
+        } else if (field === "liters") {
+          updated.cartons = value / 16;
+          updated.gallons = value / 4;
+        }
+
         if (field === "itemId") {
           const selected = availableItems.find(ai => ai._id === value);
           if (selected) {
+            updated.itemCode = selected.code;
             updated.unitValue = selected.purchaseRate || 0;
             updated.uom = "Ctns";
           }
         }
 
-        updated.total = updated.qty * updated.unitValue;
+        updated.total = (Number(updated.cartons) || 0) * (updated.unitValue || 0);
         return updated;
       }
       return i;
@@ -221,35 +263,94 @@ export default function ReduceStockForm({ onClose, initialData }: ReduceStockFor
               <thead className="bg-slate-50 dark:bg-slate-800/50/50 border-b border-slate-100 dark:border-slate-800">
                 <tr>
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-12 text-center">#</th>
-                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest min-w-[300px]">Item Description</th>
+                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-40">Item Code</th>
+                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest min-w-[200px]">Description</th>
+                  <th className="px-2 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-20 text-center">Ctns</th>
+                  <th className="px-2 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-20 text-center">Gals</th>
+                  <th className="px-2 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-20 text-center">Ltrs</th>
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-32 text-center">UOM</th>
-                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-32 text-center">Qty</th>
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-32 text-right">Unit Value</th>
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-32 text-right">Subtotal</th>
                   <th className="px-8 py-4 w-12 text-center"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50 font-bold">
-                {items.map((item, index) => (
+                {items.map((item, index) => {
+                  const query = (item.itemCode || "").toLowerCase();
+                  const filteredItems = availableItems.filter(i => 
+                    i.code.toLowerCase().includes(query) || i.name.toLowerCase().includes(query)
+                  ).sort((a, b) => {
+                    const aStart = a.name.toLowerCase().startsWith(query) || a.code.toLowerCase().startsWith(query);
+                    const bStart = b.name.toLowerCase().startsWith(query) || b.code.toLowerCase().startsWith(query);
+                    if (aStart && !bStart) return -1;
+                    if (!aStart && bStart) return 1;
+                    return 0;
+                  });
+
+                  return (
                   <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/30 transition-colors group">
                     <td className="px-8 py-4 text-xs font-bold text-slate-300 text-center">{index + 1}</td>
+                    <td className="px-4 py-4 relative">
+                      <input 
+                        type="text" 
+                        value={item.itemCode} 
+                        placeholder="Search Item..."
+                        onChange={e => { updateItem(item.id, "itemCode", e.target.value); setShowItemSearch(item.id); setActiveIndex(0); }} 
+                        onFocus={() => { setShowItemSearch(item.id); setActiveIndex(0); }}
+                        onKeyDown={(e) => handleItemKeyDown(e, item.id, filteredItems)}
+                        className="w-full bg-transparent text-sm font-bold focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" 
+                      />
+                      {showItemSearch === item.id && (
+                        <div className="absolute top-full left-0 w-[450px] bg-slate-900 text-white border border-slate-700 rounded-xl shadow-2xl z-50 max-h-80 overflow-auto py-2">
+                          {filteredItems.map((i, idx) => (
+                            <div 
+                              key={i._id} 
+                              className={`px-4 py-3 cursor-pointer border-b border-slate-800 transition-all ${idx === activeIndex ? 'bg-maroon-800 text-white' : 'hover:bg-slate-800'}`}
+                              onClick={() => { updateItem(item.id, "itemId", i._id); setShowItemSearch(null); }}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
+                                <div className="flex-1">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="text-xs font-black uppercase tracking-widest text-slate-400">{i.code}</span>
+                                    <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-800 rounded text-slate-400">{i.category || "Lubricants"}</span>
+                                  </div>
+                                  <div className="text-sm font-black mb-2">{i.name}</div>
+                                  <div className="grid grid-cols-3 gap-2">
+                                    <div className="flex flex-col">
+                                      <span className="text-[8px] font-black uppercase text-slate-500">Cartons</span>
+                                      <span className="text-xs font-black text-emerald-400">{i.stockQtyCartons || 0}</span>
+                                    </div>
+                                    <div className="flex flex-col">
+                                      <span className="text-[8px] font-black uppercase text-slate-500">Gallons</span>
+                                      <span className="text-xs font-black text-blue-400">{(i.stockQtyCartons || 0) * 4}</span>
+                                    </div>
+                                    <div className="flex flex-col items-end">
+                                      <span className="text-[8px] font-black uppercase text-slate-500">Price</span>
+                                      <span className="text-xs font-black text-yellow-400">Rs. {i.purchaseRate || 0}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </td>
                     <td className="px-8 py-4">
-                      <select 
-                        value={item.itemId} 
-                        onChange={(e) => updateItem(item.id, "itemId", e.target.value)} 
-                        className="w-full bg-transparent text-sm font-bold focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all appearance-none"
-                      >
-                        <option value="">Select Item...</option>
-                        {availableItems.map(ai => (
-                          <option key={ai._id} value={ai._id}>{ai.code} - {ai.name}</option>
-                        ))}
-                      </select>
+                      <input placeholder="Description" value={item.uom} onChange={(e) => updateItem(item.id, "uom", e.target.value)} className="w-full bg-transparent text-sm font-bold focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" />
                     </td>
-                    <td className="px-8 py-4 text-center">
-                      <input placeholder="Bottle/Pcs" value={item.uom} onChange={(e) => updateItem(item.id, "uom", e.target.value)} className="w-full bg-transparent text-sm font-bold text-center focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" />
+                    <td className="px-2 py-4 text-center">
+                      <input type="number" value={item.cartons} onChange={(e) => updateItem(item.id, "cartons", parseFloat(e.target.value) || 0)} className="w-full bg-transparent text-sm font-black text-center text-rose-600 focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" />
                     </td>
-                    <td className="px-8 py-4 text-center">
-                      <input type="number" value={item.qty} onChange={(e) => updateItem(item.id, "qty", parseFloat(e.target.value) || 0)} className="w-full bg-transparent text-sm font-black text-center text-rose-600 focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" />
+                    <td className="px-2 py-4 text-center">
+                      <input type="number" value={item.gallons} onChange={(e) => updateItem(item.id, "gallons", parseFloat(e.target.value) || 0)} className="w-full bg-transparent text-sm font-black text-center text-rose-600 focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" />
+                    </td>
+                    <td className="px-2 py-4 text-center">
+                      <input type="number" value={item.liters} onChange={(e) => updateItem(item.id, "liters", parseFloat(e.target.value) || 0)} className="w-full bg-transparent text-sm font-black text-center text-rose-600 focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" />
+                    </td>
+                    <td className="px-8 py-4 text-center text-slate-400">
+                      Ctns
                     </td>
                     <td className="px-8 py-4 text-right">
                       <input type="number" value={item.unitValue} onChange={(e) => updateItem(item.id, "unitValue", parseFloat(e.target.value) || 0)} className="w-full bg-transparent text-sm font-black text-right focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" />
@@ -263,7 +364,8 @@ export default function ReduceStockForm({ onClose, initialData }: ReduceStockFor
                       </button>
                     </td>
                   </tr>
-                ))}
+                );
+                })}
               </tbody>
             </table>
           </div>

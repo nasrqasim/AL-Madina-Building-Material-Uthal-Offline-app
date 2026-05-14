@@ -103,7 +103,7 @@ export default function SaleReturnPage() {
             <RotateCcw size={24} />
           </div>
           <div>
-            <p className="text-xs font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Total Returns</p>
+            <p className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Total Returns</p>
             <h4 className="text-2xl font-black text-slate-900 dark:text-white">{returns.length}</h4>
           </div>
         </div>
@@ -112,7 +112,7 @@ export default function SaleReturnPage() {
             <CheckCircle2 size={24} />
           </div>
           <div>
-            <p className="text-xs font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Posted</p>
+            <p className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Posted</p>
             <h4 className="text-2xl font-black text-slate-900 dark:text-white">{returns.filter(r => r.status?.toLowerCase() === "posted").length}</h4>
           </div>
         </div>
@@ -121,7 +121,7 @@ export default function SaleReturnPage() {
             <Clock size={24} />
           </div>
           <div>
-            <p className="text-xs font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Drafts</p>
+            <p className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Drafts</p>
             <h4 className="text-2xl font-black text-slate-900 dark:text-white">{returns.filter(r => r.status?.toLowerCase() === "draft").length}</h4>
           </div>
         </div>
@@ -129,9 +129,9 @@ export default function SaleReturnPage() {
 
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
         {/* Filters */}
-        <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex flex-col md:flex-row gap-4 items-center justify-between bg-slate-50 dark:bg-slate-800/50/50">
+        <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex flex-col md:flex-row gap-4 items-center justify-between bg-slate-50 dark:bg-slate-800/50">
           <div className="relative w-full md:w-96">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500" size={18} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={18} />
             <input
               type="text"
               placeholder="Search by return#, customer, invoice..."

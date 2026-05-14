@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { 
   Plus, 
   Trash2, 
@@ -40,6 +40,15 @@ interface SRItem {
 interface SaleReturnFormProps {
   onClose: () => void;
   initialData?: any;
+}
+
+function ToolbarButton({ icon, label, onClick }: { icon: React.ReactNode, label: string, onClick?: () => void }) {
+  return (
+    <button onClick={onClick} className="flex flex-col items-center justify-center p-1 min-w-[70px] hover:bg-[#d1d5db] rounded transition-all group">
+      <div className="text-slate-600 group-hover:scale-110 transition-transform">{icon}</div>
+      <span className="text-[9px] font-bold mt-1 text-slate-700 group-hover:text-black">{label}</span>
+    </button>
+  );
 }
 
 export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormProps) {
@@ -115,11 +124,7 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
   const [showItemSearch, setShowItemSearch] = useState<string | null>(null);
   const [showCustomerSearch, setShowCustomerSearch] = useState(false);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const [itemsRes, partiesRes, locsRes, empsRes] = await Promise.all([
         fetch("/api/items"),
@@ -127,18 +132,22 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
         fetch("/api/locations"),
         fetch("/api/employees")
       ]);
-      const [items, parties, locs, emps] = await Promise.all([
+      const [itemsData, partiesData, locsData, empsData] = await Promise.all([
         itemsRes.json(),
         partiesRes.json(),
         locsRes.json(),
         empsRes.json()
       ]);
-      if (items.ok) setAvailableItems(items.data);
-      if (parties.ok) setCustomers(parties.data.filter((p: any) => p.type === "Customer"));
-      if (locs.ok) setLocations(locs.data);
-      if (emps.ok) setEmployees(emps.data);
+      if (itemsData.ok) setAvailableItems(itemsData.data);
+      if (partiesData.ok) setCustomers(partiesData.data.filter((p: any) => p.type === "Customer"));
+      if (locsData.ok) setLocations(locsData.data);
+      if (empsData.ok) setEmployees(empsData.data);
     } catch (e) { console.error(e); }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const handlePriceTypeChange = (isWholesale: boolean) => {
     setFormData({ ...formData, isWholesale, isRetail: !isWholesale });
@@ -174,8 +183,19 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
         const updated = { ...i, [field]: value };
         const item = availableItems.find(ai => ai._id === (field === "itemId" ? value : i.itemId));
 
+        if (field === "cartons") {
+          updated.gallons = value * 4;
+          updated.liters = value * 16;
+        } else if (field === "gallons") {
+          updated.cartons = value / 4;
+          updated.liters = value * 4;
+        } else if (field === "liters") {
+          updated.cartons = value / 16;
+          updated.gallons = value / 4;
+        }
+
         if (field === "cartons" || field === "gallons" || field === "liters" || field === "ratePerCtn" || field === "itemId") {
-          const qty = (Number(updated.cartons) || 0) + (Number(updated.gallons) || 0) + (Number(updated.liters) || 0);
+          const qty = Number(updated.cartons) || 0;
           updated.grossAmount = qty * (Number(updated.ratePerCtn) || 0);
           updated.netAmount = updated.grossAmount;
         }
@@ -184,7 +204,7 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
           updated.itemCode = item.code;
           updated.description = item.name;
           updated.ratePerCtn = formData.isWholesale ? (item.wholesaleRate || item.rate || 0) : (item.retailRate || item.rate || 0);
-          const qty = (Number(updated.cartons) || 0) + (Number(updated.gallons) || 0) + (Number(updated.liters) || 0);
+          const qty = Number(updated.cartons) || 0;
           updated.grossAmount = qty * (Number(updated.ratePerCtn) || 0);
           updated.netAmount = updated.grossAmount;
         }
@@ -196,9 +216,8 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
 
   const grossTotal = useMemo(() => items.reduce((acc, curr) => acc + curr.grossAmount, 0), [items]);
   const netTotal = grossTotal - Number(formData.additionalDiscount);
-  const refundAmount = netTotal;
 
-  const handleSave = async (status: string) => {
+  const handleSave = useCallback(async (status: string) => {
     const payload = {
       ...initialData,
       invoiceNo: formData.serialNo,
@@ -244,7 +263,7 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
         alert("Failed to save return: " + (error.message || "Unknown error"));
       }
     } catch (e) { console.error(e); }
-  };
+  }, [formData, items, grossTotal, netTotal, initialData, onClose]);
 
   const selectedItemDetails = useMemo(() => {
     const line = items.find(l => l.id === selectedLineId);
@@ -262,6 +281,26 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleSave]);
+
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const handleItemKeyDown = (e: React.KeyboardEvent, lineId: string, filteredItems: any[]) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex(prev => (prev < filteredItems.length - 1 ? prev + 1 : prev));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex(prev => (prev > 0 ? prev - 1 : prev));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (filteredItems[activeIndex]) {
+        updateItem(lineId, "itemId", filteredItems[activeIndex]._id);
+        setShowItemSearch(null);
+      }
+    } else if (e.key === "Escape") {
+      setShowItemSearch(null);
+    }
+  };
 
   return (
     <div className="flex flex-col h-screen bg-[#f3f4f6] text-[#333] font-sans overflow-hidden">
@@ -386,9 +425,9 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
                     <tr>
                       <th className="px-3 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-32">Item Code</th>
                       <th className="px-3 py-2 text-[10px] font-black text-slate-500 uppercase border-r min-w-[200px]">Description</th>
-                      <th className="px-3 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-20 text-center">Crtns</th>
-                      <th className="px-3 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-20 text-center">Gallons</th>
-                      <th className="px-3 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-20 text-center">Liters</th>
+                      <th className="px-2 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-20 text-center">Ctns</th>
+                      <th className="px-2 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-20 text-center">Gals</th>
+                      <th className="px-2 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-20 text-center">Ltrs</th>
                       <th className="px-3 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-24 text-right">Rate Ctn</th>
                       <th className="px-3 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-28 text-right">Gross Amt</th>
                       <th className="px-3 py-2 text-[10px] font-black text-slate-500 uppercase border-r min-w-[150px]">Reason</th>
@@ -397,31 +436,78 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {items.map((line) => (
+                    {items.map((line) => {
+                      const query = line.itemCode.toLowerCase();
+                      const filteredItems = availableItems.filter(i => 
+                        i.code.toLowerCase().includes(query) || i.name.toLowerCase().includes(query)
+                      ).sort((a, b) => {
+                        const aStart = a.name.toLowerCase().startsWith(query) || a.code.toLowerCase().startsWith(query);
+                        const bStart = b.name.toLowerCase().startsWith(query) || b.code.toLowerCase().startsWith(query);
+                        if (aStart && !bStart) return -1;
+                        if (!aStart && bStart) return 1;
+                        return 0;
+                      });
+
+                      return (
                       <tr key={line.id} className={`group ${selectedLineId === line.id ? 'bg-blue-50' : 'hover:bg-slate-50'}`} onClick={() => setSelectedLineId(line.id)}>
                         <td className="p-0 border-r relative">
-                          <input type="text" value={line.itemCode} onChange={e => { updateItem(line.id, "itemCode", e.target.value); setShowItemSearch(line.id); }} className="w-full px-3 py-2 text-xs font-bold outline-none bg-transparent" />
+                          <input 
+                            type="text" 
+                            value={line.itemCode} 
+                            placeholder="Search..."
+                            onChange={e => { updateItem(line.id, "itemCode", e.target.value); setShowItemSearch(line.id); setActiveIndex(0); }} 
+                            onKeyDown={(e) => handleItemKeyDown(e, line.id, filteredItems)}
+                            className="w-full px-3 py-2 text-xs font-bold outline-none bg-transparent" 
+                          />
                           {showItemSearch === line.id && line.itemCode && (
-                            <div className="absolute top-full left-0 w-[400px] bg-white border border-slate-200 rounded shadow-2xl z-50 max-h-60 overflow-auto">
-                              {availableItems.filter(i => i.code.toLowerCase().includes(line.itemCode.toLowerCase()) || i.name.toLowerCase().includes(line.itemCode.toLowerCase())).map(i => (
-                                <div key={i._id} className="grid grid-cols-4 gap-2 px-3 py-2 text-xs hover:bg-blue-100 cursor-pointer font-bold border-b" onClick={() => { updateItem(line.id, "itemId", i._id); setShowItemSearch(null); }}>
-                                  <span>{i.code}</span><span className="col-span-2">{i.name}</span><span className="text-right text-blue-600">{i.retailRate}</span>
+                            <div className="absolute top-full left-0 w-[450px] bg-slate-900 text-white border border-slate-700 rounded-xl shadow-2xl z-50 max-h-80 overflow-auto py-2">
+                              {filteredItems.map((i, idx) => (
+                                <div 
+                                  key={i._id} 
+                                  className={`px-4 py-3 cursor-pointer border-b border-slate-800 transition-all ${idx === activeIndex ? 'bg-maroon-800 text-white' : 'hover:bg-slate-800'}`}
+                                  onClick={() => { updateItem(line.id, "itemId", i._id); setShowItemSearch(null); }}
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
+                                    <div className="flex-1">
+                                      <div className="flex items-center justify-between mb-1">
+                                        <span className="text-xs font-black uppercase tracking-widest text-slate-400">{i.code}</span>
+                                        <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-800 rounded text-slate-400">{i.category || "Lubricants"}</span>
+                                      </div>
+                                      <div className="text-sm font-black mb-2">{i.name}</div>
+                                      <div className="grid grid-cols-3 gap-2">
+                                        <div className="flex flex-col">
+                                          <span className="text-[8px] font-black uppercase text-slate-500">Cartons</span>
+                                          <span className="text-xs font-black text-emerald-400">{i.stockQtyCartons || 0}</span>
+                                        </div>
+                                        <div className="flex flex-col">
+                                          <span className="text-[8px] font-black uppercase text-slate-500">Gallons</span>
+                                          <span className="text-xs font-black text-blue-400">{(i.stockQtyCartons || 0) * 4}</span>
+                                        </div>
+                                        <div className="flex flex-col items-end">
+                                          <span className="text-[8px] font-black uppercase text-slate-500">Price</span>
+                                          <span className="text-xs font-black text-yellow-400">Rs. {i.retailRate || 0}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
                                 </div>
                               ))}
                             </div>
                           )}
                         </td>
                         <td className="px-3 py-2 text-xs font-medium border-r">{line.description}</td>
-                        <td className="p-0 border-r"><input type="number" value={line.cartons} onChange={e => updateItem(line.id, "cartons", Number(e.target.value))} className="w-full px-2 py-2 text-xs font-black text-center outline-none bg-transparent" /></td>
-                        <td className="p-0 border-r"><input type="number" value={line.gallons} onChange={e => updateItem(line.id, "gallons", Number(e.target.value))} className="w-full px-2 py-2 text-xs font-black text-center outline-none bg-transparent" /></td>
-                        <td className="p-0 border-r"><input type="number" value={line.liters} onChange={e => updateItem(line.id, "liters", Number(e.target.value))} className="w-full px-2 py-2 text-xs font-black text-center outline-none bg-transparent" /></td>
-                        <td className="p-0 border-r"><input type="number" value={line.ratePerCtn} onChange={e => updateItem(line.id, "ratePerCtn", Number(e.target.value))} className="w-full px-3 py-2 text-xs font-black text-right outline-none bg-transparent" /></td>
+                        <td className="p-0 border-r"><input type="number" value={line.cartons} onChange={e => updateItem(line.id, "cartons", parseFloat(e.target.value) || 0)} className="w-full px-2 py-2 text-xs font-black text-center outline-none bg-transparent" /></td>
+                        <td className="p-0 border-r"><input type="number" value={line.gallons} onChange={e => updateItem(line.id, "gallons", parseFloat(e.target.value) || 0)} className="w-full px-2 py-2 text-xs font-black text-center outline-none bg-transparent" /></td>
+                        <td className="p-0 border-r"><input type="number" value={line.liters} onChange={e => updateItem(line.id, "liters", parseFloat(e.target.value) || 0)} className="w-full px-2 py-2 text-xs font-black text-center outline-none bg-transparent" /></td>
+                        <td className="p-0 border-r"><input type="number" value={line.ratePerCtn} onChange={e => updateItem(line.id, "ratePerCtn", parseFloat(e.target.value) || 0)} className="w-full px-3 py-2 text-xs font-black text-right outline-none bg-transparent" /></td>
                         <td className="px-3 py-2 text-xs font-black text-right border-r font-mono">-{line.grossAmount.toFixed(2)}</td>
                         <td className="p-0 border-r"><input type="text" value={line.reason} onChange={e => updateItem(line.id, "reason", e.target.value)} className="w-full px-3 py-2 text-xs font-bold outline-none bg-transparent" placeholder="Reason for return" /></td>
                         <td className="px-3 py-2 text-xs font-black text-right font-mono text-rose-600">-{line.netAmount.toFixed(2)}</td>
                         <td className="p-1"><button onClick={() => removeItem(line.id)} className="p-1 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100"><Trash2 size={14}/></button></td>
                       </tr>
-                    ))}
+                      );
+                    })}
                     <tr className="bg-slate-50"><td colSpan={10} className="p-2"><button onClick={addItem} className="flex items-center gap-1 text-[10px] font-black text-blue-600 uppercase"><PlusCircle size={14}/> Add New Row</button></td></tr>
                   </tbody>
                 </table>
@@ -431,10 +517,31 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
           <div className="col-span-12 lg:col-span-3 bg-[#f8fafc] border border-[#cbd5e1] rounded shadow-sm flex flex-col">
              <div className="bg-[#1e293b] text-white p-2 text-xs font-black uppercase flex items-center gap-2"><Package size={14}/> Item Details</div>
              <div className="p-3 space-y-4 flex-1">
-                <div className="space-y-1"><div className="text-[10px] font-black text-slate-400 uppercase">Selling Price PKR</div><div className="text-xl font-black text-blue-700 font-mono">{(selectedItemDetails?.retailRate || 0).toFixed(2)}</div></div>
-                <div className="space-y-1"><div className="text-[10px] font-black text-slate-400 uppercase">Balance Stock</div><div className="text-xl font-black text-emerald-600 font-mono">{selectedItemDetails?.stock || 0} <span className="text-xs font-bold text-slate-500">Pcs</span></div></div>
-                <div className="space-y-1"><div className="text-[10px] font-black text-slate-400 uppercase">Category</div><div className="text-xs font-bold">{selectedItemDetails?.category || "N/A"}</div></div>
-                <div className="pt-4 border-t border-slate-200"><div className="text-[10px] font-black text-slate-400 uppercase mb-2 flex items-center gap-1"><History size={12}/> Recent History</div><div className="text-[10px] text-slate-400 italic text-center py-4 border border-dashed rounded">No history found.</div></div>
+                <div className="space-y-1">
+                  <div className="text-[10px] font-black text-slate-400 uppercase">Purchase Price</div>
+                  <div className="text-lg font-black text-slate-600 font-mono">Rs. {(selectedItemDetails?.purchaseRate || 0).toFixed(2)}</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-[10px] font-black text-slate-400 uppercase">Sale Price</div>
+                  <div className="text-xl font-black text-blue-700 font-mono">Rs. {(selectedItemDetails?.retailRate || 0).toFixed(2)}</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Balance Stock</div>
+                  <div className="grid grid-cols-3 gap-1">
+                    <div className="bg-emerald-50 p-2 rounded border border-emerald-100">
+                      <div className="text-[8px] font-black text-emerald-600 uppercase">Ctns</div>
+                      <div className="text-sm font-black text-emerald-700">{(selectedItemDetails?.stockQtyCartons || 0)}</div>
+                    </div>
+                    <div className="bg-blue-50 p-2 rounded border border-blue-100">
+                      <div className="text-[8px] font-black text-blue-600 uppercase">Gals</div>
+                      <div className="text-sm font-black text-blue-700">{(selectedItemDetails?.stockQtyCartons || 0) * 4}</div>
+                    </div>
+                    <div className="bg-purple-50 p-2 rounded border border-purple-100">
+                      <div className="text-[8px] font-black text-purple-600 uppercase">Ltrs</div>
+                      <div className="text-sm font-black text-purple-700">{(selectedItemDetails?.stockQtyCartons || 0) * 16}</div>
+                    </div>
+                  </div>
+                </div>
              </div>
           </div>
         </div>
@@ -464,14 +571,5 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
         </div>
       </div>
     </div>
-  );
-}
-
-function ToolbarButton({ icon, label, onClick }: { icon: React.ReactNode, label: string, onClick?: () => void }) {
-  return (
-    <button onClick={onClick} className="flex flex-col items-center justify-center p-1 min-w-[70px] hover:bg-[#d1d5db] rounded transition-all group">
-      <div className="text-slate-600 group-hover:scale-110 transition-transform">{icon}</div>
-      <span className="text-[9px] font-bold mt-1 text-slate-700 group-hover:text-black">{label}</span>
-    </button>
   );
 }
