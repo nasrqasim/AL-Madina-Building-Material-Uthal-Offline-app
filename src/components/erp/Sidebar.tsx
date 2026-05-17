@@ -86,16 +86,6 @@ interface SidebarProps {
 
 export default function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
-
-  const filteredModules = useMemo(() => {
-    const role = (user?.role || "guest").toLowerCase() as any;
-    return erpModules
-      .filter(item => !item.roles || item.roles.includes(role))
-      .map(item => ({
-        ...item,
-        submenu: item.submenu ? item.submenu.filter(sub => !sub.roles || sub.roles.includes(role)) : undefined
-      }));
-  }, [user?.role]);
   
   return (
     <aside className="fixed left-0 top-0 h-full w-64 bg-slate-950 text-slate-300 flex flex-col z-50">
@@ -114,7 +104,7 @@ export default function Sidebar({ user }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1 custom-scrollbar">
-        {filteredModules.map((item) => (
+        {erpModules.map((item) => (
           <MenuItem key={item.title} item={item} pathname={pathname} />
         ))}
       </nav>
