@@ -124,12 +124,12 @@ export const erpModules: ERPNavItem[] = [
   { 
     title: "Receipts", 
     href: "/receipts", 
-    roles: ["admin", "salesman"],
+    roles: ["admin", "salesman", "dataentry"],
     icon: Receipt,
     submenu: [
-      { title: "Cash Receipt", href: "/receipts/cash-receipt", roles: ["admin", "salesman"] },
-      { title: "Bank Receipt", href: "/receipts/bank-receipt", roles: ["admin", "salesman"] },
-      { title: "Other Income", href: "/receipts/other-income", roles: ["admin", "salesman"] },
+      { title: "Cash Receipt", href: "/receipts/cash-receipt", roles: ["admin", "salesman", "dataentry"] },
+      { title: "Bank Receipt", href: "/receipts/bank-receipt", roles: ["admin", "salesman", "dataentry"] },
+      { title: "Other Income", href: "/receipts/other-income", roles: ["admin", "salesman", "dataentry"] },
     ]
   },
   { 

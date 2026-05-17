@@ -28,6 +28,7 @@ export default function QuickActions() {
     { title: "Quotation", href: "/sales/quotation", icon: ClipboardList, color: "text-amber-500", bg: "bg-amber-50" },
     { title: "Purchase Order", href: "/purchases/purchase-order", icon: ShoppingCart, color: "text-violet-500", bg: "bg-violet-50" },
     { title: "Cash Receipt", href: "/receipts/cash-receipt", icon: Banknote, color: "text-green-500", bg: "bg-green-50" },
+    { title: "Other Income", href: "/receipts/other-income", icon: Banknote, color: "text-amber-500", bg: "bg-amber-50" },
     { title: "Cash Payment", href: "/payments/cash-payment", icon: CreditCardIcon, color: "text-red-500", bg: "bg-red-50" },
     { title: "Journal Voucher", href: "/journal", icon: Book, color: "text-slate-500 dark:text-slate-400 dark:text-slate-500", bg: "bg-slate-50 dark:bg-slate-800/50" },
   ];
