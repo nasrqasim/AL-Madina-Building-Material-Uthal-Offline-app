@@ -130,15 +130,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
     }
   };
 
-  useEffect(() => {
-    if (printData) {
-      const timer = setTimeout(() => {
-        window.print();
-        onClose();
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [printData, onClose]);
+
 
   const [items, setItems] = useState<SIItem[]>(() => {
     if (initialData?.lines && initialData.lines.length > 0) {
@@ -757,6 +749,11 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
           formatName="Sale Invoice" 
           data={printData}
           items={printData.lines}
+          autoPrint={true}
+          onPrintComplete={() => {
+            setPrintData(null);
+            onClose();
+          }}
         />
       )}
       {showCustomerModal && (

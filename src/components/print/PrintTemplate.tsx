@@ -8,9 +8,17 @@ interface PrintTemplateProps {
   formatName: string;
   data: any;
   items?: any[];
+  autoPrint?: boolean;
+  onPrintComplete?: () => void;
 }
 
-export default function PrintTemplate({ formatName, data, items = [] }: PrintTemplateProps) {
+export default function PrintTemplate({ 
+  formatName, 
+  data, 
+  items = [], 
+  autoPrint = false,
+  onPrintComplete
+}: PrintTemplateProps) {
   const [config, setConfig] = useState<any>(null);
   const [companyInfo, setCompanyInfo] = useState<any>(null);
   const [mounted, setMounted] = useState(false);
@@ -26,6 +34,19 @@ export default function PrintTemplate({ formatName, data, items = [] }: PrintTem
     });
     return () => setMounted(false);
   }, [formatName]);
+
+  // Handle auto-printing only when config and companyInfo are fully fetched and mounted
+  useEffect(() => {
+    if (mounted && config && companyInfo && autoPrint) {
+      const timer = setTimeout(() => {
+        window.print();
+        if (onPrintComplete) {
+          onPrintComplete();
+        }
+      }, 800); // Increased settle timeout to guarantee complete style & DOM hydration
+      return () => clearTimeout(timer);
+    }
+  }, [mounted, config, companyInfo, autoPrint, onPrintComplete]);
 
   if (!config || !mounted) return null;
 
