@@ -20,7 +20,7 @@ type SalesInput = {
     ratePerCarton?: number;
     discountPercent?: number;
   }>;
-  paymentMethod?: "Cash" | "Card" | "Credit" | "Bank";
+  paymentMethod?: string;
 };
 
 export async function postSalesInvoice(input: SalesInput) {
