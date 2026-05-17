@@ -114,7 +114,7 @@ export async function postSalesInvoice(input: SalesInput) {
   }
 }
 
-export async function postSaleReturn(input: { invoiceNo: string; partyId: string; linkedInvoiceId: string; lines: SalesInput["lines"] }) {
+export async function postSaleReturn(input: { invoiceNo: string; partyId: string; linkedInvoiceId: string; lines: SalesInput["lines"]; paymentMethod?: string }) {
   const session = await mongoose.startSession();
   try {
     return await session.withTransaction(async () => {
