@@ -67,13 +67,16 @@ export async function postSalesInvoice(input: SalesInput) {
       );
 
       const isCash = input.paymentMethod === "Cash" || input.paymentMethod === "Card";
+      const isBank = input.paymentMethod === "Bank" || input.paymentMethod === "Online";
+      const assetCode = isCash ? "1111" : isBank ? "1110" : "1100";
+      const assetTitle = isCash ? "Cash" : isBank ? "Bank" : "Accounts Receivable";
       
       await JournalEntry.create(
         [
           { 
             invoiceId: invoice[0]._id, 
-            accountCode: isCash ? "1000" : "1100", 
-            accountTitle: isCash ? "Cash in Hand" : "Accounts Receivable", 
+            accountCode: assetCode, 
+            accountTitle: assetTitle, 
             debit: total, 
             credit: 0, 
             remarks: `Sales invoice posted (${input.paymentMethod || "Credit"})` 
@@ -134,10 +137,15 @@ export async function postSaleReturn(input: { invoiceNo: string; partyId: string
         { session }
       );
 
+      const isCash = input.paymentMethod === "Cash" || input.paymentMethod === "Card";
+      const isBank = input.paymentMethod === "Bank" || input.paymentMethod === "Online";
+      const assetCode = isCash ? "1111" : isBank ? "1110" : "1100";
+      const assetTitle = isCash ? "Cash" : isBank ? "Bank" : "Accounts Receivable";
+
       await JournalEntry.create(
         [
           { invoiceId: invoice[0]._id, accountCode: "4100", accountTitle: "Sales Return", debit: total, credit: 0, remarks: "Sales return posted" },
-          { invoiceId: invoice[0]._id, accountCode: "1100", accountTitle: "Accounts Receivable", debit: 0, credit: total, remarks: "Sales return posted" },
+          { invoiceId: invoice[0]._id, accountCode: assetCode, accountTitle: assetTitle, debit: 0, credit: total, remarks: "Sales return posted" },
         ],
         { session }
       );

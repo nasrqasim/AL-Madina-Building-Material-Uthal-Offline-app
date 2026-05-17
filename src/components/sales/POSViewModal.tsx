@@ -13,9 +13,16 @@ interface POSViewModalProps {
 
 export default function POSViewModal({ isOpen, onClose, sale }: POSViewModalProps) {
   const [mounted, setMounted] = useState(false);
+  const [companyInfo, setCompanyInfo] = useState<any>(null);
 
   useEffect(() => {
     setMounted(true);
+    fetch("/api/shop-profile")
+      .then(res => res.json())
+      .then(json => {
+        if (json.ok) setCompanyInfo(json.data);
+      })
+      .catch(err => console.error(err));
     return () => setMounted(false);
   }, []);
 
@@ -183,9 +190,9 @@ export default function POSViewModal({ isOpen, onClose, sale }: POSViewModalProp
           {/* Logo / Company Title */}
           <div className="text-center mb-1">
             <h2 className="text-lg font-black uppercase tracking-tight" style={{ fontSize: '14px' }}>
-              AL HADEED TRADERS
+              {companyInfo?.name || "AL HADEED TRADERS"}
             </h2>
-            <p className="text-[11px] font-bold">Tel: -</p>
+            <p className="text-[11px] font-bold">Tel: {companyInfo?.phone || "03108444612"}</p>
           </div>
 
           {/* Black Bar for Receipt Type */}
