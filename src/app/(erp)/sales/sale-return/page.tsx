@@ -45,6 +45,7 @@ export default function SaleReturnPage() {
   }, [showForm]);
 
   const deleteReturn = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this return?")) return;
     try {
       const res = await fetch(`/api/invoices/${id}`, { method: "DELETE" });
       if (res.ok) {

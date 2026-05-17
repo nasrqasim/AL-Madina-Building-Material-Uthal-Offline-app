@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
+import PrintTemplate from "@/components/print/PrintTemplate";
 import { 
   Plus, 
   Trash2, 
@@ -88,6 +89,18 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
     additionalDiscount: initialData?.discountAmount || 0,
     amountReceived: initialData?.amountReceived || 0
   });
+
+  const [printData, setPrintData] = useState<any>(null);
+
+  useEffect(() => {
+    if (printData) {
+      const timer = setTimeout(() => {
+        window.print();
+        onClose();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [printData, onClose]);
 
   const [items, setItems] = useState<SRItem[]>(() => {
     if (initialData?.lines && initialData.lines.length > 0) {
@@ -258,7 +271,28 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
       });
       if (res.ok) {
         alert("Sale Return saved successfully!");
-        onClose();
+        if (confirm("Do you want to print the receipt?")) {
+          setPrintData({
+            invoiceNo: payload.invoiceNo,
+            date: payload.date,
+            customer: formData.customerName || "Walk-in Customer",
+            linkedRef: payload.reference,
+            total: payload.totalAmount,
+            subtotal: payload.subTotal,
+            taxAmount: 0,
+            discountAmount: payload.discountAmount,
+            lines: items.filter(l => l.itemId).map(l => ({
+              description: l.description,
+              cartons: l.cartons || 0,
+              gallons: l.gallons || 0,
+              liters: l.liters || 0,
+              rate: l.ratePerCtn || 0,
+              netAmount: l.netAmount || 0
+            }))
+          });
+        } else {
+          onClose();
+        }
       } else {
         const error = await res.json();
         alert("Failed to save return: " + (error.message || "Unknown error"));
@@ -640,6 +674,13 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
            </div>
         </div>
       </div>
+      {printData && (
+        <PrintTemplate 
+          formatName="Sale Return" 
+          data={printData}
+          items={printData.lines}
+        />
+      )}
     </div>
   );
 }
