@@ -59,6 +59,15 @@ export default function PrintTemplate({ formatName, data, items = [] }: PrintTem
   const dateStr = rawDate.toLocaleDateString('en-GB'); // dd-mm-yyyy format
   const timeStr = rawDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
+  // Bullet-proof customer name resolution as requested
+  const customerName = (data.customer && data.customer.trim() && data.customer !== "Search Customer...")
+    ? data.customer
+    : (data.supplier && data.supplier.trim())
+    ? data.supplier
+    : (data.partyName && data.partyName.trim())
+    ? data.partyName
+    : "Walk-in Customer";
+
   return (
     <div className="hidden print:flex flex-col bg-white text-black font-sans absolute inset-0 z-[9999] m-0 p-0" style={{ fontFamily: 'monospace' }}>
       <style>{`
@@ -67,23 +76,49 @@ export default function PrintTemplate({ formatName, data, items = [] }: PrintTem
           size: 80mm auto; /* Thermal printer typical width 80mm */
         }
         @media print {
+          /* Hide EVERYTHING globally in the body except the #print-area container */
           body * {
-            visibility: hidden;
+            visibility: hidden !important;
           }
+          
+          /* Show print-area and its descendants */
           #print-area, #print-area * {
-            visibility: visible;
+            visibility: visible !important;
           }
+          
+          /* Absolute layout for print area to occupy page 1 exactly and overlay everything */
           #print-area {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 80mm; /* Force 80mm width */
-            margin: 0 auto;
-            padding: 4mm;
-            background: white;
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 12px;
-            color: black;
+            position: fixed !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 80mm !important;
+            height: auto !important;
+            margin: 0 !important;
+            padding: 4mm !important;
+            background: white !important;
+            z-index: 9999999 !important;
+            box-sizing: border-box !important;
+            display: block !important;
+          }
+          
+          /* Reset parent structures to prevent layout bleeding and offset margins */
+          html, body {
+            background: white !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 80mm !important;
+            overflow: visible !important;
+            height: auto !important;
+          }
+          
+          /* Strip all styles, borders, shadows, backgrounds, and layout offsets from parent elements */
+          div, section, main, aside, nav, header, footer {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            transform: none !important;
           }
         }
       `}</style>
@@ -104,10 +139,10 @@ export default function PrintTemplate({ formatName, data, items = [] }: PrintTem
 
         {/* Company Title */}
         <div className="text-center mb-1">
-          <h2 className="text-lg font-black uppercase tracking-tight" style={{ fontSize: '16px' }}>
+          <h2 className="text-lg font-black uppercase tracking-tight" style={{ fontSize: '14px' }}>
             {companyInfo?.name || "AL HADEED TRADERS"}
           </h2>
-          <p className="text-[11px] font-bold">Tel: {companyInfo?.phone || "-"}</p>
+          <p className="text-[11px] font-bold">Tel: {companyInfo?.phone || "03108444612"}</p>
         </div>
 
         {/* Black Bar for Receipt Type */}
@@ -126,18 +161,12 @@ export default function PrintTemplate({ formatName, data, items = [] }: PrintTem
             <span>Time &nbsp;{timeStr}</span>
           </div>
           <div className="flex justify-between">
-            <span>Operator Name:</span>
-            <span>{data.operatorName || "Bilal khan"}</span>
-          </div>
-          <div className="flex justify-between">
             <span>Sales Person:</span>
             <span>{data.salesPerson || "-"}</span>
           </div>
           <div className="flex justify-between">
             <span>Customer Name:</span>
-            <span className="truncate max-w-[150px]">
-              {data.customer || data.supplier || data.partyName || data.receivedFrom || data.paidTo || "Walk-in Customer"}
-            </span>
+            <span className="truncate max-w-[150px]">{customerName}</span>
           </div>
           <div className="flex justify-between">
             <span>Payment Type:</span>
@@ -168,7 +197,7 @@ export default function PrintTemplate({ formatName, data, items = [] }: PrintTem
                 <div className="text-left font-black">{desc}</div>
                 {/* Row 2: Qty / Rate / Total aligned */}
                 <div className="grid grid-cols-12 text-[10px] text-slate-700">
-                  <span className="col-span-6"></span> {/* empty space for description */}
+                  <span className="col-span-6"></span>
                   <span className="col-span-2 text-center">{qty}</span>
                   <span className="col-span-2 text-right">{price.toLocaleString()}</span>
                   <span className="col-span-2 text-right font-black text-black">{total.toLocaleString()}</span>

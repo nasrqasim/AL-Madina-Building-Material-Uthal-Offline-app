@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import PrintTemplate from "@/components/print/PrintTemplate";
+import CustomerModal from "@/components/erp/maintain/CustomerModal";
 import { 
   Plus, 
   Trash2, 
@@ -93,6 +94,41 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
   });
 
   const [printData, setPrintData] = useState<any>(null);
+  const [showCustomerModal, setShowCustomerModal] = useState(false);
+
+  const handleSaveCustomer = async (newCustomerData: any) => {
+    try {
+      const res = await fetch("/api/parties", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...newCustomerData,
+          type: "Customer",
+          companyName: newCustomerData.name
+        })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        const savedCustomer = data.data;
+        setFormData(prev => ({
+          ...prev,
+          customerId: savedCustomer._id,
+          customerName: savedCustomer.name,
+          customerCode: savedCustomer.code,
+          customerAddress: savedCustomer.address,
+          customerTelephone: savedCustomer.phone,
+          customerBalance: 0
+        }));
+        alert("Customer created and selected successfully!");
+        fetchData();
+      } else {
+        alert("Failed to save customer: " + (data.message || "Unknown error"));
+      }
+    } catch (e: any) {
+      console.error(e);
+      alert("Error occurred while saving customer: " + e.message);
+    }
+  };
 
   useEffect(() => {
     if (printData) {
@@ -404,7 +440,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
     <div className="flex flex-col h-screen bg-[#f3f4f6] text-[#333] font-sans overflow-hidden">
       {/* Top Toolbar */}
       <div className="bg-[#e5e7eb] border-b border-[#cbd5e1] p-1 flex items-center gap-1 shadow-sm overflow-x-auto no-scrollbar">
-        <ToolbarButton icon={<Plus size={16} />} label="New Customer" />
+        <ToolbarButton icon={<Plus size={16} />} label="New Customer" onClick={() => setShowCustomerModal(true)} />
         <ToolbarButton icon={<Package size={16} />} label="New Item" />
         <div className="w-[1px] h-6 bg-[#cbd5e1] mx-1" />
         <ToolbarButton icon={<PlusCircle size={16} />} label="Add" onClick={addItem} />
@@ -721,6 +757,13 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
           formatName="Sale Invoice" 
           data={printData}
           items={printData.lines}
+        />
+      )}
+      {showCustomerModal && (
+        <CustomerModal 
+          isOpen={showCustomerModal} 
+          onClose={() => setShowCustomerModal(false)} 
+          onSave={handleSaveCustomer}
         />
       )}
     </div>

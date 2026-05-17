@@ -156,10 +156,6 @@ export default function POSViewModal({ isOpen, onClose, sale }: POSViewModalProp
               <span>Time &nbsp;{new Date(sale.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
             </div>
             <div className="flex justify-between">
-              <span>Operator Name:</span>
-              <span>Bilal khan</span>
-            </div>
-            <div className="flex justify-between">
               <span>Sales Person:</span>
               <span>-</span>
             </div>
