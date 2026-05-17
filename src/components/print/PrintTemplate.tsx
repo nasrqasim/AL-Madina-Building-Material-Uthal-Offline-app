@@ -25,6 +25,40 @@ export default function PrintTemplate({ formatName, data, items = [] }: PrintTem
 
   if (!config) return null;
 
+  // Determine Receipt Type Title for the Black Bar
+  let receiptType = "Receipt";
+  const nameLower = formatName.toLowerCase();
+  if (nameLower.includes("sale invoice") || nameLower.includes("pos")) {
+    receiptType = "Sale Receipt";
+  } else if (nameLower.includes("sale return")) {
+    receiptType = "Sale Return";
+  } else if (nameLower.includes("purchase invoice")) {
+    receiptType = "Purchase Receipt";
+  } else if (nameLower.includes("purchase return")) {
+    receiptType = "Purchase Return";
+  } else if (nameLower.includes("cash receipt")) {
+    receiptType = "Cash Receipt";
+  } else if (nameLower.includes("bank receipt")) {
+    receiptType = "Bank Receipt";
+  } else {
+    receiptType = formatName;
+  }
+
+  // Calculate totals and counts
+  const totalQty = items.reduce((acc, item) => acc + (Number(item.qty) || Number(item.cartons) || 1), 0);
+  const itemCount = items.length;
+
+  const grossTotal = Math.round(data.subtotal || data.total || 0);
+  const discount = Math.round(data.discountAmount || 0);
+  const netTotal = Math.round(data.total || data.amount || 0);
+  const amountReceived = Math.round(data.amountReceived || data.receivedAmount || netTotal);
+  const cashBack = amountReceived - netTotal;
+
+  // Format date and time
+  const rawDate = data.date ? new Date(data.date) : new Date();
+  const dateStr = rawDate.toLocaleDateString('en-GB'); // dd-mm-yyyy format
+  const timeStr = rawDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
   return (
     <div className="hidden print:flex flex-col bg-white text-black font-sans absolute inset-0 z-[9999] m-0 p-0" style={{ fontFamily: 'monospace' }}>
       <style>{`
@@ -45,118 +79,146 @@ export default function PrintTemplate({ formatName, data, items = [] }: PrintTem
             top: 0;
             width: 80mm; /* Force 80mm width */
             margin: 0 auto;
-            padding: 5mm; /* Very small padding for thermal */
+            padding: 4mm;
             background: white;
-            font-family: monospace;
+            font-family: 'Courier New', Courier, monospace;
             font-size: 12px;
             color: black;
           }
-          .thermal-dashed-border {
-            border-bottom: 1px dashed black;
-          }
         }
       `}</style>
-      <div id="print-area" className="w-full flex-col">
-        {/* Header */}
-        <div className="text-center pb-2 thermal-dashed-border mb-2">
-          {config.showLogo && companyInfo?.logo && (
-            <div className="flex justify-center mb-1">
-              <Image 
-                src={companyInfo.logo} 
-                alt="Company Logo" 
-                width={80}
-                height={32}
-                unoptimized
-                className="h-8 w-auto object-contain grayscale" 
-              />
-            </div>
-          )}
-          <h2 className="text-xl font-black uppercase">AL HADID TRADERS</h2>
-          <p className="text-xs font-bold">{companyInfo?.address || "Address Line 1"}, {companyInfo?.city || "City"}</p>
-          <p className="text-xs font-bold">Ph: {companyInfo?.phone || "+92 000 0000000"}</p>
-          <p className="text-xs font-bold">NTN: {companyInfo?.ntn || "0000000-0"}</p>
+      <div id="print-area" className="w-full flex flex-col">
+        {/* Logo */}
+        {config.showLogo && companyInfo?.logo && (
+          <div className="flex justify-center mb-2">
+            <Image 
+              src={companyInfo.logo} 
+              alt="Company Logo" 
+              width={100}
+              height={40}
+              unoptimized
+              className="h-10 w-auto object-contain grayscale" 
+            />
+          </div>
+        )}
+
+        {/* Company Title */}
+        <div className="text-center mb-1">
+          <h2 className="text-lg font-black uppercase tracking-tight" style={{ fontSize: '16px' }}>
+            {companyInfo?.name || "AL HADEED TRADERS"}
+          </h2>
+          <p className="text-[11px] font-bold">Tel: {companyInfo?.phone || "-"}</p>
         </div>
 
-        {/* Invoice Info */}
-        <div className="text-xs font-bold space-y-1 mb-2 thermal-dashed-border pb-2">
+        {/* Black Bar for Receipt Type */}
+        <div className="bg-black text-white text-center py-0.5 font-bold uppercase tracking-wider my-1 text-xs" style={{ fontSize: '11px' }}>
+          {receiptType}
+        </div>
+
+        {/* Meta Info Grid */}
+        <div className="text-[11px] font-bold space-y-0.5 my-2 border-b border-black pb-2">
           <div className="flex justify-between">
-            <span className="uppercase">{formatName}</span>
-            <span>{data.invoiceNo || data.poNumber || data.referenceNo || data.receiptNo || data.voucherNo || "DOC-001"}</span>
+            <span>Receipt No.</span>
+            <span>{data.invoiceNo || data.poNumber || data.referenceNo || data.receiptNo || data.voucherNo || "6928"}</span>
           </div>
           <div className="flex justify-between">
-            <span>Date:</span>
-            <span>{data.date ? new Date(data.date).toLocaleDateString() : new Date().toLocaleDateString()}</span>
+            <span>Date &nbsp;{dateStr}</span>
+            <span>Time &nbsp;{timeStr}</span>
           </div>
           <div className="flex justify-between">
-            <span>Customer:</span>
-            <span>{data.customer || data.supplier || data.partyName || data.receivedFrom || data.paidTo || "Walk-in Customer"}</span>
+            <span>Operator Name:</span>
+            <span>{data.operatorName || "Bilal khan"}</span>
           </div>
-          {data.linkedRef && (
-            <div className="flex justify-between">
-              <span>Ref:</span>
-              <span>{data.linkedRef}</span>
-            </div>
-          )}
-        </div>
-
-        {/* Items */}
-        <div className="w-full mb-2 thermal-dashed-border pb-2">
-          <table className="w-full text-xs font-bold">
-            <thead>
-              <tr className="border-b border-black">
-                <th className="text-left py-1 w-1/2">Item</th>
-                <th className="text-center py-1">Qty</th>
-                <th className="text-right py-1">Rate</th>
-                <th className="text-right py-1">Amt</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item: any, i: number) => (
-                <tr key={i} className="align-top">
-                  <td className="py-1 break-words">{item.description || item.itemName || item.accountName || "Item"}</td>
-                  <td className="py-1 text-center">{item.qty || item.cartons || 1}</td>
-                  <td className="py-1 text-right">{Math.round(item.unitPrice || item.rate || item.amount || 0)}</td>
-                  <td className="py-1 text-right">{Math.round(item.total || item.amount || item.netAmount || item.grossAmount || 0)}</td>
-                </tr>
-              ))}
-              {items.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="py-2 text-center">No items found</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Totals */}
-        <div className="space-y-1 text-xs font-bold mb-4">
-          {((data.subtotal > 0 || data.total > 0) && data.discountAmount > 0) && (
-            <div className="flex justify-between">
-              <span>Subtotal:</span>
-              <span>{Math.round(data.subtotal || (data.total + (data.discountAmount || 0)) || 0).toLocaleString()}</span>
-            </div>
-          )}
-          {data.discountAmount > 0 && (
-            <div className="flex justify-between">
-              <span>Discount:</span>
-              <span>-{Math.round(data.discountAmount).toLocaleString()}</span>
-            </div>
-          )}
-          <div className="flex justify-between text-sm font-black mt-1 pt-1 border-t border-black">
-            <span>TOTAL PKR:</span>
-            <span>{Math.round(data.total || data.amount || 0).toLocaleString()}</span>
+          <div className="flex justify-between">
+            <span>Sales Person:</span>
+            <span>{data.salesPerson || "-"}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Customer Name:</span>
+            <span className="truncate max-w-[150px]">
+              {data.customer || data.supplier || data.partyName || data.receivedFrom || data.paidTo || "Walk-in Customer"}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span>Payment Type:</span>
+            <span>{data.paymentMethod || data.paymentMode || "Cash"}</span>
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="text-center text-[10px] font-bold space-y-1 mt-4 border-t border-dashed border-black pt-2">
-          {config.showBankDetails && (
-            <div>
-              <p>HBL A/C: 1234-5678-9012</p>
-            </div>
+        {/* Items Table Headers */}
+        <div className="border-b border-black pb-1 mb-1 text-[11px] font-bold">
+          <div className="grid grid-cols-12">
+            <span className="col-span-6 text-left">Description</span>
+            <span className="col-span-2 text-center">Qty</span>
+            <span className="col-span-2 text-right">Price/Ctn</span>
+            <span className="col-span-2 text-right">Total</span>
+          </div>
+        </div>
+
+        {/* Items List */}
+        <div className="space-y-2 mb-2 text-[11px] font-bold">
+          {items.map((item: any, i: number) => {
+            const desc = item.description || item.itemName || item.accountName || "Item";
+            const qty = item.qty || item.cartons || 1;
+            const price = Math.round(item.unitPrice || item.rate || item.amount || 0);
+            const total = Math.round(item.total || item.amount || item.netAmount || item.grossAmount || 0);
+            return (
+              <div key={i} className="border-b border-dashed border-slate-200 pb-1">
+                {/* Row 1: Item Name / Description */}
+                <div className="text-left font-black">{desc}</div>
+                {/* Row 2: Qty / Rate / Total aligned */}
+                <div className="grid grid-cols-12 text-[10px] text-slate-700">
+                  <span className="col-span-6"></span> {/* empty space for description */}
+                  <span className="col-span-2 text-center">{qty}</span>
+                  <span className="col-span-2 text-right">{price.toLocaleString()}</span>
+                  <span className="col-span-2 text-right font-black text-black">{total.toLocaleString()}</span>
+                </div>
+              </div>
+            );
+          })}
+          {items.length === 0 && (
+            <div className="text-center py-2">No items found</div>
           )}
-          <p>{config.footerText || "Thank you for your business!"}</p>
-          <p>Powered by Oil Shop ERP</p>
+        </div>
+
+        {/* Item & Qty Summary Row */}
+        <div className="border-t border-b border-black py-1 my-1 text-[11px] font-bold flex justify-between">
+          <span>Item(s) &nbsp;{itemCount}</span>
+          <span>Total Qty &nbsp;{totalQty.toFixed(2)}</span>
+        </div>
+
+        {/* Financial Summary */}
+        <div className="space-y-1 text-[11px] font-bold my-2 text-right">
+          <div className="flex justify-between">
+            <span>Gross Total</span>
+            <span>{grossTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Discount</span>
+            <span>{discount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+          </div>
+          <div className="flex justify-between text-xs font-black pt-1 border-t border-black uppercase">
+            <span>Net Total PKR</span>
+            <span>{netTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+          </div>
+          <div className="flex justify-between pt-1">
+            <span>Amount Received</span>
+            <span>{amountReceived.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Cash Back PKR</span>
+            <span>{cashBack >= 0 ? cashBack.toLocaleString(undefined, { minimumFractionDigits: 2 }) : "0.00"}</span>
+          </div>
+        </div>
+
+        {/* Visit Note */}
+        <div className="text-center font-black my-3 text-[11px]">
+          *Thanks For Your Visit*
+        </div>
+
+        {/* Software By Footer */}
+        <div className="text-center text-[10px] font-bold border-t border-black pt-2 mt-2">
+          Software By: Roonjha Developers : 03152914836
         </div>
       </div>
     </div>

@@ -16,6 +16,8 @@ export default function POSViewModal({ isOpen, onClose, sale }: POSViewModalProp
     window.print();
   };
 
+  const totalQty = sale.lines?.reduce((acc: number, line: any) => acc + (Number(line.qty) || Number(line.cartons) || 1), 0) || 0;
+
   return (
     <ERPModal
       isOpen={isOpen}
@@ -23,7 +25,7 @@ export default function POSViewModal({ isOpen, onClose, sale }: POSViewModalProp
       title="Transaction Details"
       size="lg"
       footer={
-        <div className="flex justify-between w-full">
+        <div className="flex justify-between w-full print:hidden">
           <button onClick={onClose} className="px-6 py-2 text-sm font-bold text-slate-500 hover:bg-slate-50 rounded-xl transition-all">
             Close
           </button>
@@ -36,106 +38,215 @@ export default function POSViewModal({ isOpen, onClose, sale }: POSViewModalProp
         </div>
       }
     >
-      <div className="p-2 space-y-8 print:p-0" id="pos-receipt">
-        {/* Print Only Header (Logo/Shop Info) */}
-        <div className="hidden print:flex flex-col items-center text-center mb-8 border-b border-dashed border-slate-300 pb-6">
-          <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Najeeb Oil Shop</h1>
-          <p className="text-[10px] font-bold text-slate-500 mt-1">Main Road, Sector G-9, Islamabad</p>
-          <p className="text-[10px] font-bold text-slate-500">Contact: +92 300 1234567</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 print:grid-cols-2">
-          <div className="space-y-6">
-            <div>
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Receipt Info</label>
-              <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
-                <div className="p-2 bg-white dark:bg-slate-900 rounded-lg shadow-sm text-maroon-800">
-                  <Package size={20} />
+      <div className="p-2 print:p-0" id="pos-receipt">
+        {/* Screen Only View */}
+        <div className="print:hidden space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-6">
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Receipt Info</label>
+                <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                  <div className="p-2 bg-white dark:bg-slate-900 rounded-lg shadow-sm text-maroon-800">
+                    <Package size={20} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-black text-slate-900 dark:text-white leading-tight">{sale.invoiceNo}</p>
+                    <p className="text-[10px] font-bold text-slate-400">{new Date(sale.date).toLocaleString()}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm font-black text-slate-900 dark:text-white leading-tight">{sale.invoiceNo}</p>
-                  <p className="text-[10px] font-bold text-slate-400">{new Date(sale.date).toLocaleString()}</p>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Customer Info</label>
+                <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                  <div className="p-2 bg-white dark:bg-slate-900 rounded-lg shadow-sm text-blue-600">
+                    <User size={20} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-black text-slate-900 dark:text-white leading-tight">{sale.partyId?.companyName || sale.partyId?.name || "Walk-in Customer"}</p>
+                    <p className="text-[10px] font-bold text-slate-400">{sale.partyId?.contact || "No Contact Provided"}</p>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div>
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Customer Info</label>
-              <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
-                <div className="p-2 bg-white dark:bg-slate-900 rounded-lg shadow-sm text-blue-600">
-                  <User size={20} />
+            <div className="space-y-6">
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Payment Details</label>
+                <div className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 flex flex-col items-center justify-center text-center space-y-3">
+                  {sale.paymentMethod === 'Cash' ? (
+                     <Banknote size={32} className="text-emerald-600 mb-2" />
+                  ) : (
+                     <CreditCard size={32} className="text-blue-600 mb-2" />
+                  )}
+                  <h4 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">Rs. {(sale.totalAmount || 0).toLocaleString()}</h4>
+                  <span className="px-3 py-1 bg-white dark:bg-slate-900 text-[10px] font-black uppercase tracking-widest text-slate-500 rounded-full border border-slate-200 dark:border-slate-800">
+                    Paid via {sale.paymentMethod || "Credit"}
+                  </span>
                 </div>
-                <div>
-                  <p className="text-sm font-black text-slate-900 dark:text-white leading-tight">{sale.partyId?.companyName || sale.partyId?.name || "Walk-in Customer"}</p>
-                  <p className="text-[10px] font-bold text-slate-400">{sale.partyId?.contact || "No Contact Provided"}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-6">
-            <div>
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Payment Details</label>
-              <div className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 flex flex-col items-center justify-center text-center space-y-3">
-                {sale.paymentMethod === 'Cash' ? (
-                   <Banknote size={32} className="text-emerald-600 mb-2" />
-                ) : (
-                   <CreditCard size={32} className="text-blue-600 mb-2" />
-                )}
-                <h4 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">Rs. {(sale.totalAmount || 0).toLocaleString()}</h4>
-                <span className="px-3 py-1 bg-white dark:bg-slate-900 text-[10px] font-black uppercase tracking-widest text-slate-500 rounded-full border border-slate-200 dark:border-slate-800">
-                  Paid via {sale.paymentMethod || "Credit"}
-                </span>
               </div>
             </div>
           </div>
-        </div>
 
-        <div className="space-y-4">
-          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Items List</label>
-          <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-200 dark:border-slate-800 overflow-hidden">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
-                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Item Description</th>
-                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center w-20">Qty</th>
-                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right w-28">Price</th>
-                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right w-28">Total</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                {sale.lines?.map((line: any, idx: number) => (
-                  <tr key={idx} className="text-sm font-bold">
-                    <td className="px-6 py-4 text-slate-900 dark:text-white">{line.description || line.itemId?.name}</td>
-                    <td className="px-6 py-4 text-center text-slate-500">{line.qty || line.cartons}</td>
-                    <td className="px-6 py-4 text-right text-slate-500">{(line.rate || line.ratePerCarton || 0).toLocaleString()}</td>
-                    <td className="px-6 py-4 text-right text-slate-900 dark:text-white font-black">{(line.netAmount || 0).toLocaleString()}</td>
+          <div className="space-y-4">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Items List</label>
+            <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-200 dark:border-slate-800 overflow-hidden">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Item Description</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center w-20">Qty</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right w-28">Price</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right w-28">Total</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                  {sale.lines?.map((line: any, idx: number) => (
+                    <tr key={idx} className="text-sm font-bold">
+                      <td className="px-6 py-4 text-slate-900 dark:text-white">{line.description || line.itemId?.name}</td>
+                      <td className="px-6 py-4 text-center text-slate-500">{line.qty || line.cartons}</td>
+                      <td className="px-6 py-4 text-right text-slate-500">{(line.rate || line.ratePerCarton || 0).toLocaleString()}</td>
+                      <td className="px-6 py-4 text-right text-slate-900 dark:text-white font-black">{(line.netAmount || 0).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="flex flex-col items-end space-y-2 pt-6 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex justify-between w-64 text-sm font-bold text-slate-400">
+               <span className="uppercase tracking-widest text-[10px]">Subtotal</span>
+               <span className="text-slate-900 dark:text-white">Rs. {(sale.subTotal || sale.totalAmount).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between w-64 text-sm font-bold text-slate-400">
+               <span className="uppercase tracking-widest text-[10px]">Tax (GST 5%)</span>
+               <span className="text-slate-900 dark:text-white">Rs. {(sale.taxAmount || 0).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between w-64 items-center pt-4 border-t border-slate-100 dark:border-slate-800">
+               <span className="text-[10px] font-black text-maroon-800 uppercase tracking-widest">Grand Total</span>
+               <span className="text-2xl font-black text-maroon-800 tracking-tighter">Rs. {(sale.totalAmount || 0).toLocaleString()}</span>
+            </div>
           </div>
         </div>
 
-        <div className="flex flex-col items-end space-y-2 pt-6 border-t border-slate-100 dark:border-slate-800">
-          <div className="flex justify-between w-64 text-sm font-bold text-slate-400">
-             <span className="uppercase tracking-widest text-[10px]">Subtotal</span>
-             <span className="text-slate-900 dark:text-white">Rs. {(sale.subTotal || sale.totalAmount).toLocaleString()}</span>
+        {/* Print-Only Thermal Receipt matching the image */}
+        <div className="hidden print:flex flex-col w-full text-black" style={{ fontFamily: 'monospace', fontSize: '12px' }}>
+          {/* Logo / Company Title */}
+          <div className="text-center mb-1">
+            <h2 className="text-lg font-black uppercase tracking-tight animate-none" style={{ fontSize: '16px' }}>
+              AL HADEED TRADERS
+            </h2>
+            <p className="text-[11px] font-bold">Tel: -</p>
           </div>
-          <div className="flex justify-between w-64 text-sm font-bold text-slate-400">
-             <span className="uppercase tracking-widest text-[10px]">Tax (GST 5%)</span>
-             <span className="text-slate-900 dark:text-white">Rs. {(sale.taxAmount || 0).toLocaleString()}</span>
+
+          {/* Black Bar for Receipt Type */}
+          <div className="bg-black text-white text-center py-0.5 font-bold uppercase tracking-wider my-1 text-xs" style={{ fontSize: '11px' }}>
+            Sale Receipt
           </div>
-          <div className="flex justify-between w-64 items-center pt-4 border-t border-slate-100 dark:border-slate-800">
-             <span className="text-[10px] font-black text-maroon-800 uppercase tracking-widest">Grand Total</span>
-             <span className="text-2xl font-black text-maroon-800 tracking-tighter">Rs. {(sale.totalAmount || 0).toLocaleString()}</span>
+
+          {/* Meta Info Grid */}
+          <div className="text-[11px] font-bold space-y-0.5 my-2 border-b border-black pb-2 text-left">
+            <div className="flex justify-between">
+              <span>Receipt No.</span>
+              <span>{sale.invoiceNo || "6928"}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Date &nbsp;{new Date(sale.date).toLocaleDateString('en-GB')}</span>
+              <span>Time &nbsp;{new Date(sale.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Operator Name:</span>
+              <span>Bilal khan</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Sales Person:</span>
+              <span>-</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Customer Name:</span>
+              <span className="truncate max-w-[150px]">
+                {sale.partyId?.companyName || sale.partyId?.name || "Walk-in Customer"}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span>Payment Type:</span>
+              <span>{sale.paymentMethod || "Cash"}</span>
+            </div>
           </div>
-        </div>
-        
-        {/* Print Only Footer */}
-        <div className="hidden print:block text-center mt-12 pt-8 border-t border-dashed border-slate-300">
-          <p className="text-sm font-black text-slate-900">Thank you for your business!</p>
-          <p className="text-[10px] font-bold text-slate-400 mt-1 italic">This is a computer generated receipt.</p>
+
+          {/* Items Table Headers */}
+          <div className="border-b border-black pb-1 mb-1 text-[11px] font-bold">
+            <div className="grid grid-cols-12">
+              <span className="col-span-6 text-left">Description</span>
+              <span className="col-span-2 text-center">Qty</span>
+              <span className="col-span-2 text-right">Price/Ctn</span>
+              <span className="col-span-2 text-right">Total</span>
+            </div>
+          </div>
+
+          {/* Items List */}
+          <div className="space-y-2 mb-2 text-[11px] font-bold text-left">
+            {sale.lines?.map((line: any, i: number) => {
+              const desc = line.description || line.itemId?.name || "Item";
+              const qty = line.qty || line.cartons || 1;
+              const price = Math.round(line.rate || line.ratePerCarton || 0);
+              const total = Math.round(line.netAmount || 0);
+              return (
+                <div key={i} className="border-b border-dashed border-slate-200 pb-1">
+                  {/* Row 1: Item Name / Description */}
+                  <div className="text-left font-black">{desc}</div>
+                  {/* Row 2: Qty / Rate / Total aligned */}
+                  <div className="grid grid-cols-12 text-[10px] text-slate-700">
+                    <span className="col-span-6"></span>
+                    <span className="col-span-2 text-center">{qty}</span>
+                    <span className="col-span-2 text-right">{price.toLocaleString()}</span>
+                    <span className="col-span-2 text-right font-black text-black">{total.toLocaleString()}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Item & Qty Summary Row */}
+          <div className="border-t border-b border-black py-1 my-1 text-[11px] font-bold flex justify-between">
+            <span>Item(s) &nbsp;{sale.lines?.length || 0}</span>
+            <span>Total Qty &nbsp;{totalQty.toFixed(2)}</span>
+          </div>
+
+          {/* Financial Summary */}
+          <div className="space-y-1 text-[11px] font-bold my-2 text-right">
+            <div className="flex justify-between">
+              <span>Gross Total</span>
+              <span>{Math.round(sale.subTotal || sale.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Discount</span>
+              <span>{Math.round(sale.discountAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+            </div>
+            <div className="flex justify-between text-xs font-black pt-1 border-t border-black uppercase">
+              <span>Net Total PKR</span>
+              <span>{Math.round(sale.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+            </div>
+            <div className="flex justify-between pt-1">
+              <span>Amount Received</span>
+              <span>{Math.round(sale.amountReceived || sale.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Cash Back PKR</span>
+              <span>{Math.round((sale.amountReceived || sale.totalAmount || 0) - (sale.totalAmount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+            </div>
+          </div>
+
+          {/* Visit Note */}
+          <div className="text-center font-black my-3 text-[11px]">
+            *Thanks For Your Visit*
+          </div>
+
+          {/* Software By Footer */}
+          <div className="text-center text-[10px] font-bold border-t border-black pt-2 mt-2">
+            Software By: Roonjha Developers : 03152914836
+          </div>
         </div>
       </div>
 
@@ -146,7 +257,7 @@ export default function POSViewModal({ isOpen, onClose, sale }: POSViewModalProp
             margin: 0 !important;
             padding: 0 !important;
           }
-          nav, header, footer, button, .no-print {
+          nav, header, footer, button, .no-print, .print\\:hidden {
             display: none !important;
           }
           .modal-overlay {
@@ -154,15 +265,15 @@ export default function POSViewModal({ isOpen, onClose, sale }: POSViewModalProp
           }
           #pos-receipt {
             display: block !important;
-            width: 100% !important;
-            padding: 0 !important;
-            margin: 0 !important;
+            width: 80mm !important;
+            padding: 4mm !important;
+            margin: 0 auto !important;
             color: black !important;
             background: white !important;
           }
           #pos-receipt * {
             color: black !important;
-            border-color: #eee !important;
+            border-color: black !important;
           }
           /* Ensure the modal content is the only thing visible */
           div[role="dialog"] {
