@@ -2,7 +2,7 @@ import { fail, ok } from "@/lib/api";
 import dbConnect from "@/lib/db";
 import Invoice from "@/models/Invoice";
 import JournalEntry from "@/models/JournalEntry";
-import { generateInvoiceJournalEntries } from "../route";
+import { generateInvoiceJournalEntries } from "@/services/posting/invoicePostingHelper";
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
   try {
