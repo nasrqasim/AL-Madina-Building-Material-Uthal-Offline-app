@@ -26,8 +26,12 @@ export default function PrintTemplate({ formatName, data, items = [] }: PrintTem
   if (!config) return null;
 
   return (
-    <div className="hidden print:flex flex-col w-full bg-white text-black font-sans absolute inset-0 z-[9999] m-0 p-8 min-h-screen" style={{ fontFamily: config.headerFont }}>
+    <div className="hidden print:flex flex-col bg-white text-black font-sans absolute inset-0 z-[9999] m-0 p-0" style={{ fontFamily: 'monospace' }}>
       <style>{`
+        @page {
+          margin: 0;
+          size: 80mm auto; /* Thermal printer typical width 80mm */
+        }
         @media print {
           body * {
             visibility: hidden;
@@ -39,84 +43,85 @@ export default function PrintTemplate({ formatName, data, items = [] }: PrintTem
             position: absolute;
             left: 0;
             top: 0;
-            width: 100%;
-            margin: 0;
-            padding: 2rem;
+            width: 80mm; /* Force 80mm width */
+            margin: 0 auto;
+            padding: 5mm; /* Very small padding for thermal */
             background: white;
+            font-family: monospace;
+            font-size: 12px;
+            color: black;
+          }
+          .thermal-dashed-border {
+            border-bottom: 1px dashed black;
           }
         }
       `}</style>
-      <div id="print-area" className="w-full flex-col min-h-screen">
+      <div id="print-area" className="w-full flex-col">
         {/* Header */}
-        <div className="flex justify-between border-b-4 pb-8" style={{ borderColor: config.themeColor }}>
-          <div className="space-y-4">
-            {config.showLogo && (
-              companyInfo?.logo ? (
-                <Image 
-                  src={companyInfo.logo} 
-                  alt="Company Logo" 
-                  width={200}
-                  height={64}
-                  unoptimized
-                  className="h-16 w-auto object-contain" 
-                />
-              ) : (
-                <div className="w-32 h-12 bg-slate-100 rounded-lg flex items-center justify-center text-[10px] font-black text-slate-400 uppercase tracking-widest border border-dashed border-slate-300">
-                  No Logo Uploaded
-                </div>
-              )
-            )}
-            <div>
-              <h2 className="text-xl font-black text-slate-900 uppercase">{companyInfo?.companyName || "Oil Shop ERP"}</h2>
-              <p className="text-[10px] text-slate-500 font-medium">{companyInfo?.address || "Address Line 1"}, {companyInfo?.city || "City"}</p>
-              <p className="text-[10px] text-slate-500 font-medium">Ph: {companyInfo?.phone || "+92 000 0000000"} | NTN: {companyInfo?.ntn || "0000000-0"}</p>
+        <div className="text-center pb-2 thermal-dashed-border mb-2">
+          {config.showLogo && companyInfo?.logo && (
+            <div className="flex justify-center mb-1">
+              <Image 
+                src={companyInfo.logo} 
+                alt="Company Logo" 
+                width={80}
+                height={32}
+                unoptimized
+                className="h-8 w-auto object-contain grayscale" 
+              />
             </div>
-          </div>
-          <div className="text-right space-y-1">
-            <h1 className="text-4xl font-black tracking-tighter" style={{ color: config.themeColor }}>{formatName.toUpperCase()}</h1>
-            <p className="text-sm font-black text-slate-400 uppercase tracking-widest">{data.invoiceNo || data.poNumber || data.referenceNo || data.receiptNo || data.voucherNo || "DOC-001"}</p>
-            <p className="text-[10px] font-bold text-slate-400 mt-4">Date: {data.date || new Date().toLocaleDateString()}</p>
-          </div>
+          )}
+          <h2 className="text-xl font-black uppercase">AL HADID TRADERS</h2>
+          <p className="text-xs font-bold">{companyInfo?.address || "Address Line 1"}, {companyInfo?.city || "City"}</p>
+          <p className="text-xs font-bold">Ph: {companyInfo?.phone || "+92 000 0000000"}</p>
+          <p className="text-xs font-bold">NTN: {companyInfo?.ntn || "0000000-0"}</p>
         </div>
 
-        {/* Bill To */}
-        <div className="py-8 grid grid-cols-2 gap-8">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: config.themeColor }}>Bill To</p>
-            <h4 className="text-sm font-black text-slate-900">{data.customer || data.supplier || data.partyName || data.receivedFrom || data.paidTo || "General Party"}</h4>
-            <p className="text-[10px] text-slate-500 font-medium">Address on file</p>
+        {/* Invoice Info */}
+        <div className="text-xs font-bold space-y-1 mb-2 thermal-dashed-border pb-2">
+          <div className="flex justify-between">
+            <span className="uppercase">{formatName}</span>
+            <span>{data.invoiceNo || data.poNumber || data.referenceNo || data.receiptNo || data.voucherNo || "DOC-001"}</span>
           </div>
-          <div className="text-right">
-            <p className="text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: config.themeColor }}>Reference</p>
-            <h4 className="text-sm font-black text-slate-900">{data.linkedRef || data.reference || "-"}</h4>
+          <div className="flex justify-between">
+            <span>Date:</span>
+            <span>{data.date ? new Date(data.date).toLocaleDateString() : new Date().toLocaleDateString()}</span>
           </div>
+          <div className="flex justify-between">
+            <span>Customer:</span>
+            <span>{data.customer || data.supplier || data.partyName || data.receivedFrom || data.paidTo || "Walk-in Customer"}</span>
+          </div>
+          {data.linkedRef && (
+            <div className="flex justify-between">
+              <span>Ref:</span>
+              <span>{data.linkedRef}</span>
+            </div>
+          )}
         </div>
 
-        {/* Table */}
-        <div className="flex-1 mt-4">
-          <table className="w-full text-left">
-            <thead style={{ color: config.themeColor }}>
-              <tr className="border-b border-slate-200">
-                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest">#</th>
-                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest">Description</th>
-                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-center">Qty</th>
-                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-right">Price</th>
-                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-right">Total</th>
+        {/* Items */}
+        <div className="w-full mb-2 thermal-dashed-border pb-2">
+          <table className="w-full text-xs font-bold">
+            <thead>
+              <tr className="border-b border-black">
+                <th className="text-left py-1 w-1/2">Item</th>
+                <th className="text-center py-1">Qty</th>
+                <th className="text-right py-1">Rate</th>
+                <th className="text-right py-1">Amt</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody>
               {items.map((item: any, i: number) => (
-                <tr key={i} className="text-[10px] font-bold text-slate-700">
-                  <td className="px-4 py-4">{String(i + 1).padStart(2, '0')}</td>
-                  <td className="px-4 py-4">{item.description || item.itemName || item.accountName || "Item"}</td>
-                  <td className="px-4 py-4 text-center">{item.qty || "-"}</td>
-                  <td className="px-4 py-4 text-right">{item.unitPrice || item.rate || item.amount ? (item.unitPrice || item.rate || item.amount).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "-"}</td>
-                  <td className="px-4 py-4 text-right">{(item.total || item.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                <tr key={i} className="align-top">
+                  <td className="py-1 break-words">{item.description || item.itemName || item.accountName || "Item"}</td>
+                  <td className="py-1 text-center">{item.qty || item.cartons || 1}</td>
+                  <td className="py-1 text-right">{Math.round(item.unitPrice || item.rate || item.amount || 0)}</td>
+                  <td className="py-1 text-right">{Math.round(item.total || item.amount || item.netAmount || item.grossAmount || 0)}</td>
                 </tr>
               ))}
               {items.length === 0 && (
-                <tr className="text-[10px] font-bold text-slate-700">
-                  <td colSpan={5} className="px-4 py-4 text-center">No items found</td>
+                <tr>
+                  <td colSpan={4} className="py-2 text-center">No items found</td>
                 </tr>
               )}
             </tbody>
@@ -124,53 +129,34 @@ export default function PrintTemplate({ formatName, data, items = [] }: PrintTem
         </div>
 
         {/* Totals */}
-        <div className="mt-8 border-t-2 pt-4 space-y-1 ml-auto w-64" style={{ borderColor: config.themeColor }}>
-          {(data.subtotal > 0 || data.total > 0) && (
-            <div className="flex justify-between text-sm font-bold">
-              <span className="text-slate-400 uppercase tracking-tighter">Subtotal</span>
-              <span className="text-slate-900">{(data.subtotal || data.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-            </div>
-          )}
-          {data.taxAmount > 0 && (
-            <div className="flex justify-between text-sm font-bold">
-              <span className="text-slate-400 uppercase tracking-tighter">Tax</span>
-              <span className="text-slate-900">{(data.taxAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+        <div className="space-y-1 text-xs font-bold mb-4">
+          {((data.subtotal > 0 || data.total > 0) && data.discountAmount > 0) && (
+            <div className="flex justify-between">
+              <span>Subtotal:</span>
+              <span>{Math.round(data.subtotal || (data.total + (data.discountAmount || 0)) || 0).toLocaleString()}</span>
             </div>
           )}
           {data.discountAmount > 0 && (
-            <div className="flex justify-between text-sm font-bold">
-              <span className="text-slate-400 uppercase tracking-tighter">Discount</span>
-              <span className="text-red-600">-{(data.discountAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+            <div className="flex justify-between">
+              <span>Discount:</span>
+              <span>-{Math.round(data.discountAmount).toLocaleString()}</span>
             </div>
           )}
-          <div className="flex justify-between text-xl font-black pt-4" style={{ color: config.themeColor }}>
-            <span className="uppercase tracking-tighter">TOTAL</span>
-            <span>{(data.total || data.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+          <div className="flex justify-between text-sm font-black mt-1 pt-1 border-t border-black">
+            <span>TOTAL PKR:</span>
+            <span>{Math.round(data.total || data.amount || 0).toLocaleString()}</span>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="mt-auto pt-12 flex items-end justify-between break-inside-avoid">
-          <div className="text-left w-1/3">
-            {config.showBankDetails && (
-              <div className="space-y-1">
-                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Bank Details</p>
-                <p className="text-[10px] font-bold text-slate-700">Habib Bank Limited (HBL)</p>
-                <p className="text-[10px] font-bold text-slate-700">A/C: 1234-5678-9012</p>
-              </div>
-            )}
-          </div>
-          <div className="text-center w-1/3">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">{config.footerText}</p>
-          </div>
-          <div className="text-right w-1/3 flex flex-col items-end">
-            {config.showSignature && (
-              <div className="space-y-2">
-                <div className="w-32 border-b border-slate-300"></div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Authorized Signature</p>
-              </div>
-            )}
-          </div>
+        <div className="text-center text-[10px] font-bold space-y-1 mt-4 border-t border-dashed border-black pt-2">
+          {config.showBankDetails && (
+            <div>
+              <p>HBL A/C: 1234-5678-9012</p>
+            </div>
+          )}
+          <p>{config.footerText || "Thank you for your business!"}</p>
+          <p>Powered by Oil Shop ERP</p>
         </div>
       </div>
     </div>

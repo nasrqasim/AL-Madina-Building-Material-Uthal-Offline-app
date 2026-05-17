@@ -129,6 +129,7 @@ export const erpModules: ERPNavItem[] = [
     submenu: [
       { title: "Cash Receipt", href: "/receipts/cash-receipt", roles: ["admin", "salesman"] },
       { title: "Bank Receipt", href: "/receipts/bank-receipt", roles: ["admin", "salesman"] },
+      { title: "Other Income", href: "/receipts/other-income", roles: ["admin", "salesman"] },
     ]
   },
   { 

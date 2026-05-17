@@ -131,6 +131,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
   const [employees, setEmployees] = useState<any[]>([]);
   const [showItemSearch, setShowItemSearch] = useState<string | null>(null);
   const [showCustomerSearch, setShowCustomerSearch] = useState(false);
+  const [itemHistory, setItemHistory] = useState<any[]>([]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -296,6 +297,43 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
     if (!line || !line.itemId) return null;
     return availableItems.find(i => i._id === line.itemId);
   }, [selectedLineId, items, availableItems]);
+
+  useEffect(() => {
+    async function fetchHistory() {
+      if (!selectedItemDetails?._id) {
+        setItemHistory([]);
+        return;
+      }
+      try {
+        const res = await fetch(`/api/invoices?type=sale`);
+        const data = await res.json();
+        if (data.ok) {
+          const records: any[] = [];
+          data.data.forEach((inv: any) => {
+            const line = inv.lines?.find((l: any) => (l.itemId?._id || l.itemId) === selectedItemDetails._id);
+            if (line) {
+              const qtyParts = [];
+              if (line.cartons) qtyParts.push(`${line.cartons}C`);
+              if (line.gallons) qtyParts.push(`${line.gallons}G`);
+              if (line.liters) qtyParts.push(`${line.liters}L`);
+              records.push({
+                invoiceNo: inv.invoiceNo,
+                date: new Date(inv.date).toLocaleDateString(),
+                customer: inv.partyId?.name || "Walk-in",
+                quantity: qtyParts.join(", ") || "0",
+                rate: line.rate || 0,
+                amount: line.netAmount || 0
+              });
+            }
+          });
+          setItemHistory(records.slice(0, 5));
+        }
+      } catch (e) {
+        console.error("Failed to fetch history", e);
+      }
+    }
+    fetchHistory();
+  }, [selectedItemDetails?._id]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -498,37 +536,14 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                             className="w-full px-3 py-2 text-xs font-bold outline-none bg-transparent" 
                           />
                           {showItemSearch === line.id && (
-                            <div className="absolute top-full left-0 w-[450px] bg-slate-900 text-white border border-slate-700 rounded-xl shadow-2xl z-50 max-h-80 overflow-auto py-2">
+                            <div className="absolute top-full left-0 w-max min-w-[250px] bg-white text-black border border-slate-300 shadow-lg z-50 max-h-48 overflow-auto">
                               {filteredItems.map((i, idx) => (
                                 <div 
                                   key={i._id} 
-                                  className={`px-4 py-3 cursor-pointer border-b border-slate-800 transition-all ${idx === activeIndex ? 'bg-maroon-800 text-white' : 'hover:bg-slate-800'}`}
+                                  className={`px-3 py-1 cursor-pointer text-xs whitespace-nowrap transition-all ${idx === activeIndex ? 'bg-blue-600 text-white' : 'hover:bg-blue-600 hover:text-white'}`}
                                   onClick={() => { updateItem(line.id, "itemId", i._id); setShowItemSearch(null); }}
                                 >
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
-                                    <div className="flex-1">
-                                      <div className="flex items-center justify-between mb-1">
-                                        <span className="text-xs font-black uppercase tracking-widest text-slate-400">{i.code}</span>
-                                        <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-800 rounded text-slate-400">{i.category || "Lubricants"}</span>
-                                      </div>
-                                      <div className="text-sm font-black mb-2">{i.name}</div>
-                                      <div className="grid grid-cols-3 gap-2">
-                                        <div className="flex flex-col">
-                                          <span className="text-[8px] font-black uppercase text-slate-500">Cartons</span>
-                                          <span className="text-xs font-black text-emerald-400">{i.stockQtyCartons || 0}</span>
-                                        </div>
-                                        <div className="flex flex-col">
-                                          <span className="text-[8px] font-black uppercase text-slate-500">Gallons</span>
-                                          <span className="text-xs font-black text-blue-400">{(i.stockQtyCartons || 0) * 4}</span>
-                                        </div>
-                                        <div className="flex flex-col items-end">
-                                          <span className="text-[8px] font-black uppercase text-slate-500">Price</span>
-                                          <span className="text-xs font-black text-yellow-400">Rs. {i.retailRate || 0}</span>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </div>
+                                  {i.code} ({i.name})
                                 </div>
                               ))}
                             </div>
@@ -553,35 +568,90 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
              </div>
           </div>
 
-          <div className="col-span-12 lg:col-span-3 bg-[#f8fafc] border border-[#cbd5e1] rounded shadow-sm flex flex-col">
-             <div className="bg-[#1e293b] text-white p-2 text-xs font-black uppercase flex items-center gap-2"><Package size={14}/> Item Details</div>
-             <div className="p-3 space-y-4 flex-1">
-                <div className="space-y-1">
-                  <div className="text-[10px] font-black text-slate-400 uppercase">Purchase Price</div>
-                  <div className="text-lg font-black text-slate-600 font-mono">Rs. {(selectedItemDetails?.purchaseRate || 0).toFixed(2)}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-[10px] font-black text-slate-400 uppercase">Sale Price</div>
-                  <div className="text-xl font-black text-blue-700 font-mono">Rs. {(selectedItemDetails?.retailRate || 0).toFixed(2)}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Balance Stock</div>
-                  <div className="grid grid-cols-3 gap-1">
-                    <div className="bg-emerald-50 p-2 rounded border border-emerald-100">
-                      <div className="text-[8px] font-black text-emerald-600 uppercase">Ctns</div>
-                      <div className="text-sm font-black text-emerald-700">{(selectedItemDetails?.stockQtyCartons || 0)}</div>
-                    </div>
-                    <div className="bg-blue-50 p-2 rounded border border-blue-100">
-                      <div className="text-[8px] font-black text-blue-600 uppercase">Gals</div>
-                      <div className="text-sm font-black text-blue-700">{(selectedItemDetails?.stockQtyCartons || 0) * 4}</div>
-                    </div>
-                    <div className="bg-purple-50 p-2 rounded border border-purple-100">
-                      <div className="text-[8px] font-black text-purple-600 uppercase">Ltrs</div>
-                      <div className="text-sm font-black text-purple-700">{(selectedItemDetails?.stockQtyCartons || 0) * 16}</div>
-                    </div>
-                  </div>
-                </div>
-             </div>
+          <div className="col-span-12 lg:col-span-3 bg-[#f8fafc] border border-[#cbd5e1] rounded shadow-sm flex flex-col p-3 text-xs">
+             {selectedItemDetails ? (
+               <div className="space-y-2">
+                 <div className="flex justify-between items-start">
+                   <div className="flex gap-2">
+                     <span className="text-slate-500">Selling Price PKR:</span>
+                     <span className="font-bold text-black">
+                       {formData.isWholesale ? 
+                         (selectedItemDetails.wholesaleRate || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : 
+                         (selectedItemDetails.retailRate || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                     </span>
+                   </div>
+                   <div className="flex gap-2 text-rose-600 font-bold">
+                     <span>Balance:</span>
+                     <span>{Number(selectedItemDetails.stockQtyCartons || 0)} Pcs</span>
+                   </div>
+                 </div>
+                 
+                 <div className="flex gap-2">
+                   <span className="text-slate-500 w-16">Category:</span>
+                   <span className="font-bold truncate" title={selectedItemDetails.category || "N/A"}>{selectedItemDetails.category || "N/A"}</span>
+                 </div>
+                 
+                 <div className="flex gap-2">
+                   <span className="text-slate-500 w-16">Description:</span>
+                   <span className="font-bold truncate" title={selectedItemDetails.name}>{selectedItemDetails.name}</span>
+                 </div>
+
+                 <div className="flex gap-2">
+                   <span className="text-slate-500 w-16">History:</span>
+                   <span className="font-bold truncate">{formData.customerName || "Walk-in (Cash) Customer"}</span>
+                 </div>
+
+                 <div className="mt-2 border border-[#cbd5e1] rounded bg-white overflow-hidden">
+                   <table className="w-full text-left text-[9px]">
+                     <thead className="bg-slate-100 border-b border-[#cbd5e1]">
+                       <tr>
+                         <th className="p-1 font-normal text-slate-600 border-r border-[#cbd5e1]">Inv. No.</th>
+                         <th className="p-1 font-normal text-slate-600 border-r border-[#cbd5e1]">Date</th>
+                         <th className="p-1 font-normal text-slate-600 border-r border-[#cbd5e1]">Customer</th>
+                         <th className="p-1 font-normal text-slate-600 border-r border-[#cbd5e1]">Quantity</th>
+                         <th className="p-1 font-normal text-slate-600 border-r border-[#cbd5e1]">Rate</th>
+                         <th className="p-1 font-normal text-slate-600">Amount</th>
+                       </tr>
+                     </thead>
+                     <tbody>
+                        {itemHistory.length > 0 ? (
+                          itemHistory.map((h, i) => (
+                            <tr key={i} className="border-b border-[#cbd5e1] last:border-0">
+                              <td className="p-1 border-r border-[#cbd5e1] truncate max-w-[40px]" title={h.invoiceNo}>{h.invoiceNo}</td>
+                              <td className="p-1 border-r border-[#cbd5e1] truncate max-w-[40px]">{h.date}</td>
+                              <td className="p-1 border-r border-[#cbd5e1] truncate max-w-[50px]" title={h.customer}>{h.customer}</td>
+                              <td className="p-1 border-r border-[#cbd5e1] truncate max-w-[40px]">{h.quantity}</td>
+                              <td className="p-1 border-r border-[#cbd5e1]">{h.rate}</td>
+                              <td className="p-1">{h.amount}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <>
+                            <tr>
+                              <td className="p-1 border-r border-[#cbd5e1] border-b h-5"></td>
+                              <td className="p-1 border-r border-[#cbd5e1] border-b"></td>
+                              <td className="p-1 border-r border-[#cbd5e1] border-b"></td>
+                              <td className="p-1 border-r border-[#cbd5e1] border-b"></td>
+                              <td className="p-1 border-r border-[#cbd5e1] border-b"></td>
+                              <td className="p-1 border-b border-[#cbd5e1]"></td>
+                            </tr>
+                            <tr>
+                              <td className="p-1 border-r border-[#cbd5e1] border-b h-5"></td>
+                              <td className="p-1 border-r border-[#cbd5e1] border-b"></td>
+                              <td className="p-1 border-r border-[#cbd5e1] border-b"></td>
+                              <td className="p-1 border-r border-[#cbd5e1] border-b"></td>
+                              <td className="p-1 border-r border-[#cbd5e1] border-b"></td>
+                              <td className="p-1 border-b border-[#cbd5e1]"></td>
+                            </tr>
+                          </>
+                        )}
+                     </tbody>
+                   </table>
+                 </div>
+               </div>
+             ) : (
+               <div className="flex-1 flex items-center justify-center text-slate-400 italic">No item selected</div>
+             )}
           </div>
         </div>
 

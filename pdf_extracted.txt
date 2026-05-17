@@ -1,0 +1,399 @@
+Date 5/14/2026                                                        Printed By: AdministratorPage  1  of  8
+1020001       Shell HX6 10W40 3L
+102     Shell
+1010050       Atlas 20W50 CF/SF 10L
+1010049       Atlas 20W50 CF/SF 4L
+1010048       Atlas HONDA 10W30 700ml
+1010047       test  items
+1010046       Atlas HD50 10L
+1010045       Atlas HD50 5L
+1010044       Atlas 20W50 CF ECO 20L
+1010043       Atlas 20W50 SG (Dram)
+1010042       Atlas Coolant R/G 4L
+1010041       Atlas 20W50 CF/SF (Dram)
+1010040       Atlas HONDA 10W30 IL
+1010039       Atlas HONDA 20W50 IL
+1010038       Atlas HONDA 20W50 700ml
+1010037       700 Atlas HD50 (Dram)
+1010036       Atlas HD50 20L
+1010035       Atlas Hydraulic Oil HD-68 (Dram)
+1010034       Atlas Hydraulic Oil HD-68 20L
+1010033       Atlas Hydraulic Oil HO-68 (Dram)
+1010032       Atlas Hydraulic Oil HO-68 20L
+1010031       Atlas Hydraulic Oil HO-68 10L
+1010030       Atlas Battery Tonic 1L
+1010029       Atlas Coolant R/G 1L
+1010028       Atlas ATF Dexron lll
+1010027       Atlas GL-5 EP 140 3L
+1010026       Atlas GL-5 85W140
+1010025       Atlas GL-4 80W90
+1010024       Atlas-200 50 CC (Dram)
+1010023       Atlas-200 50 CC 5L
+1010022       Atlas-200 50 CC 4L
+1010021       Atlas-300 50 CD (Dram)
+1010020       Atlas-300 50 CD 10L
+1010019       Atlas-300 50 CD 4L
+1010018       Atlas-400 20W50 CF-4 (Dram)
+1010017       Atlas-400 20W50 CF-4 10L
+1010016       Atlas-400 20W50 CF-4 4L
+1010015       Atlas-500 15W40 (Dram)
+1010014       Atlas 0W20 SP 4L
+1010013       Atlas 0W20 SP 3L
+1010012       Atlas 5W30 SP 4L
+1010011       Atlas 5W30 SP 3L
+1010010       Atlas-500 15W40 10L
+1010009       Atlas-500 15W40 4L
+1010008       Atlas 20W50 SM 4L
+1010007       Atlas 20W50 SM 3L
+1010006       Atlas 10W40 HIVO+ 4L
+1010005       Atlas 10W40 HIVO+ 3L
+1010002       Atlas 20W50 SG 4L
+1010001        Atlas 20W50 SG 3L
+101     Atlas Oil
+1       OIl
+Chart of Inventory Items
+AL HADEED TRADERS
+----------------Page (0) Break----------------
+Date 5/14/2026                                                        Printed By: AdministratorPage  2  of  8
+10010012      Car Cover Top
+10010011      Seat Cover
+10010010      Tissue Box
+10010009      Tissue Naqoosh
+10010008      Tissue Virsa
+10010007      Ashtray
+10010006      Car Ashtray
+10010005      (SOGO) Ashtray
+10010004      MXXIS Booster Cable 1000A
+10010003      Suzuki Matting PVC
+10010002      Shezore Matting PVC
+10010001      Car Matting PVC
+1001     Vehicle Accessories
+10      Vehicle Accessories
+Total Number of Items :-    85
+1060001       Two Stroke Engine Oil E-2
+106     Two Stroke Engine Oil
+1050002       20W50 GTX 3L
+1050001       20W50 GTX 4L
+105     Castrol
+1040021       BEHRAN 20W50 4L
+1040020       600 PANA SAE50
+1040019       Irani oil Gallon 20L
+1040018       NEEDEX GEAR OIL EP-140 PK 4L
+1040017       Hydraulc Oil PK KHAIEJ STAR 20L
+1040016       ZEPIX G3 700ML
+1040015       CARBEN GEAR OIL 20L
+1040014       M5 700ML (RIMS)
+1040013       GEAR OIL SAE140 PK 4L
+1040012       550 20W50 PK
+1040011       Hydraulc Oil PK Gallon 20L
+1040010       Hydraulc Oil PK Blue 20L
+1040009       Hydraulc Oil PK Rad 20L
+1040008       Hydraulc Oil RIMS 10L
+1040007       Hydraulc Oil Green RITE 10L
+1040006       FIX Coolant PK
+1040005       GEAR OIL 85W140 PK 4L
+1040004       GEAR OIL SAE140 PK 1L
+1040003       ATF ROYAL 1L
+1040002       ATF 700ML PK
+1040001       ATF 1L PK
+104     Oil PK
+1030007       Havoline 10W30 4L
+1030006       Havoline 10W30 3L
+1030005       Delo 500 15W40 4L
+1030004       Delo 400 20W50 10L
+1030003       Delo 400 20W50 4L
+1030002       Havoline 20W50 SG 4L
+1030001       Havoline 20W50 SG 3L
+103     Caltex
+1020006       Shell HX7 5W30 4L
+1020005       Shell HX7 5W30 3L
+1020004       Shell HX3 20W50 4L
+1020003       Shell HX3 20W50 3L
+1020002       Shell HX6 10W40 4L
+----------------Page (1) Break----------------
+Date 5/14/2026                                                        Printed By: AdministratorPage  3  of  8
+2010036       Oil Fliter EE 113
+2010035       Oil Fliter EE 151
+2010034       Oil Fliter EE 152
+2010033       Oil Fliter EE 157
+2010032       Oil Fliter EE 158
+2010031       Oil Fliter EE 164
+2010030       Oil Fliter EE 168
+2010029       Oil Fliter EE 170
+2010028       Oil Fliter EE 174
+2010027       Oil Fliter EE 176
+2010026       Oil Fliter EE 177
+2010025       Oil Fliter EE 188
+2010024       Oil Fliter EE 195
+2010023       Oil Fliter EE 199
+2010022       Oil Fliter EE 205
+2010021       Oil Fliter EE 225
+2010020       Oil Fliter EE 237
+2010019       Oil Fliter EE 252
+2010018       Oil Fliter EE 263
+2010017       Oil Fliter EE 265
+2010016       Oil Fliter EE 274
+2010015       Oil Fliter EE 306
+2010014       Oil Fliter EE 351
+2010013       Oil Fliter EE 352
+2010012       Oil Fliter EE 353
+2010011       Oil Fliter EE 357
+2010010       Oil Fliter EE 358
+2010009       Oil Fliter EE 368
+2010008       Oil Fliter EE 381
+2010007       Oil Fliter EE 531
+2010006       Oil Fliter EE 702
+2010005       Oil Fliter EE 1381
+2010004       Oil Fliter EE 1732
+2010003       Oil Fliter EE 1780
+2010002       Oil Fliter EE 3349
+2010001       Oil Fliter EE 4005
+201     Oil Fliter
+2       Filter
+Total Number of Items :-    25
+10040003      Seat Belt Clip Lider
+10040002      Seat Belt Clip Black Pair
+10040001      Seat Belt Clip single
+1004     Seat Belt Clip
+10030006      Ke Chan
+10030005      Ke Chan
+10030004      Ke Chan
+10030003      Ke Chan
+10030002      Ke Chan
+10030001      Ke Chan
+1003     Ke Chan
+10020002      USB Charger SMART
+10020001      USB Charger Car
+1002     USB Charger
+10010014      NAT  NO14
+10010013      Tissue Rose Petal
+----------------Page (2) Break----------------
+Date 5/14/2026                                                        Printed By: AdministratorPage  4  of  8
+2020028       Dizel Filter EE 348
+2020027       Dizel Filter EE 276
+2020026       Dizel Filter EE 1204
+2020025       Dizel Filter EE 333
+2020024       Dizel Filter  EE 275
+2020023       Dizel Filter EE 260
+2020022       Dizel Filter EE 267
+2020021       Dizel Filter EE 172
+2020020       Dizel Filter EE 226
+2020019       Dizel Filter EE 343
+2020018       Dizel Filter EE 103
+2020017       Dizel Filter EE 109
+2020016       Dizel Filter EE 115
+2020015       Dizel Filter EE 118
+2020014       Dizel Filter EE 120
+2020013       Dizel Filter EE 165
+2020012       Dizel Filter EE 171
+2020011       Dizel Filter EE 180
+2020010       Dizel Filter EE 212
+2020009       Dizel Filter EE 247
+2020008       Dizel Filter EE 243
+2020007       Dizel Filter EE 254
+2020006       Dizel Filter EE 258
+2020005       Dizel Filter EE 296
+2020004       Dizel Filter EE 349
+2020003       Dizel Filter EE 1332
+2020002       Dizel Filter EE 1510
+2020001       Dizel Filter EE 1510L
+202     Dizel Filter
+2010062       Oil Fliter EE 4054
+2010061       Oil Fliter EE 327
+2010060       Oil Fliter EE 355
+2010059       Oil Fliter EE 3342
+2010058       Oil Fliter EE 3345
+2010057       Oil Fliter EE 271
+2010056       Oil Fliter EE 279
+2010055       Oil Fliter EE 200
+2010054       Oil Fliter MAX 1305 (151)
+2010053       Oil Fliter MAX 42000 (237)
+2010052       Oil Fliter MAX 41010 (157)
+2010051       Oil Fliter CUP
+2010050       Oil Fliter EE 250
+2010049       Oil Fliter A6
+2010048       Oil Fliter A5
+2010047       Oil Fliter EE 262
+2010046       Oil Fliter EE 79
+2010045       Oil Fliter EE 1480
+2010044       Oil Fliter EE 27
+2010043       Oil Fliter EE 72
+2010042       Oil Fliter EE 76
+2010041       Oil Fliter EE 83
+2010040       Oil FliterEE 80
+2010039       Oil Fliter EE 95
+2010038       Oil Fliter EE 101
+2010037       Oil Fliter EE 111
+----------------Page (3) Break----------------
+Date 5/14/2026                                                        Printed By: AdministratorPage  5  of  8
+301     (Guard) Brake Oil
+3       Brake Oil
+Total Number of Items :-   140
+2040006       AC Filter Corolla New Model Silicon
+2040005       AC Filter Corolla New Model
+2040004       AC Filter Corolla Oid Model
+2040003       AC Filter Corolla Old Model Silicon
+2040002       ALTO AC Filter
+2040001       ALTO AC Filter Silicon
+204     AC Filter
+2030038       Air Flter EE 872
+2030037       Air Flter 17801-21060 Vitz New
+2030036       Air Filter EE 227
+2030035       (HYUNDAI) Air Flter JAC KLX 1417
+2030034       (OSAKA) Air Flter JAC KLX 1417
+2030033       Air Flter EE 312 (Genter)
+2030032       Air Flter 22020 good
+2030031       Air Flter JAC Shahzoor KLX 1417
+2030030       Air Filater 13780A84250P000
+2030029       Air Filter Mahran Old
+2030028       Air Flter SUZUKI 74P00 A
+2030027       Air Flter 17801-0M020 good
+2030026       Air Flter 17801-23030
+2030025       Air Flter 17801-B2050
+2030024       MAX-44000
+2030023       Air Flter EE-814D
+2030022       Air Flter 22020
+2030021       Air Flter 21050
+2030020       Air Flter SUZUKI 13780B76M00N000
+2030019       Air Flter MAX 74P00
+2030018       Air Flter SUZUKI 74P00 B
+2030017       Air Flter MAX 13780-78100
+2030016       Air Flter MAX 21030
+2030015       Air Filter EE 123
+2030014       Air Flter EE 140D
+2030013       Air Flter EE 140
+2030012       Air Flter EE 141
+2030011       Air Flter EE 143
+2030010       Air Flter EE 147
+2030009       Air Flter EE 505D
+2030008       Air Flter EE 505
+2030007       Air Flter EE 508D
+2030006       Air Flter EE 508
+2030005       Air Flter EE 607
+2030004       Air Flter EE 526
+2030003       Air Flter EE  651
+2030002       Air Flter EE 805
+2030001       Air Flter EE 2200
+203     Air Flter
+2020034       Dizel Filter EE 334WD
+2020033       Dizel Filter EE 107
+2020032       Dizel Filter EE 379
+2020031       Dizel Filter EE 282
+2020030       Dizel Filter EE 707
+2020029       Dizel Filter EE 313
+----------------Page (4) Break----------------
+Date 5/14/2026                                                        Printed By: AdministratorPage  6  of  8
+6020002       Radiator Cleaner Rust Preventive
+6020001       Radiator Cleaner Flush (Flamingo)
+602     Radiator Cleaner
+6010002       Fuel Injector Cleaner (Flamingo) 354ml
+6010001       Diesel Fuel System Dredge (Flamingo) 354ml
+601     Fuel Cleaner
+6       Cleaner
+Total Number of Items :-    12
+5030002       GMSA Laste
+5030001       Kink Laste
+503     Laster Polish
+5020007       Leather Polsh (Flamingo) 500ml
+5020006       Spray Polish (Flamingo)  450ml
+5020005       Interior Cleaner WOW
+5020004        Foamy Cleaner (7CF)
+5020003       Spray Polish (Flamingo)  220ml
+5020002       Brake & Pasrts Cleaner (7CF)
+5020001       Spray Polish (7CF) Brown
+502     Interior Cleaner
+5010003       Body Polish (Formula)
+5010002       Body Polish (Flamingo)
+5010001       Body Polish (7CF)
+501     Body Polish
+5       Polish
+Total Number of Items :-    14
+4020013       (SINOLON) 0.5KG
+4020012       (JET POWER) GREASE Bag 1KG
+4020011       Grease Chitta Black 11KG
+4020010       Grease Booster 11KG
+4020009       Grease 11KG
+4020008       (Gold) Grease Bag 1/2KG
+4020007       (Gold) Grease Bag 1KG
+4020006       (Khamassso) Grease Bag 1KG
+4020005       (Heflon) Grease Bag 1KG
+4020004       (Sino pec) Grease Bag 1KG
+4020003       (Booster) Grease 1/2KG
+4020002       (Heflon) Grease 1/2KG
+4020001       (Heflon) Grease 1KG
+402     PK Grease
+4010001       Atlas Grease 1kg
+401     Atlas Grease
+4       Grease
+Total Number of Items :-    8
+3030002       Atlas Brake Oil 500ml
+3030001       Atlas Brake Oil 350ml
+303     (Atlas) Brake Oil
+3020003       ZEEXEL Brake Oil 750ml
+3020002       ZEEXEL Brake Oil 200ml
+3020001       ZEEXEL Brake Oil 500ml
+302     (ZEEXEL) Brake Oil
+3010003       Guard Brake Oil 500ml
+3010002       Guard Brake Oil 350ml
+3010001       (Guard) Brake Oil 200ml
+----------------Page (5) Break----------------
+Date 5/14/2026                                                        Printed By: AdministratorPage  7  of  8
+9020001       Cloth KG
+902     Pleces Cloth
+9010004       Cloth Microfiber 40x40 800g
+9010003       Cloth Microfiber 40x40 500g
+9010002       Cloth Microfiber 40x40 600g
+9010001       Cloth Microfiber 500g
+901     Cloth Microfiber
+9       Cloth
+Total Number of Items :-    11
+8020007       Air Freshener Black odor BO-1
+8020006       Air Freshener Concept
+8020005       Air Freshene Mxxis
+8020004       Air Freshener Sameili X
+8020003       Air Freshener Black odor BO-2
+8020002       Air Freshener Athens (Flamingo)
+8020001       Air Freshener Olympic (Flamingo)
+802     Air Freshener
+8010004       Room Spray Perfect
+8010003       Room Spray AL REHAB
+8010002       Room Spray 3R
+8010001       Room Spray 4R
+801     Room Spray
+8       Perfume
+Total Number of Items :-    16
+7010016       Wash Tall
+7010015       Wash Service 1500
+7010014       Wash Service 1400
+7010013       Wash Service 1300
+7010012       Wash Service 1200
+7010011       Wash Service 1100
+7010010       Wash Service 1000
+7010009       Wash Service 900
+7010008       Wash Service 800
+7010007       Wash Service 700
+7010006       Wash Service 600
+7010005       Wash Service 500
+7010004       Wash Service 400
+7010003       Wash Service 300
+7010002       Wash Service 200
+7010001       Wash Service 100
+701     Wash Service
+7       Wash Service
+Total Number of Items :-    11
+6050002       Windshield Washer (Flamingo)
+6050001       FIX Glass Cleaner
+605     Glass Cleaner
+6040002       Injector Cleaner 450ml (Flamingo)
+6040001       Injector Cleaner 220ml (Flamingo)
+604     Carburetor spray
+6030003       Engine Cleaner spray
+6030002       Super Oil Treatment (Flamingo)
+6030001       Engine Cleaner Motor Flush (Flamingo)
+603     Engine Cleaner
+----------------Page (6) Break----------------
+Date 5/14/2026                                                        Printed By: AdministratorPage  8  of  8
+Total Number of Items :-    7
+9020003       Cloth 50
+9020002       Soter Pes
+----------------Page (7) Break----------------
