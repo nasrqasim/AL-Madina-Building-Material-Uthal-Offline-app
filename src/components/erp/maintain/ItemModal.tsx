@@ -159,6 +159,7 @@ export default function ItemModal({ isOpen, onClose, item, onSave }: ItemModalPr
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">Liters in Ctn</label>
             <input
               type="number"
+              step="any"
               value={formData.litersInCtn}
               onChange={(e) => setFormData({ ...formData, litersInCtn: parseFloat(e.target.value) || 0 })}
               className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl text-sm font-black dark:text-white outline-none"
@@ -168,6 +169,7 @@ export default function ItemModal({ isOpen, onClose, item, onSave }: ItemModalPr
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">Gallons in Ctn</label>
             <input
               type="number"
+              step="any"
               value={formData.gallonsInCtn}
               onChange={(e) => setFormData({ ...formData, gallonsInCtn: parseFloat(e.target.value) || 0 })}
               className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl text-sm font-black dark:text-white outline-none"
@@ -180,6 +182,7 @@ export default function ItemModal({ isOpen, onClose, item, onSave }: ItemModalPr
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">Purchase Rate</label>
             <input
               type="number"
+              step="any"
               value={formData.purchaseRate}
               onChange={(e) => setFormData({ ...formData, purchaseRate: parseFloat(e.target.value) || 0 })}
               className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl text-sm font-black dark:text-white outline-none"
@@ -189,6 +192,7 @@ export default function ItemModal({ isOpen, onClose, item, onSave }: ItemModalPr
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">Wholesale Rate</label>
             <input
               type="number"
+              step="any"
               value={formData.wholesaleRate}
               onChange={(e) => setFormData({ ...formData, wholesaleRate: parseFloat(e.target.value) || 0 })}
               className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl text-sm font-black dark:text-white outline-none"
@@ -198,6 +202,7 @@ export default function ItemModal({ isOpen, onClose, item, onSave }: ItemModalPr
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">Retail Rate</label>
             <input
               type="number"
+              step="any"
               value={formData.retailRate}
               onChange={(e) => setFormData({ ...formData, retailRate: parseFloat(e.target.value) || 0 })}
               className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl text-sm font-black dark:text-white outline-none"
@@ -210,8 +215,9 @@ export default function ItemModal({ isOpen, onClose, item, onSave }: ItemModalPr
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">Opening Stock (Ctns)</label>
             <input
               type="number"
+              step="any"
               value={formData.stockQtyCartons}
-              onChange={(e) => setFormData({ ...formData, stockQtyCartons: parseInt(e.target.value) || 0 })}
+              onChange={(e) => setFormData({ ...formData, stockQtyCartons: parseFloat(e.target.value) || 0 })}
               className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl text-sm font-black dark:text-white outline-none"
             />
           </div>
@@ -219,8 +225,9 @@ export default function ItemModal({ isOpen, onClose, item, onSave }: ItemModalPr
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">Reorder Level</label>
             <input
               type="number"
+              step="any"
               value={formData.reorderLevel}
-              onChange={(e) => setFormData({ ...formData, reorderLevel: parseInt(e.target.value) || 0 })}
+              onChange={(e) => setFormData({ ...formData, reorderLevel: parseFloat(e.target.value) || 0 })}
               className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl text-sm font-black dark:text-white outline-none"
             />
           </div>
