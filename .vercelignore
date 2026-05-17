@@ -1,0 +1,12 @@
+.next
+node_modules
+.git
+.vercel
+Items.xlsx
+pdf_extracted.json
+pdf_extracted.txt
+pdf_analysis.json
+tsconfig.tsbuildinfo
+*.xlsx
+*.pdf
+build_output.txt

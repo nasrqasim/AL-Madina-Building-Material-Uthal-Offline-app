@@ -88,7 +88,7 @@ export default function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
 
   const filteredModules = useMemo(() => {
-    const role = (user?.role || "guest").toLowerCase();
+    const role = (user?.role || "guest").toLowerCase() as any;
     return erpModules
       .filter(item => !item.roles || item.roles.includes(role))
       .map(item => ({
