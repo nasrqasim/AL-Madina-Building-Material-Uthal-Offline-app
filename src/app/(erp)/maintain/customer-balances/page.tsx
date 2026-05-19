@@ -253,36 +253,64 @@ export default function CustomerBalancesPage() {
 
   const columns = [
     { 
+      header: "Account Code", 
+      accessor: "code",
+      render: (val: string) => (
+        <span className="font-bold text-slate-700 dark:text-slate-300">{val || "-"}</span>
+      )
+    },
+    { 
       header: "Customer Name", 
       accessor: "name",
       render: (val: string, row: any) => (
         <div className="flex flex-col">
           <span className="font-black text-slate-900 dark:text-white">{val}</span>
-          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500">NTN: {row.ntn || "-"}</span>
-        </div>
-      )
-    },
-    { header: "Category", accessor: "category" },
-    { header: "Contact Person", accessor: "contactPerson" },
-    { 
-      header: "Phone", 
-      accessor: "phone",
-      render: (val: string) => (
-        <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{val}</span>
-      )
-    },
-    { 
-      header: "Location", 
-      accessor: "area",
-      render: (val: string) => (
-        <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 font-bold">
-          <MapPin size={14} className="text-slate-300" />
-          <span>{val || "-"}</span>
+          {(row.phone || row.contactPerson) && (
+            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500">
+              {row.contactPerson ? `${row.contactPerson} | ` : ""}{row.phone || ""}
+            </span>
+          )}
         </div>
       )
     },
     { 
-      header: "Udhaar (Balance)", 
+      header: "Type", 
+      accessor: "category",
+      render: (val: string) => (
+        <span className="text-[10px] font-bold text-maroon-800 bg-maroon-50 px-2 py-1 rounded-lg uppercase tracking-wider">
+          {val || "Customer"}
+        </span>
+      )
+    },
+    { 
+      header: "Opening Balance", 
+      accessor: "openingBalance", 
+      render: (val: number) => (
+        <span className="text-sm font-bold text-slate-600 dark:text-slate-400">
+          Rs.{val?.toLocaleString() || "0"}
+        </span>
+      )
+    },
+    { 
+      header: "Debit", 
+      accessor: "debit",
+      render: (_: any, row: any) => {
+        const net = (row.balance || 0) - (row.openingBalance || 0);
+        const debit = net > 0 ? net : 0;
+        return <span className="text-sm font-bold text-emerald-600">{debit > 0 ? `Rs.${debit.toLocaleString()}` : "-"}</span>;
+      }
+    },
+    { 
+      header: "Credit", 
+      accessor: "credit",
+      render: (_: any, row: any) => {
+        const net = (row.balance || 0) - (row.openingBalance || 0);
+        const credit = net < 0 ? Math.abs(net) : 0;
+        return <span className="text-sm font-bold text-rose-600">{credit > 0 ? `Rs.${credit.toLocaleString()}` : "-"}</span>;
+      }
+    },
+    { 
+      header: "Closing Balance", 
       accessor: "balance", 
       render: (val: number, row: any) => (
         <div className="flex flex-col">
@@ -293,17 +321,6 @@ export default function CustomerBalancesPage() {
             <span className="text-[8px] font-black text-red-600 uppercase tracking-tighter">Over Limit! (Max: {row.creditLimit?.toLocaleString()})</span>
           )}
         </div>
-      )
-    },
-    { 
-      header: "Status", 
-      accessor: "status", 
-      render: (val: string) => (
-        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
-          val === "Active" ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"
-        }`}>
-          {val}
-        </span>
       )
     },
   ];
@@ -567,15 +584,52 @@ export default function CustomerBalancesPage() {
   // STANDARD BALANCES GRID VIEW
   return (
     <div className="space-y-6">
-      <ERPPageHeader 
-        title="Customer Balances" 
-        subtitle="Master Data / Customer Balances"
-        actions={[
-          { label: "Export Excel", onClick: () => exportToExcel(customers, "CustomerBalances.xlsx"), icon: FileSpreadsheet },
-          { label: "Download Template", onClick: () => downloadTemplate(["Company Name", "Contact Person", "Phone", "Email", "NTN", "Location", "Balance", "Status"], "CustomerTemplate.xlsx"), icon: Download },
-          { label: "Import Excel", onClick: handleImport, icon: FileText },
-        ]}
-      />
+      <style>{`
+        @media print {
+          aside, header, nav, .no-print, button, input, select {
+            display: none !important;
+          }
+          body {
+            background: white !important;
+            color: black !important;
+          }
+          .print-container {
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+          }
+          .print-header {
+            display: block !important;
+            text-align: center;
+            margin-bottom: 20px;
+          }
+          table {
+            border-collapse: collapse !important;
+            width: 100% !important;
+          }
+          th, td {
+            border: 1px solid #e2e8f0 !important;
+            padding: 8px !important;
+            font-size: 10px !important;
+          }
+        }
+      `}</style>
+
+      <div className="no-print">
+        <ERPPageHeader 
+          title="Customer Balances" 
+          subtitle="Master Data / Customer Balances"
+          actions={[
+            { label: "Export Excel", onClick: () => exportToExcel(customers, "CustomerBalances.xlsx"), icon: FileSpreadsheet },
+            { label: "Print List", onClick: printPage, icon: Printer },
+            { label: "Download Template", onClick: () => downloadTemplate(["Company Name", "Contact Person", "Phone", "Email", "NTN", "Location", "Balance", "Status"], "CustomerTemplate.xlsx"), icon: Download },
+            { label: "Import Excel", onClick: handleImport, icon: FileText },
+          ]}
+        />
+      </div>
 
       {/* Stats Section */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -599,6 +653,13 @@ export default function CustomerBalancesPage() {
           </div>
           <div className="flex items-center gap-3">
             <button 
+              onClick={printPage}
+              className="flex items-center gap-2 px-8 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-white rounded-2xl text-sm font-black uppercase tracking-widest transition-all shadow-sm"
+            >
+              <Printer size={18} />
+              Print
+            </button>
+            <button 
               onClick={handleAdd}
               className="flex items-center gap-2 px-8 py-3 bg-maroon-800 text-white rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-maroon-900 transition-all shadow-lg shadow-maroon-800/20"
             >
@@ -609,43 +670,34 @@ export default function CustomerBalancesPage() {
         </div>
       </div>
 
-      {/* Separate Tables for each of the 8 Categories */}
-      <div className="space-y-12">
-        {categories.map(cat => {
-          // Filter customers belonging to this category
-          const catCustomers = filteredCustomers.filter(c => (c.category || "Cash Customer") === cat);
+      {/* Single Table for all Customers */}
+      <div className="print-container bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-all hover:shadow-xl hover:shadow-maroon-900/5 min-h-[100px]">
+        
+        {/* Print Header (Visible only when printing) */}
+        <div className="hidden print-header p-6 pb-0">
+          <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">{shopProfile?.companyName || "Najeeb Oil Shop"}</h2>
+          <h3 className="text-sm font-bold text-maroon-800 uppercase tracking-widest mt-1">Customer Balances Report</h3>
+          <p className="text-[10px] text-slate-500 font-bold uppercase mt-1">Generated: {new Date().toLocaleDateString()}</p>
+        </div>
 
-          return (
-            <div key={cat} className="space-y-4">
-              <div className="flex items-center gap-4 px-6">
-                <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800"></div>
-                <h2 className="text-sm font-black uppercase tracking-[0.3em] text-maroon-800 bg-maroon-50 dark:bg-maroon-900/30 dark:text-maroon-400 px-6 py-2 rounded-full shadow-sm">
-                  {cat}
-                </h2>
-                <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800"></div>
-              </div>
-
-              <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-all hover:shadow-xl hover:shadow-maroon-900/5 min-h-[100px]">
-                {catCustomers.length > 0 ? (
-                  <ERPDataTable 
-                    columns={columns} 
-                    data={catCustomers} 
-                    actions={[
-                      { label: "Edit", onClick: handleEdit, icon: Edit2 },
-                      { label: "View Ledger", onClick: handleOpenLedger, icon: FileText },
-                      { label: "Receive Payment", onClick: (row: any) => { setActiveCustomer(row); setIsReceiptModalOpen(true); }, icon: Wallet },
-                      { label: "Delete", onClick: (row: any) => handleDelete(row._id), icon: Trash2, variant: "danger" },
-                    ]}
-                  />
-                ) : (
-                  <div className="py-12 text-center">
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest italic">No customers in this category</p>
-                  </div>
-                )}
-              </div>
+        <div className="p-1">
+          {filteredCustomers.length > 0 ? (
+            <ERPDataTable 
+              columns={columns} 
+              data={filteredCustomers} 
+              actions={[
+                { label: "Edit", onClick: handleEdit, icon: Edit2 },
+                { label: "View Ledger", onClick: handleOpenLedger, icon: FileText },
+                { label: "Receive Payment", onClick: (row: any) => { setActiveCustomer(row); setIsReceiptModalOpen(true); }, icon: Wallet },
+                { label: "Delete", onClick: (row: any) => handleDelete(row._id), icon: Trash2, variant: "danger" },
+              ]}
+            />
+          ) : (
+            <div className="py-12 text-center no-print">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest italic">No customers found</p>
             </div>
-          );
-        })}
+          )}
+        </div>
       </div>
 
       <CustomerModal 

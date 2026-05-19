@@ -16,6 +16,8 @@ export default function VendorsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [activeVendor, setActiveVendor] = useState<any>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [shopProfile, setShopProfile] = useState<any>(null);
 
   const fetchVendors = async () => {
     setIsLoading(true);
@@ -32,8 +34,19 @@ export default function VendorsPage() {
     }
   };
 
+  const fetchShopProfile = async () => {
+    try {
+      const res = await fetch("/api/shop-profile");
+      const json = await res.json();
+      if (json.ok) setShopProfile(json.data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
     fetchVendors();
+    fetchShopProfile();
   }, []);
 
   const handleAdd = () => {
@@ -47,6 +60,7 @@ export default function VendorsPage() {
       const data = await importFromExcel(file);
       console.log("Imported vendor data:", data);
       alert("Bulk import API needs to be implemented. Data parsed successfully.");
+      fetchVendors();
     }
   };
 
@@ -69,6 +83,7 @@ export default function VendorsPage() {
   const handleSave = async (data: any) => {
     const payload = {
       ...data,
+      companyName: data.name,
       name: data.companyName || data.name || data.contactPerson || "Unknown",
       code: data.code || `VEND-${Date.now()}`,
       type: "Vendor"
@@ -98,9 +113,11 @@ export default function VendorsPage() {
 
   const columns = [
     { 
-      header: "Code", 
+      header: "Account Code", 
       accessor: "code",
-      render: (val: string) => <span className="font-black text-slate-900 dark:text-white uppercase tracking-tighter">{val}</span>
+      render: (val: string) => (
+        <span className="font-bold text-slate-700 dark:text-slate-300 uppercase tracking-tighter">{val || "-"}</span>
+      )
     },
     { 
       header: "Vendor Name", 
@@ -108,73 +125,149 @@ export default function VendorsPage() {
       render: (val: string, row: any) => (
         <div className="flex flex-col">
           <span className="font-black text-slate-900 dark:text-white">{val}</span>
-          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">{row.contactPerson}</span>
+          {(row.phone || row.contactPerson) && (
+            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+              {row.contactPerson ? `${row.contactPerson} | ` : ""}{row.phone || ""}
+            </span>
+          )}
         </div>
       )
     },
     { 
       header: "Type", 
-      accessor: "type",
-      render: (val: string) => (
-        <span className="px-3 py-1 bg-maroon-50 dark:bg-maroon-900/30 text-maroon-800 dark:text-maroon-400 rounded-lg text-[10px] font-black uppercase tracking-widest">
-          {val}
+      accessor: "category", // Storing types of vendors in category similar to customers
+      render: (val: string, row: any) => (
+        <span className="px-2 py-1 bg-maroon-50 dark:bg-maroon-900/30 text-maroon-800 dark:text-maroon-400 rounded-lg text-[10px] font-bold uppercase tracking-wider">
+          {val || row.vendorType || "Supplier"}
         </span>
       )
     },
-    { header: "Phone", accessor: "phone" },
-    { header: "City", accessor: "city" },
-    { header: "NTN", accessor: "ntn" },
     { 
-      header: "WHT", 
-      accessor: "wht",
-      render: () => <span className="text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 font-bold">-</span>
-    },
-    { 
-      header: "Purchased Money (Payable)", 
-      accessor: "balance", 
+      header: "Opening Balance", 
+      accessor: "openingBalance", 
       render: (val: number) => (
-        <span className="text-sm font-black text-slate-900 dark:text-white">
+        <span className="text-sm font-bold text-slate-600 dark:text-slate-400">
           Rs.{val?.toLocaleString() || "0"}
         </span>
       )
     },
     { 
-      header: "Status", 
-      accessor: "status", 
-      render: (val: string) => (
-        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
-          val === "Active" ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400" : "bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400"
-        }`}>
-          {val}
+      header: "Debit (Payment)", 
+      accessor: "debit",
+      render: (_: any, row: any) => {
+        const net = (row.openingBalance || 0) - (row.balance || 0);
+        const debit = net > 0 ? net : 0;
+        return <span className="text-sm font-bold text-emerald-600">{debit > 0 ? `Rs.${debit.toLocaleString()}` : "-"}</span>;
+      }
+    },
+    { 
+      header: "Credit (Purchased)", 
+      accessor: "credit",
+      render: (_: any, row: any) => {
+        const net = (row.openingBalance || 0) - (row.balance || 0);
+        const credit = net < 0 ? Math.abs(net) : 0;
+        return <span className="text-sm font-bold text-rose-600">{credit > 0 ? `Rs.${credit.toLocaleString()}` : "-"}</span>;
+      }
+    },
+    { 
+      header: "Closing Balance", 
+      accessor: "balance", 
+      render: (val: number) => (
+        <span className={`text-sm font-black ${val > 0 ? "text-orange-600" : "text-emerald-600"}`}>
+          Rs.{val?.toLocaleString() || "0"}
         </span>
       )
     },
   ];
 
+  // Filter vendors by search term
+  const filteredVendors = vendors.filter(v => {
+    const term = searchTerm.toLowerCase();
+    return (
+      v.name?.toLowerCase().includes(term) ||
+      v.code?.toLowerCase().includes(term) ||
+      v.contactPerson?.toLowerCase().includes(term) ||
+      v.phone?.toLowerCase().includes(term) ||
+      v.city?.toLowerCase().includes(term) ||
+      v.ntn?.toLowerCase().includes(term)
+    );
+  });
+
   return (
     <div className="space-y-6">
-      <ERPPageHeader 
-        title="Vendors" 
-        subtitle="Master Data / Vendors"
-        actions={[
-          { label: "Print", onClick: printPage, icon: Printer },
-          { label: "Export Excel", onClick: () => exportToExcel(vendors, "Vendors.xlsx"), icon: FileSpreadsheet },
-          { label: "Download Template", onClick: () => downloadTemplate(["Code", "Name", "Contact Person", "Phone", "Email", "City", "NTN", "Balance", "Type", "Status"], "VendorsTemplate.xlsx"), icon: Download },
-          { label: "Import Excel", onClick: handleImport, icon: FileText },
-        ]}
-      />
+      <style>{`
+        @media print {
+          aside, header, nav, .no-print, button, input, select {
+            display: none !important;
+          }
+          body {
+            background: white !important;
+            color: black !important;
+          }
+          .print-container {
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+          }
+          .print-header {
+            display: block !important;
+            text-align: center;
+            margin-bottom: 20px;
+          }
+          table {
+            border-collapse: collapse !important;
+            width: 100% !important;
+          }
+          th, td {
+            border: 1px solid #e2e8f0 !important;
+            padding: 8px !important;
+            font-size: 10px !important;
+          }
+        }
+      `}</style>
 
-      <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-all duration-300">
+      <div className="no-print">
+        <ERPPageHeader 
+          title="Vendors" 
+          subtitle="Master Data / Vendors"
+          actions={[
+            { label: "Export Excel", onClick: () => exportToExcel(vendors, "Vendors.xlsx"), icon: FileSpreadsheet },
+            { label: "Print List", onClick: printPage, icon: Printer },
+            { label: "Download Template", onClick: () => downloadTemplate(["Code", "Name", "Contact Person", "Phone", "Email", "City", "NTN", "Balance", "Type", "Status"], "VendorsTemplate.xlsx"), icon: Download },
+            { label: "Import Excel", onClick: handleImport, icon: FileText },
+          ]}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 no-print">
+        <ERPStatCard label="Active Vendors" value={vendors.filter(v => v.status === "Active").length} icon={UserCheck} variant="green" />
+        <ERPStatCard label="Inactive Vendors" value={vendors.filter(v => v.status === "Inactive").length} icon={UserX} variant="slate" />
+        <ERPStatCard label="Total Payable" value={`Rs. ${(vendors.reduce((acc, v) => acc + (v.balance > 0 ? v.balance : 0), 0) / 1000000).toFixed(1)}M`} icon={Wallet} variant="maroon" />
+      </div>
+
+      <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mb-8 no-print">
         <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col md:flex-row gap-4 items-center justify-between">
           <div className="relative flex-1 max-w-xl">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500" size={18} />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={18} />
             <input 
               type="text" 
-              placeholder="Search vendors by name, code, phone, or city..." 
-              className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 dark:border-slate-700 rounded-2xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 dark:bg-slate-900 dark:focus:bg-slate-900 dark:bg-slate-900 dark:focus:bg-slate-900 focus:ring-4 focus:ring-maroon-800/5 dark:text-white outline-none transition-all"
+              placeholder="Search by vendor name, contact, phone, location..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 outline-none transition-all dark:text-white"
             />
           </div>
           <div className="flex items-center gap-3">
+            <button 
+              onClick={printPage}
+              className="flex items-center gap-2 px-8 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-white rounded-2xl text-sm font-black uppercase tracking-widest transition-all shadow-sm"
+            >
+              <Printer size={18} />
+              Print
+            </button>
             <button 
               onClick={handleAdd}
               className="flex items-center gap-2 px-8 py-3 bg-maroon-800 text-white rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-maroon-900 transition-all shadow-lg shadow-maroon-800/20"
@@ -184,18 +277,33 @@ export default function VendorsPage() {
             </button>
           </div>
         </div>
+      </div>
 
-        <ERPDataTable 
-          columns={columns} 
-          data={vendors} 
-          actions={[
-            { label: "Edit", onClick: handleEdit, icon: Edit2 },
-            { label: "View Ledger", onClick: () => {}, icon: FileText },
-            { label: "Pay", onClick: (row: any) => { setActiveVendor(row); setIsPaymentModalOpen(true); }, icon: Wallet },
-            { label: "Delete", onClick: (row: any) => handleDelete(row._id), icon: Trash2, variant: "danger" },
+      <div className="print-container bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-all hover:shadow-xl hover:shadow-maroon-900/5 min-h-[100px]">
+        {/* Print Header (Visible only when printing) */}
+        <div className="hidden print-header p-6 pb-0">
+          <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">{shopProfile?.companyName || "Najeeb Oil Shop"}</h2>
+          <h3 className="text-sm font-bold text-maroon-800 uppercase tracking-widest mt-1">Vendor Balances Report</h3>
+          <p className="text-[10px] text-slate-500 font-bold uppercase mt-1">Generated: {new Date().toLocaleDateString()}</p>
+        </div>
 
-          ]}
-        />
+        <div className="p-1">
+          {filteredVendors.length > 0 ? (
+            <ERPDataTable 
+              columns={columns} 
+              data={filteredVendors} 
+              actions={[
+                { label: "Edit", onClick: handleEdit, icon: Edit2 },
+                { label: "Pay", onClick: (row: any) => { setActiveVendor(row); setIsPaymentModalOpen(true); }, icon: Wallet },
+                { label: "Delete", onClick: (row: any) => handleDelete(row._id), icon: Trash2, variant: "danger" },
+              ]}
+            />
+          ) : (
+            <div className="py-12 text-center no-print">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest italic">No vendors found</p>
+            </div>
+          )}
+        </div>
       </div>
 
       <VendorModal 

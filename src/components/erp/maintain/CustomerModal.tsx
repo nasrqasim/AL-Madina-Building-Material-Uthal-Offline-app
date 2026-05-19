@@ -13,6 +13,7 @@ interface CustomerModalProps {
 
 export default function CustomerModal({ isOpen, onClose, customer, onSave }: CustomerModalProps) {
   const [formData, setFormData] = useState({
+    code: "",
     name: "",
     contactPerson: "",
     phone: "",
@@ -34,6 +35,7 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
   useEffect(() => {
     if (customer) {
       setFormData({
+        code: customer.code || "",
         name: customer.companyName || customer.name || "",
         contactPerson: customer.contactPerson || "",
         phone: customer.phone || "",
@@ -53,6 +55,7 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
       });
     } else {
       setFormData({
+        code: "",
         name: "",
         contactPerson: "",
         phone: "",
@@ -106,6 +109,22 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
       }
     >
       <form onSubmit={handleSubmit} className="p-2 space-y-8">
+        {/* Row 0: Account Code */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-2">
+              <Hash size={14} className="text-maroon-800" /> Account Code
+            </label>
+            <input
+              type="text"
+              value={formData.code}
+              onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-maroon-800/5 outline-none transition-all dark:text-white"
+              placeholder="Auto-generated if left blank"
+            />
+          </div>
+        </div>
+
         {/* Row 1: Company & Contact */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">

@@ -129,16 +129,19 @@ export default function VendorModal({ isOpen, onClose, vendor, onSave }: VendorM
             </div>
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Vendor Type *</label>
-              <select
+              <input
+                list="vendor-types"
                 value={formData.type}
                 onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                 className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 dark:border-slate-700 rounded-xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 dark:bg-slate-900 dark:focus:bg-slate-900 outline-none transition-all dark:text-white"
-              >
-                <option>Supplier</option>
-                <option>Manufacturer</option>
-                <option>Wholesaler</option>
-                <option>Importer</option>
-              </select>
+                placeholder="Select or enter new type"
+              />
+              <datalist id="vendor-types">
+                <option value="Supplier" />
+                <option value="Manufacturer" />
+                <option value="Wholesaler" />
+                <option value="Importer" />
+              </datalist>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
