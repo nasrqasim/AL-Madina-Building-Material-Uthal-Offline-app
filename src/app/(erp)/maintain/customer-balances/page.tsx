@@ -295,14 +295,14 @@ export default function CustomerBalancesPage() {
       header: "Debit", 
       accessor: "debit",
       render: (val: number) => {
-        return <span className="text-sm font-bold text-emerald-600">{val ? `Rs.${val.toLocaleString()}` : "-"}</span>;
+        return <span className="text-sm font-bold text-emerald-600">{val !== undefined && val !== null ? `Rs.${Number(val).toLocaleString()}` : "-"}</span>;
       }
     },
     { 
       header: "Credit", 
       accessor: "credit",
       render: (val: number) => {
-        return <span className="text-sm font-bold text-rose-600">{val ? `Rs.${val.toLocaleString()}` : "-"}</span>;
+        return <span className="text-sm font-bold text-rose-600">{val !== undefined && val !== null ? `Rs.${Number(val).toLocaleString()}` : "-"}</span>;
       }
     },
     { 
