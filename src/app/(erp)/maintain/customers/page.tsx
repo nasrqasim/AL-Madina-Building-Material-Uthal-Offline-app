@@ -5,7 +5,8 @@ import ERPPageHeader from "@/components/erp/ui/ERPPageHeader";
 import ERPDataTable from "@/components/erp/ui/ERPDataTable";
 import CustomerModal from "@/components/erp/maintain/CustomerModal";
 import QuickReceiptModal from "@/components/erp/maintain/QuickReceiptModal";
-import { Plus, FileText, Download, Printer, UserCheck, UserX, Wallet, Search, Edit2, Trash2, MapPin, FileSpreadsheet, ArrowLeft, Play, Calendar } from "lucide-react";
+import WhatsAppShareModal from "@/components/erp/whatsapp/WhatsAppShareModal";
+import { Plus, FileText, Download, Printer, UserCheck, UserX, Wallet, Search, Edit2, Trash2, MapPin, FileSpreadsheet, ArrowLeft, Play, Calendar, MessageCircle } from "lucide-react";
 import ERPStatCard from "@/components/erp/ui/ERPStatCard";
 import { exportToExcel, downloadTemplate, printPage, triggerFileInput, importFromExcel } from "@/lib/excel";
 
@@ -17,6 +18,10 @@ export default function CustomersPage() {
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
   const [activeCustomer, setActiveCustomer] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+  const [waParty, setWaParty] = useState<any>(null);
+  const [waDocData, setWaDocData] = useState<any>(null);
+  const [waType, setWaType] = useState<"Statement" | "Reminder">("Reminder");
 
   // Ledger state variables
   const [selectedLedgerCustomer, setSelectedLedgerCustomer] = useState<any>(null);
@@ -375,6 +380,18 @@ export default function CustomersPage() {
           </button>
           <div className="flex gap-2">
             <button 
+              onClick={() => {
+                setWaParty(selectedLedgerCustomer);
+                setWaDocData(ledgerData);
+                setWaType("Statement");
+                setIsWhatsAppModalOpen(true);
+              }}
+              className="flex items-center gap-2 px-6 py-2.5 bg-[#25D366] hover:bg-[#1EBE5D] text-white rounded-xl text-sm font-black shadow-xl shadow-[#25D366]/20 transition-all"
+            >
+              <MessageCircle size={18} />
+              WhatsApp Statement
+            </button>
+            <button 
               onClick={printPage}
               className="flex items-center gap-2 px-6 py-2.5 bg-maroon-800 hover:bg-maroon-900 text-white rounded-xl text-sm font-black shadow-xl shadow-maroon-900/20 transition-all"
             >
@@ -633,6 +650,7 @@ export default function CustomersPage() {
                     actions={[
                       { label: "Edit", onClick: handleEdit, icon: Edit2 },
                       { label: "View Ledger", onClick: handleOpenLedger, icon: FileText },
+                      { label: "WhatsApp Reminder", onClick: (row: any) => { setWaParty(row); setWaType("Reminder"); setIsWhatsAppModalOpen(true); }, icon: MessageCircle },
                       { label: "Receive Payment", onClick: (row: any) => { setActiveCustomer(row); setIsReceiptModalOpen(true); }, icon: Wallet },
                       { label: "Delete", onClick: (row: any) => handleDelete(row._id), icon: Trash2, variant: "danger" },
                     ]}
@@ -663,6 +681,15 @@ export default function CustomersPage() {
           onSuccess={fetchCustomers} 
         />
       )}
+
+      <WhatsAppShareModal 
+        isOpen={isWhatsAppModalOpen}
+        onClose={() => setIsWhatsAppModalOpen(false)}
+        party={waParty}
+        type={waType}
+        documentData={waDocData}
+        shopProfile={shopProfile}
+      />
     </div>
   );
 }

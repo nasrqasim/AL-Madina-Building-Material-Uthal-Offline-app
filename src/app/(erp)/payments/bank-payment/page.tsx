@@ -3,14 +3,19 @@
 import { useState, useEffect } from "react";
 import BankPaymentForm from "@/components/payments/BankPaymentForm";
 import ERPPageHeader from "@/components/erp/ui/ERPPageHeader";
-import { Plus, Search, Eye, Edit, Trash2, Printer, FileSpreadsheet } from "lucide-react";
+import { Plus, Search, Eye, Edit, Trash2, Printer, FileSpreadsheet, MessageCircle } from "lucide-react";
 import { exportToExcel, printPage } from "@/lib/excel";
+import WhatsAppShareModal from "@/components/erp/whatsapp/WhatsAppShareModal";
 
 export default function BankPaymentPage() {
   const [showForm, setShowForm] = useState(false);
   const [payments, setPayments] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+  const [waParty, setWaParty] = useState<any>(null);
+  const [waDocData, setWaDocData] = useState<any>(null);
+  const [shopProfile, setShopProfile] = useState<any>(null);
 
   const fetchPayments = async () => {
     setIsLoading(true);
@@ -25,8 +30,19 @@ export default function BankPaymentPage() {
     }
   };
 
+  const fetchShopProfile = async () => {
+    try {
+      const res = await fetch("/api/shop-profile");
+      const json = await res.json();
+      if (json.ok) setShopProfile(json.data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
     fetchPayments();
+    fetchShopProfile();
   }, [showForm]);
 
   const deletePayment = async (id: string) => {
@@ -109,6 +125,21 @@ export default function BankPaymentPage() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-center gap-2 transition-opacity">
+                        <button 
+                          onClick={() => {
+                            setWaParty({ name: p.vendor });
+                            setWaDocData({
+                              type: "Bank Payment",
+                              amount: p.amount,
+                              date: p.date,
+                              receiptNumber: p.voucherNo
+                            });
+                            setIsWhatsAppModalOpen(true);
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-[#25D366] hover:bg-[#25D366]/10 rounded-lg transition-all" title="WhatsApp"
+                        >
+                          <MessageCircle size={16} />
+                        </button>
                         <button onClick={() => deletePayment(p._id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all" title="Delete">
                           <Trash2 size={16} />
                         </button>
@@ -123,6 +154,15 @@ export default function BankPaymentPage() {
           </table>
         </div>
       </div>
+
+      <WhatsAppShareModal 
+        isOpen={isWhatsAppModalOpen}
+        onClose={() => setIsWhatsAppModalOpen(false)}
+        party={waParty}
+        type="Receipt"
+        documentData={waDocData}
+        shopProfile={shopProfile}
+      />
     </div>
   );
 }

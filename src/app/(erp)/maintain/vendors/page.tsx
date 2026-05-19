@@ -5,7 +5,8 @@ import ERPPageHeader from "@/components/erp/ui/ERPPageHeader";
 import ERPDataTable from "@/components/erp/ui/ERPDataTable";
 import VendorModal from "@/components/erp/maintain/VendorModal";
 import QuickPaymentModal from "@/components/erp/maintain/QuickPaymentModal";
-import { Plus, FileText, Download, Printer, UserCheck, UserX, Wallet, Search, Edit2, Trash2, MapPin, User, Hash, FileSpreadsheet } from "lucide-react";
+import WhatsAppShareModal from "@/components/erp/whatsapp/WhatsAppShareModal";
+import { Plus, FileText, Download, Printer, UserCheck, UserX, Wallet, Search, Edit2, Trash2, MapPin, User, Hash, FileSpreadsheet, MessageCircle } from "lucide-react";
 import ERPStatCard from "@/components/erp/ui/ERPStatCard";
 import { exportToExcel, downloadTemplate, printPage, printListDocument, triggerFileInput, importFromExcel } from "@/lib/excel";
 
@@ -18,6 +19,8 @@ export default function VendorsPage() {
   const [activeVendor, setActiveVendor] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [shopProfile, setShopProfile] = useState<any>(null);
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+  const [waParty, setWaParty] = useState<any>(null);
 
   const fetchVendors = async () => {
     setIsLoading(true);
@@ -363,6 +366,7 @@ export default function VendorsPage() {
               data={filteredVendors} 
               actions={[
                 { label: "Edit", onClick: handleEdit, icon: Edit2 },
+                { label: "WhatsApp Reminder", onClick: (row: any) => { setWaParty(row); setIsWhatsAppModalOpen(true); }, icon: MessageCircle },
                 { label: "Pay", onClick: (row: any) => { setActiveVendor(row); setIsPaymentModalOpen(true); }, icon: Wallet },
                 { label: "Delete", onClick: (row: any) => handleDelete(row._id), icon: Trash2, variant: "danger" },
               ]}
@@ -401,6 +405,14 @@ export default function VendorsPage() {
           onSuccess={fetchVendors} 
         />
       )}
+
+      <WhatsAppShareModal 
+        isOpen={isWhatsAppModalOpen}
+        onClose={() => setIsWhatsAppModalOpen(false)}
+        party={waParty}
+        type="Reminder"
+        shopProfile={shopProfile}
+      />
     </div>
   );
 }

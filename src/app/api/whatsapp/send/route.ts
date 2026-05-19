@@ -1,0 +1,123 @@
+import { NextResponse } from "next/server";
+import MessageLog from "@/models/MessageLog";
+import connectDB from "@/lib/db";
+
+export async function POST(req: Request) {
+  try {
+    await connectDB();
+    const body = await req.json();
+    const { recipientName, recipientPhone, type, referenceId, message, pdfBase64, useWebFallback } = body;
+
+    const token = process.env.WHATSAPP_ACCESS_TOKEN;
+    const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+    // Clean phone number (remove + and spaces)
+    const cleanPhone = recipientPhone.replace(/\D/g, '');
+
+    if (!token || !phoneId) {
+      // If no credentials, log and return instruction for frontend to use Web fallback
+      if (useWebFallback) {
+        await MessageLog.create({
+          recipientName,
+          recipientPhone: cleanPhone,
+          type,
+          referenceId,
+          status: "Sent",
+          errorMessage: "Sent via WhatsApp Web (No Cloud API credentials)",
+        });
+        return NextResponse.json({ ok: true, fallback: true, cleanPhone });
+      }
+
+      return NextResponse.json(
+        { ok: false, error: "WhatsApp Cloud API credentials not configured." },
+        { status: 500 }
+      );
+    }
+
+    let mediaId = null;
+
+    // If there's a PDF, we need to upload it first
+    if (pdfBase64) {
+      const buffer = Buffer.from(pdfBase64, "base64");
+      const formData = new FormData();
+      formData.append("file", new Blob([buffer], { type: "application/pdf" }), "Statement.pdf");
+      formData.append("type", "application/pdf");
+      formData.append("messaging_product", "whatsapp");
+
+      const uploadRes = await fetch(`https://graph.facebook.com/v20.0/${phoneId}/media`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      const uploadData = await uploadRes.json();
+      if (uploadData.id) {
+        mediaId = uploadData.id;
+      } else {
+        console.error("WhatsApp Media Upload Error:", uploadData);
+      }
+    }
+
+    // Send the message
+    let payload: any = {
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: cleanPhone,
+    };
+
+    if (mediaId) {
+      // Send document with caption
+      payload.type = "document";
+      payload.document = {
+        id: mediaId,
+        caption: message || "Please find the attached document.",
+        filename: `${type}_${recipientName}.pdf`
+      };
+    } else {
+      // Send text only
+      payload.type = "text";
+      payload.text = {
+        preview_url: false,
+        body: message,
+      };
+    }
+
+    const sendRes = await fetch(`https://graph.facebook.com/v20.0/${phoneId}/messages`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const sendData = await sendRes.json();
+
+    if (sendData.error) {
+      await MessageLog.create({
+        recipientName,
+        recipientPhone: cleanPhone,
+        type,
+        referenceId,
+        status: "Failed",
+        errorMessage: sendData.error.message,
+      });
+      return NextResponse.json({ ok: false, error: sendData.error.message }, { status: 400 });
+    }
+
+    await MessageLog.create({
+      recipientName,
+      recipientPhone: cleanPhone,
+      type,
+      referenceId,
+      status: "Sent",
+    });
+
+    return NextResponse.json({ ok: true, data: sendData });
+  } catch (error: any) {
+    console.error("WhatsApp Send Error:", error);
+    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  }
+}

@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import SaleInvoiceForm from "@/components/sales/SaleInvoiceForm";
 import SaleInvoiceDetails from "@/components/sales/SaleInvoiceDetails";
 import ERPPageHeader from "@/components/erp/ui/ERPPageHeader";
-import { Plus, Search, Filter, Eye, Edit, Trash2, FileText, ExternalLink, CheckCircle2, CreditCard, Clock, Printer, FileSpreadsheet, Upload } from "lucide-react";
+import WhatsAppShareModal from "@/components/erp/whatsapp/WhatsAppShareModal";
+import { Plus, Search, Filter, Eye, Edit, Trash2, FileText, ExternalLink, CheckCircle2, CreditCard, Clock, Printer, FileSpreadsheet, Upload, MessageCircle } from "lucide-react";
 import { exportToExcel, printPage } from "@/lib/excel";
 
 interface SaleInvoice {
@@ -27,6 +28,10 @@ export default function SaleInvoicePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [invoices, setInvoices] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+  const [waParty, setWaParty] = useState<any>(null);
+  const [waDocData, setWaDocData] = useState<any>(null);
+  const [shopProfile, setShopProfile] = useState<any>(null);
 
   const fetchInvoices = async () => {
     setIsLoading(true);
@@ -41,8 +46,19 @@ export default function SaleInvoicePage() {
     }
   };
 
+  const fetchShopProfile = async () => {
+    try {
+      const res = await fetch("/api/shop-profile");
+      const json = await res.json();
+      if (json.ok) setShopProfile(json.data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
     fetchInvoices();
+    fetchShopProfile();
   }, [showForm]);
 
   const deleteInvoice = async (id: string) => {
@@ -257,9 +273,19 @@ export default function SaleInvoicePage() {
                         </button>
                         <button 
                           onClick={printPage}
-                          className="p-1.5 text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg transition-all" title="Print"
+                          className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg transition-all" title="Print"
                         >
                           <Printer size={16} />
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setWaParty(inv.partyId || { name: inv.customerName });
+                            setWaDocData({ ...inv, rows: inv.items });
+                            setIsWhatsAppModalOpen(true);
+                          }}
+                          className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-[#25D366] hover:bg-[#25D366]/10 rounded-lg transition-all" title="WhatsApp"
+                        >
+                          <MessageCircle size={16} />
                         </button>
                         <button 
                           onClick={() => { setEditOrder(inv); setShowForm(true); }}
@@ -302,6 +328,15 @@ export default function SaleInvoicePage() {
           </div>
         </div>
       </div>
+
+      <WhatsAppShareModal 
+        isOpen={isWhatsAppModalOpen}
+        onClose={() => setIsWhatsAppModalOpen(false)}
+        party={waParty}
+        type="Invoice"
+        documentData={waDocData}
+        shopProfile={shopProfile}
+      />
     </div>
   );
 }

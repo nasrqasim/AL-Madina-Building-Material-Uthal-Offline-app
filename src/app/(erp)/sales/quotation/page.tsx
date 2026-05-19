@@ -4,8 +4,9 @@ import { useState, useEffect } from "react";
 import QuotationForm from "@/components/sales/QuotationForm";
 import QuotationDetails from "@/components/sales/QuotationDetails";
 import ERPPageHeader from "@/components/erp/ui/ERPPageHeader";
-import { Plus, Search, Filter, Eye, Edit, Trash2, FileText, Send, CheckCircle2, Clock, Printer, FileSpreadsheet } from "lucide-react";
+import { Plus, Search, Filter, Eye, Edit, Trash2, FileText, Send, CheckCircle2, Clock, Printer, FileSpreadsheet, MessageCircle } from "lucide-react";
 import { exportToExcel, printPage } from "@/lib/excel";
+import WhatsAppShareModal from "@/components/erp/whatsapp/WhatsAppShareModal";
 
 export default function QuotationPage() {
   const [showForm, setShowForm] = useState(false);
@@ -14,6 +15,10 @@ export default function QuotationPage() {
   const [quotations, setQuotations] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+  const [waParty, setWaParty] = useState<any>(null);
+  const [waDocData, setWaDocData] = useState<any>(null);
+  const [shopProfile, setShopProfile] = useState<any>(null);
 
   const fetchQuotations = async () => {
     setIsLoading(true);
@@ -28,8 +33,19 @@ export default function QuotationPage() {
     }
   };
 
+  const fetchShopProfile = async () => {
+    try {
+      const res = await fetch("/api/shop-profile");
+      const json = await res.json();
+      if (json.ok) setShopProfile(json.data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
     fetchQuotations();
+    fetchShopProfile();
   }, [showForm]);
 
   const deleteQuotation = async (id: string) => {
@@ -196,6 +212,16 @@ export default function QuotationPage() {
                           <Eye size={16} />
                         </button>
                         <button 
+                          onClick={() => {
+                            setWaParty(q.partyId || { name: q.customerName });
+                            setWaDocData({ ...q, rows: q.items });
+                            setIsWhatsAppModalOpen(true);
+                          }}
+                          className="p-1.5 text-slate-300 hover:text-[#25D366] hover:bg-[#25D366]/10 rounded-lg transition-all" title="WhatsApp"
+                        >
+                          <MessageCircle size={16} />
+                        </button>
+                        <button 
                           onClick={() => { setEditOrder(q); setShowForm(true); }}
                           className="p-1.5 text-slate-300 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Edit"
                         >
@@ -221,6 +247,15 @@ export default function QuotationPage() {
           </table>
         </div>
       </div>
+
+      <WhatsAppShareModal 
+        isOpen={isWhatsAppModalOpen}
+        onClose={() => setIsWhatsAppModalOpen(false)}
+        party={waParty}
+        type="Invoice"
+        documentData={waDocData}
+        shopProfile={shopProfile}
+      />
     </div>
   );
 }

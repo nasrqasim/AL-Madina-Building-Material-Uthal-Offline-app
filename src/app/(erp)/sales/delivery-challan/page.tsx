@@ -4,8 +4,9 @@ import { useState, useEffect } from "react";
 import DeliveryChallanForm from "@/components/sales/DeliveryChallanForm";
 import DeliveryChallanDetails from "@/components/sales/DeliveryChallanDetails";
 import ERPPageHeader from "@/components/erp/ui/ERPPageHeader";
-import { Plus, Search, Filter, Eye, Trash2, Truck, CheckCircle2, Clock, Link2, Edit, Printer, FileSpreadsheet } from "lucide-react";
+import { Plus, Search, Filter, Eye, Trash2, Truck, CheckCircle2, Clock, Link2, Edit, Printer, FileSpreadsheet, MessageCircle } from "lucide-react";
 import { exportToExcel, printPage } from "@/lib/excel";
+import WhatsAppShareModal from "@/components/erp/whatsapp/WhatsAppShareModal";
 
 interface DeliveryChallan {
   id: string;
@@ -26,6 +27,10 @@ export default function DeliveryChallanPage() {
   const [challans, setChallans] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+  const [waParty, setWaParty] = useState<any>(null);
+  const [waDocData, setWaDocData] = useState<any>(null);
+  const [shopProfile, setShopProfile] = useState<any>(null);
 
   const fetchChallans = async () => {
     setIsLoading(true);
@@ -40,8 +45,19 @@ export default function DeliveryChallanPage() {
     }
   };
 
+  const fetchShopProfile = async () => {
+    try {
+      const res = await fetch("/api/shop-profile");
+      const json = await res.json();
+      if (json.ok) setShopProfile(json.data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
     fetchChallans();
+    fetchShopProfile();
   }, [showForm]);
 
   const deleteChallan = async (id: string) => {
@@ -233,6 +249,16 @@ export default function DeliveryChallanPage() {
                           <Printer size={16} />
                         </button>
                         <button 
+                          onClick={() => {
+                            setWaParty(dc.partyId || { name: dc.customer });
+                            setWaDocData({ ...dc, rows: dc.items });
+                            setIsWhatsAppModalOpen(true);
+                          }}
+                          className="p-1.5 text-slate-300 hover:text-[#25D366] hover:bg-[#25D366]/10 rounded-lg transition-all" title="WhatsApp"
+                        >
+                          <MessageCircle size={16} />
+                        </button>
+                        <button 
                           onClick={() => { setEditOrder(dc); setShowForm(true); }}
                           className="p-1.5 text-slate-300 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Edit"
                         >
@@ -260,6 +286,15 @@ export default function DeliveryChallanPage() {
           </table>
         </div>
       </div>
+
+      <WhatsAppShareModal 
+        isOpen={isWhatsAppModalOpen}
+        onClose={() => setIsWhatsAppModalOpen(false)}
+        party={waParty}
+        type="Invoice"
+        documentData={waDocData}
+        shopProfile={shopProfile}
+      />
     </div>
   );
 }

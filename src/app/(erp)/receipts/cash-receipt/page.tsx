@@ -3,9 +3,10 @@
 import { useState, useEffect } from "react";
 import CashReceiptForm from "@/components/receipts/CashReceiptForm";
 import ERPPageHeader from "@/components/erp/ui/ERPPageHeader";
-import { Plus, Search, Eye, Edit, Trash2, Printer, FileSpreadsheet } from "lucide-react";
+import { Plus, Search, Eye, Edit, Trash2, Printer, FileSpreadsheet, MessageCircle } from "lucide-react";
 import { exportToExcel, printPage } from "@/lib/excel";
 import PrintTemplate from "@/components/print/PrintTemplate";
+import WhatsAppShareModal from "@/components/erp/whatsapp/WhatsAppShareModal";
 
 export default function CashReceiptPage() {
   const [showForm, setShowForm] = useState(false);
@@ -13,6 +14,10 @@ export default function CashReceiptPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [printReceipt, setPrintReceipt] = useState<any>(null);
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+  const [waParty, setWaParty] = useState<any>(null);
+  const [waDocData, setWaDocData] = useState<any>(null);
+  const [shopProfile, setShopProfile] = useState<any>(null);
 
   useEffect(() => {
     if (printReceipt) {
@@ -36,8 +41,19 @@ export default function CashReceiptPage() {
     }
   };
 
+  const fetchShopProfile = async () => {
+    try {
+      const res = await fetch("/api/shop-profile");
+      const json = await res.json();
+      if (json.ok) setShopProfile(json.data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
     fetchReceipts();
+    fetchShopProfile();
   }, [showForm]);
 
   const deleteReceipt = async (id: string) => {
@@ -121,6 +137,21 @@ export default function CashReceiptPage() {
                         <button onClick={() => setPrintReceipt(p)} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-all" title="Print">
                           <Printer size={16} />
                         </button>
+                        <button 
+                          onClick={() => {
+                            setWaParty({ name: p.party });
+                            setWaDocData({
+                              type: "Cash Receipt",
+                              amount: p.amount,
+                              date: p.date,
+                              receiptNumber: p.receiptNumber
+                            });
+                            setIsWhatsAppModalOpen(true);
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-[#25D366] hover:bg-[#25D366]/10 rounded-lg transition-all" title="WhatsApp"
+                        >
+                          <MessageCircle size={16} />
+                        </button>
                         <button onClick={() => deleteReceipt(p._id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all" title="Delete">
                           <Trash2 size={16} />
                         </button>
@@ -150,6 +181,15 @@ export default function CashReceiptPage() {
           items={[{ description: printReceipt.particulars || 'Cash Received', qty: 1, unitPrice: printReceipt.amount, total: printReceipt.amount }]}
         />
       )}
+
+      <WhatsAppShareModal 
+        isOpen={isWhatsAppModalOpen}
+        onClose={() => setIsWhatsAppModalOpen(false)}
+        party={waParty}
+        type="Receipt"
+        documentData={waDocData}
+        shopProfile={shopProfile}
+      />
     </div>
   );
 }

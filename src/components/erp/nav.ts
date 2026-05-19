@@ -20,7 +20,8 @@ import {
   Network,
   Warehouse,
   Scale,
-  Sparkles
+  Sparkles,
+  MessageCircle
 } from "lucide-react";
 
 export const erpModules: ERPNavItem[] = [
@@ -254,5 +255,11 @@ export const erpModules: ERPNavItem[] = [
         ]
       },
     ]
+  },
+  { 
+    title: "WhatsApp Center", 
+    href: "/whatsapp", 
+    roles: ["admin", "salesman", "dataentry"],
+    icon: MessageCircle 
   },
 ];
