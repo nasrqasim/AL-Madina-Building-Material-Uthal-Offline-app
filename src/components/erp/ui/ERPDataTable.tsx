@@ -51,7 +51,7 @@ export default function ERPDataTable({
       </div>
 
       {/* Table Content */}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto print:overflow-visible">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-50 dark:bg-slate-800/50 dark:bg-slate-800/50">
@@ -61,7 +61,7 @@ export default function ERPDataTable({
                 </th>
               ))}
               {actions && (
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 text-right">
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 text-right print:hidden">
                   Actions
                 </th>
               )}
@@ -92,7 +92,7 @@ export default function ERPDataTable({
                     </td>
                   ))}
                   {actions && (
-                    <td className="px-6 py-4 text-right whitespace-nowrap">
+                    <td className="px-6 py-4 text-right whitespace-nowrap print:hidden">
                       <div className="flex items-center justify-end gap-2">
                         {/* Primary Icons for Common Actions */}
                         {actions.filter(a => ["Edit", "Delete", "View", "Ledger", "Pay", "Receive Payment"].includes(a.label)).map((action, actIdx) => {

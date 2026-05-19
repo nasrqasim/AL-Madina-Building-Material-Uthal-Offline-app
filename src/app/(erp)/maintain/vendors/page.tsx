@@ -154,19 +154,15 @@ export default function VendorsPage() {
     { 
       header: "Debit (Payment)", 
       accessor: "debit",
-      render: (_: any, row: any) => {
-        const net = (row.openingBalance || 0) - (row.balance || 0);
-        const debit = net > 0 ? net : 0;
-        return <span className="text-sm font-bold text-emerald-600">{debit > 0 ? `Rs.${debit.toLocaleString()}` : "-"}</span>;
+      render: (val: number) => {
+        return <span className="text-sm font-bold text-emerald-600">{val ? `Rs.${val.toLocaleString()}` : "-"}</span>;
       }
     },
     { 
       header: "Credit (Purchased)", 
       accessor: "credit",
-      render: (_: any, row: any) => {
-        const net = (row.openingBalance || 0) - (row.balance || 0);
-        const credit = net < 0 ? Math.abs(net) : 0;
-        return <span className="text-sm font-bold text-rose-600">{credit > 0 ? `Rs.${credit.toLocaleString()}` : "-"}</span>;
+      render: (val: number) => {
+        return <span className="text-sm font-bold text-rose-600">{val ? `Rs.${val.toLocaleString()}` : "-"}</span>;
       }
     },
     { 
@@ -175,6 +171,17 @@ export default function VendorsPage() {
       render: (val: number) => (
         <span className={`text-sm font-black ${val > 0 ? "text-orange-600" : "text-emerald-600"}`}>
           Rs.{val?.toLocaleString() || "0"}
+        </span>
+      )
+    },
+    { 
+      header: "Status", 
+      accessor: "status", 
+      render: (val: string) => (
+        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+          val === "Active" ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400" : "bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400"
+        }`}>
+          {val || "Active"}
         </span>
       )
     },
@@ -197,6 +204,7 @@ export default function VendorsPage() {
     <div className="space-y-6">
       <style>{`
         @media print {
+          @page { size: landscape; margin: 10mm; }
           aside, header, nav, .no-print, button, input, select {
             display: none !important;
           }
@@ -211,6 +219,7 @@ export default function VendorsPage() {
             padding: 0 !important;
             border: none !important;
             box-shadow: none !important;
+            overflow: visible !important;
           }
           .print-header {
             display: block !important;
@@ -220,11 +229,20 @@ export default function VendorsPage() {
           table {
             border-collapse: collapse !important;
             width: 100% !important;
+            table-layout: auto !important;
           }
           th, td {
             border: 1px solid #e2e8f0 !important;
             padding: 8px !important;
             font-size: 10px !important;
+            color: black !important;
+          }
+          .overflow-x-auto {
+            overflow: visible !important;
+          }
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
         }
       `}</style>
