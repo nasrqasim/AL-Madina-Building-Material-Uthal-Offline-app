@@ -129,3 +129,116 @@ export const downloadTemplate = (columns: string[], filename: string) => {
 export const printPage = () => {
   window.print();
 };
+
+/**
+ * Print a clean list document in a new window — like a professional printable report.
+ * @param title - Report title e.g. "Customer Balances Report"
+ * @param companyName - Company name for the header
+ * @param companyAddress - Company address
+ * @param companyPhone - Company phone
+ * @param columns - Array of { header: string, key: string } 
+ * @param rows - Array of data objects
+ * @param totals - Optional footer totals row object
+ */
+export const printListDocument = ({
+  title,
+  companyName = "Najeeb Oil Shop",
+  companyAddress = "Bela, Balochistan, Pakistan",
+  companyPhone = "",
+  columns,
+  rows,
+  totals,
+}: {
+  title: string;
+  companyName?: string;
+  companyAddress?: string;
+  companyPhone?: string;
+  columns: { header: string; key: string }[];
+  rows: any[];
+  totals?: Record<string, string | number>;
+}) => {
+  const date = new Date().toLocaleDateString("en-PK", {
+    day: "2-digit", month: "long", year: "numeric"
+  });
+
+  const headerRow = columns.map(c => `<th>${c.header}</th>`).join("");
+  const dataRows = rows.map((row, i) =>
+    `<tr class="${i % 2 === 0 ? "" : "alt"}">
+      ${columns.map(c => `<td>${row[c.key] !== undefined && row[c.key] !== null ? row[c.key] : "-"}</td>`).join("")}
+    </tr>`
+  ).join("");
+
+  const totalRow = totals
+    ? `<tr class="total-row">
+        ${columns.map(c => `<td><strong>${totals[c.key] !== undefined ? totals[c.key] : ""}</strong></td>`).join("")}
+      </tr>`
+    : "";
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>${title}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; font-size: 11px; color: #1a1a1a; background: white; padding: 20px; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #7f1d1d; padding-bottom: 12px; margin-bottom: 16px; }
+    .header-left h1 { font-size: 18px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; color: #1a1a1a; }
+    .header-left p { font-size: 9px; color: #555; margin-top: 2px; text-transform: uppercase; }
+    .header-right { text-align: right; }
+    .header-right h2 { font-size: 14px; font-weight: 900; color: #7f1d1d; text-transform: uppercase; letter-spacing: 2px; }
+    .header-right p { font-size: 9px; color: #777; margin-top: 3px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    th { background: #7f1d1d; color: white; padding: 7px 8px; text-align: left; font-size: 9px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; border: 1px solid #6b1515; }
+    td { padding: 6px 8px; border: 1px solid #e2e8f0; font-size: 10px; vertical-align: middle; }
+    tr.alt td { background: #fafafa; }
+    tr.total-row td { background: #1a1a1a; color: white; font-weight: 900; font-size: 10px; border-color: #333; }
+    .footer { margin-top: 32px; display: flex; justify-content: space-between; padding-top: 16px; border-top: 1px solid #ddd; }
+    .sig-line { width: 160px; border-bottom: 1px solid #aaa; margin-bottom: 4px; }
+    .sig-label { font-size: 8px; text-transform: uppercase; letter-spacing: 1px; color: #888; }
+    .summary { margin-top: 8px; font-size: 9px; color: #666; }
+    @media print { body { padding: 0; } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-left">
+      <h1>${companyName}</h1>
+      <p>${companyAddress}</p>
+      ${companyPhone ? `<p>Ph: ${companyPhone}</p>` : ""}
+    </div>
+    <div class="header-right">
+      <h2>${title}</h2>
+      <p>Generated: ${date}</p>
+      <p>Total Records: ${rows.length}</p>
+    </div>
+  </div>
+
+  <table>
+    <thead><tr>${headerRow}</tr></thead>
+    <tbody>${dataRows}</tbody>
+    ${totals ? `<tfoot>${totalRow}</tfoot>` : ""}
+  </table>
+
+  <div class="footer">
+    <div>
+      <div class="sig-line"></div>
+      <div class="sig-label">Authorized Signature</div>
+    </div>
+    <div class="summary">Total Records: ${rows.length} | Printed: ${date}</div>
+    <div>
+      <div class="sig-line"></div>
+      <div class="sig-label">Accountant</div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  const win = window.open("", "_blank", "width=1100,height=800");
+  if (win) {
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 500);
+  }
+};

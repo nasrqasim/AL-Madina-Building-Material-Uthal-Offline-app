@@ -28,6 +28,8 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
     creditLimit: 0,
     creditDays: 30,
     openingBalance: 0,
+    debit: 0,
+    credit: 0,
     status: "Active",
     notes: "",
   });
@@ -50,6 +52,8 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
         creditLimit: customer.creditLimit || 0,
         creditDays: customer.creditDays || 30,
         openingBalance: customer.openingBalance || 0,
+        debit: customer.debit || 0,
+        credit: customer.credit || 0,
         status: customer.status || "Active",
         notes: customer.notes || "",
       });
@@ -70,6 +74,8 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
         creditLimit: 0,
         creditDays: 30,
         openingBalance: 0,
+        debit: 0,
+        credit: 0,
         status: "Active",
         notes: "",
       });
@@ -320,7 +326,7 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
           </div>
         </div>
 
-        {/* Row 8: Udhaar & Status */}
+        {/* Row 8: Opening Balance, Debit, Credit & Status */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-2">
@@ -346,6 +352,36 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
               <option>Active</option>
               <option>Inactive</option>
             </select>
+          </div>
+        </div>
+
+        {/* Row 8b: Debit & Credit */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-2">
+              <CreditCard size={14} className="text-emerald-600" /> Debit (Sales)
+            </label>
+            <input
+              type="number"
+              value={formData.debit}
+              onChange={(e) => setFormData({ ...formData, debit: Number(e.target.value) })}
+              className="w-full px-4 py-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 rounded-xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all dark:text-white"
+              placeholder="0"
+            />
+            <p className="text-[9px] text-slate-400 uppercase tracking-widest">Amount owed by customer (sales on credit)</p>
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-2">
+              <CreditCard size={14} className="text-rose-600" /> Credit (Receipts)
+            </label>
+            <input
+              type="number"
+              value={formData.credit}
+              onChange={(e) => setFormData({ ...formData, credit: Number(e.target.value) })}
+              className="w-full px-4 py-3 bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-800 rounded-xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-rose-500/10 outline-none transition-all dark:text-white"
+              placeholder="0"
+            />
+            <p className="text-[9px] text-slate-400 uppercase tracking-widest">Payments received from customer</p>
           </div>
         </div>
 

@@ -7,7 +7,7 @@ import VendorModal from "@/components/erp/maintain/VendorModal";
 import QuickPaymentModal from "@/components/erp/maintain/QuickPaymentModal";
 import { Plus, FileText, Download, Printer, UserCheck, UserX, Wallet, Search, Edit2, Trash2, MapPin, User, Hash, FileSpreadsheet } from "lucide-react";
 import ERPStatCard from "@/components/erp/ui/ERPStatCard";
-import { exportToExcel, downloadTemplate, printPage, triggerFileInput, importFromExcel } from "@/lib/excel";
+import { exportToExcel, downloadTemplate, printPage, printListDocument, triggerFileInput, importFromExcel } from "@/lib/excel";
 
 export default function VendorsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -253,7 +253,33 @@ export default function VendorsPage() {
           subtitle="Master Data / Vendors"
           actions={[
             { label: "Export Excel", onClick: () => exportToExcel(vendors, "Vendors.xlsx"), icon: FileSpreadsheet },
-            { label: "Print List", onClick: printPage, icon: Printer },
+            { label: "Print List", onClick: () => printListDocument({
+                title: "Vendor Balances Report",
+                companyName: shopProfile?.companyName || "Najeeb Oil Shop",
+                companyAddress: shopProfile?.address || "Bela, Balochistan, Pakistan",
+                companyPhone: shopProfile?.phone || "",
+                columns: [
+                  { header: "#", key: "_idx" },
+                  { header: "Account Code", key: "code" },
+                  { header: "Vendor Name", key: "name" },
+                  { header: "Type", key: "category" },
+                  { header: "Phone", key: "phone" },
+                  { header: "Opening Bal.", key: "openingBalance" },
+                  { header: "Debit", key: "debit" },
+                  { header: "Credit", key: "credit" },
+                  { header: "Closing Bal.", key: "balance" },
+                  { header: "Status", key: "status" },
+                ],
+                rows: filteredVendors.map((v, i) => ({ ...v, _idx: i + 1, openingBalance: `Rs.${(v.openingBalance || 0).toLocaleString()}`, debit: `Rs.${(v.debit || 0).toLocaleString()}`, credit: `Rs.${(v.credit || 0).toLocaleString()}`, balance: `Rs.${(v.balance || 0).toLocaleString()}` })),
+                totals: {
+                  _idx: "", code: "TOTAL", name: `${filteredVendors.length} Vendors`, category: "", phone: "",
+                  openingBalance: `Rs.${filteredVendors.reduce((a, v) => a + (v.openingBalance || 0), 0).toLocaleString()}`,
+                  debit: `Rs.${filteredVendors.reduce((a, v) => a + (v.debit || 0), 0).toLocaleString()}`,
+                  credit: `Rs.${filteredVendors.reduce((a, v) => a + (v.credit || 0), 0).toLocaleString()}`,
+                  balance: `Rs.${filteredVendors.reduce((a, v) => a + (v.balance || 0), 0).toLocaleString()}`,
+                  status: "",
+                },
+              }), icon: Printer },
             { label: "Download Template", onClick: () => downloadTemplate(["Code", "Name", "Contact Person", "Phone", "Email", "City", "NTN", "Balance", "Type", "Status"], "VendorsTemplate.xlsx"), icon: Download },
             { label: "Import Excel", onClick: handleImport, icon: FileText },
           ]}
@@ -280,7 +306,32 @@ export default function VendorsPage() {
           </div>
           <div className="flex items-center gap-3">
             <button 
-              onClick={printPage}
+              onClick={() => printListDocument({
+                title: "Vendor Balances Report",
+                companyName: shopProfile?.companyName || "Najeeb Oil Shop",
+                companyAddress: shopProfile?.address || "Bela, Balochistan, Pakistan",
+                companyPhone: shopProfile?.phone || "",
+                columns: [
+                  { header: "#", key: "_idx" },
+                  { header: "Account Code", key: "code" },
+                  { header: "Vendor Name", key: "name" },
+                  { header: "Type", key: "category" },
+                  { header: "Opening Bal.", key: "openingBalance" },
+                  { header: "Debit", key: "debit" },
+                  { header: "Credit", key: "credit" },
+                  { header: "Closing Bal.", key: "balance" },
+                  { header: "Status", key: "status" },
+                ],
+                rows: filteredVendors.map((v, i) => ({ ...v, _idx: i + 1, openingBalance: `Rs.${(v.openingBalance || 0).toLocaleString()}`, debit: `Rs.${(v.debit || 0).toLocaleString()}`, credit: `Rs.${(v.credit || 0).toLocaleString()}`, balance: `Rs.${(v.balance || 0).toLocaleString()}` })),
+                totals: {
+                  _idx: "", code: "TOTAL", name: `${filteredVendors.length} Vendors`, category: "",
+                  openingBalance: `Rs.${filteredVendors.reduce((a, v) => a + (v.openingBalance || 0), 0).toLocaleString()}`,
+                  debit: `Rs.${filteredVendors.reduce((a, v) => a + (v.debit || 0), 0).toLocaleString()}`,
+                  credit: `Rs.${filteredVendors.reduce((a, v) => a + (v.credit || 0), 0).toLocaleString()}`,
+                  balance: `Rs.${filteredVendors.reduce((a, v) => a + (v.balance || 0), 0).toLocaleString()}`,
+                  status: "",
+                },
+              })}
               className="flex items-center gap-2 px-8 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-white rounded-2xl text-sm font-black uppercase tracking-widest transition-all shadow-sm"
             >
               <Printer size={18} />

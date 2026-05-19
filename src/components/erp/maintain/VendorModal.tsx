@@ -30,6 +30,8 @@ export default function VendorModal({ isOpen, onClose, vendor, onSave }: VendorM
     branch: "",
     paymentTerms: 30,
     openingBalance: 0,
+    debit: 0,
+    credit: 0,
     status: "Active",
     notes: "",
   });
@@ -54,6 +56,8 @@ export default function VendorModal({ isOpen, onClose, vendor, onSave }: VendorM
         branch: vendor.branch || "",
         paymentTerms: vendor.paymentTerms || 30,
         openingBalance: vendor.openingBalance || 0,
+        debit: vendor.debit || 0,
+        credit: vendor.credit || 0,
         status: vendor.status || "Active",
         notes: vendor.notes || "",
       });
@@ -76,6 +80,8 @@ export default function VendorModal({ isOpen, onClose, vendor, onSave }: VendorM
         branch: "",
         paymentTerms: 30,
         openingBalance: 0,
+        debit: 0,
+        credit: 0,
         status: "Active",
         notes: "",
       });
@@ -338,6 +344,32 @@ export default function VendorModal({ isOpen, onClose, vendor, onSave }: VendorM
               <option>Active</option>
               <option>Inactive</option>
             </select>
+          </div>
+
+          {/* Debit & Credit */}
+          <div className="col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Debit (Payments Made)</label>
+              <input
+                type="number"
+                value={formData.debit}
+                onChange={(e) => setFormData({ ...formData, debit: Number(e.target.value) })}
+                className="w-full px-4 py-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 rounded-xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all"
+                placeholder="0"
+              />
+              <p className="text-[9px] text-slate-400 uppercase tracking-widest">Payments made to this vendor</p>
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Credit (Purchased)</label>
+              <input
+                type="number"
+                value={formData.credit}
+                onChange={(e) => setFormData({ ...formData, credit: Number(e.target.value) })}
+                className="w-full px-4 py-3 bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-800 rounded-xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-rose-500/10 outline-none transition-all"
+                placeholder="0"
+              />
+              <p className="text-[9px] text-slate-400 uppercase tracking-widest">Goods purchased from this vendor</p>
+            </div>
           </div>
         </section>
 

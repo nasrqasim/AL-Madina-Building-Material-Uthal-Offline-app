@@ -7,7 +7,7 @@ import CustomerModal from "@/components/erp/maintain/CustomerModal";
 import QuickReceiptModal from "@/components/erp/maintain/QuickReceiptModal";
 import { Plus, FileText, Download, Printer, UserCheck, UserX, Wallet, Search, Edit2, Trash2, MapPin, FileSpreadsheet, ArrowLeft, Play, Calendar } from "lucide-react";
 import ERPStatCard from "@/components/erp/ui/ERPStatCard";
-import { exportToExcel, downloadTemplate, printPage, triggerFileInput, importFromExcel } from "@/lib/excel";
+import { exportToExcel, downloadTemplate, printPage, printListDocument, triggerFileInput, importFromExcel } from "@/lib/excel";
 
 export default function CustomerBalancesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -642,7 +642,37 @@ export default function CustomerBalancesPage() {
           subtitle="Master Data / Customer Balances"
           actions={[
             { label: "Export Excel", onClick: () => exportToExcel(customers, "CustomerBalances.xlsx"), icon: FileSpreadsheet },
-            { label: "Print List", onClick: printPage, icon: Printer },
+            { label: "Print List", onClick: () => printListDocument({
+                title: "Customer Balances Report",
+                companyName: shopProfile?.companyName || "Najeeb Oil Shop",
+                companyAddress: shopProfile?.address || "Bela, Balochistan, Pakistan",
+                companyPhone: shopProfile?.phone || "",
+                columns: [
+                  { header: "#", key: "_idx" },
+                  { header: "Account Code", key: "code" },
+                  { header: "Customer Name", key: "name" },
+                  { header: "Type", key: "category" },
+                  { header: "Phone", key: "phone" },
+                  { header: "Opening Bal.", key: "openingBalance" },
+                  { header: "Debit", key: "debit" },
+                  { header: "Credit", key: "credit" },
+                  { header: "Closing Bal.", key: "balance" },
+                  { header: "Status", key: "status" },
+                ],
+                rows: filteredCustomers.map((c, i) => ({ ...c, _idx: i + 1, openingBalance: `Rs.${(c.openingBalance || 0).toLocaleString()}`, debit: `Rs.${(c.debit || 0).toLocaleString()}`, credit: `Rs.${(c.credit || 0).toLocaleString()}`, balance: `Rs.${(c.balance || 0).toLocaleString()}` })),
+                totals: {
+                  _idx: "",
+                  code: "TOTAL",
+                  name: `${filteredCustomers.length} Customers`,
+                  category: "",
+                  phone: "",
+                  openingBalance: `Rs.${filteredCustomers.reduce((a, c) => a + (c.openingBalance || 0), 0).toLocaleString()}`,
+                  debit: `Rs.${filteredCustomers.reduce((a, c) => a + (c.debit || 0), 0).toLocaleString()}`,
+                  credit: `Rs.${filteredCustomers.reduce((a, c) => a + (c.credit || 0), 0).toLocaleString()}`,
+                  balance: `Rs.${filteredCustomers.reduce((a, c) => a + (c.balance || 0), 0).toLocaleString()}`,
+                  status: "",
+                },
+              }), icon: Printer },
             { label: "Download Template", onClick: () => downloadTemplate(["Company Name", "Contact Person", "Phone", "Email", "NTN", "Location", "Balance", "Status"], "CustomerTemplate.xlsx"), icon: Download },
             { label: "Import Excel", onClick: handleImport, icon: FileText },
           ]}
@@ -671,7 +701,32 @@ export default function CustomerBalancesPage() {
           </div>
           <div className="flex items-center gap-3">
             <button 
-              onClick={printPage}
+              onClick={() => printListDocument({
+                title: "Customer Balances Report",
+                companyName: shopProfile?.companyName || "Najeeb Oil Shop",
+                companyAddress: shopProfile?.address || "Bela, Balochistan, Pakistan",
+                companyPhone: shopProfile?.phone || "",
+                columns: [
+                  { header: "#", key: "_idx" },
+                  { header: "Account Code", key: "code" },
+                  { header: "Customer Name", key: "name" },
+                  { header: "Type", key: "category" },
+                  { header: "Opening Bal.", key: "openingBalance" },
+                  { header: "Debit", key: "debit" },
+                  { header: "Credit", key: "credit" },
+                  { header: "Closing Bal.", key: "balance" },
+                  { header: "Status", key: "status" },
+                ],
+                rows: filteredCustomers.map((c, i) => ({ ...c, _idx: i + 1, openingBalance: `Rs.${(c.openingBalance || 0).toLocaleString()}`, debit: `Rs.${(c.debit || 0).toLocaleString()}`, credit: `Rs.${(c.credit || 0).toLocaleString()}`, balance: `Rs.${(c.balance || 0).toLocaleString()}` })),
+                totals: {
+                  _idx: "", code: "TOTAL", name: `${filteredCustomers.length} Customers`, category: "",
+                  openingBalance: `Rs.${filteredCustomers.reduce((a, c) => a + (c.openingBalance || 0), 0).toLocaleString()}`,
+                  debit: `Rs.${filteredCustomers.reduce((a, c) => a + (c.debit || 0), 0).toLocaleString()}`,
+                  credit: `Rs.${filteredCustomers.reduce((a, c) => a + (c.credit || 0), 0).toLocaleString()}`,
+                  balance: `Rs.${filteredCustomers.reduce((a, c) => a + (c.balance || 0), 0).toLocaleString()}`,
+                  status: "",
+                },
+              })}
               className="flex items-center gap-2 px-8 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-white rounded-2xl text-sm font-black uppercase tracking-widest transition-all shadow-sm"
             >
               <Printer size={18} />
