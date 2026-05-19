@@ -709,6 +709,17 @@ export default function CustomerBalancesPage() {
                 { label: "Receive Payment", onClick: (row: any) => { setActiveCustomer(row); setIsReceiptModalOpen(true); }, icon: Wallet },
                 { label: "Delete", onClick: (row: any) => handleDelete(row._id), icon: Trash2, variant: "danger" },
               ]}
+              footerContent={
+                <tr>
+                  <td colSpan={3} className="px-6 py-4 text-right uppercase tracking-widest text-xs">Total PKR:</td>
+                  <td className="px-6 py-4 text-sm">Rs.{filteredCustomers.reduce((acc, c) => acc + (c.openingBalance || 0), 0).toLocaleString()}</td>
+                  <td className="px-6 py-4 text-sm text-emerald-600">Rs.{filteredCustomers.reduce((acc, c) => acc + (c.debit || 0), 0).toLocaleString()}</td>
+                  <td className="px-6 py-4 text-sm text-rose-600">Rs.{filteredCustomers.reduce((acc, c) => acc + (c.credit || 0), 0).toLocaleString()}</td>
+                  <td className="px-6 py-4 text-sm text-maroon-800 dark:text-maroon-400">Rs.{filteredCustomers.reduce((acc, c) => acc + (c.balance || 0), 0).toLocaleString()}</td>
+                  <td className="px-6 py-4 text-center">-</td>
+                  <td className="px-6 py-4 print:hidden"></td>
+                </tr>
+              }
             />
           ) : (
             <div className="py-12 text-center no-print">

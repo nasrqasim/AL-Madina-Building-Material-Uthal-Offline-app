@@ -23,6 +23,7 @@ interface ERPDataTableProps {
   searchPlaceholder?: string;
   actions?: Action[];
   isLoading?: boolean;
+  footerContent?: React.ReactNode;
 }
 
 export default function ERPDataTable({ 
@@ -31,7 +32,8 @@ export default function ERPDataTable({
   onSearch, 
   searchPlaceholder = "Search...",
   actions,
-  isLoading 
+  isLoading,
+  footerContent
 }: ERPDataTableProps) {
   const [openActionMenu, setOpenActionMenu] = useState<number | null>(null);
 
@@ -159,6 +161,11 @@ export default function ERPDataTable({
               ))
             )}
           </tbody>
+          {footerContent && (
+            <tfoot className="bg-slate-50 dark:bg-slate-800 border-t-2 border-slate-200 dark:border-slate-700 font-black text-slate-900 dark:text-white">
+              {footerContent}
+            </tfoot>
+          )}
         </table>
       </div>
     </div>
