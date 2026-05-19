@@ -23,7 +23,7 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
     area: "",
     postalCode: "",
     country: "Pakistan",
-    category: "Short term",
+    category: "Cash Customer",
     creditLimit: 0,
     creditDays: 30,
     openingBalance: 0,
@@ -44,7 +44,7 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
         area: customer.area || "",
         postalCode: customer.postalCode || "",
         country: customer.country || "Pakistan",
-        category: customer.category || "Short term",
+        category: customer.category || "Cash Customer",
         creditLimit: customer.creditLimit || 0,
         creditDays: customer.creditDays || 30,
         openingBalance: customer.openingBalance || 0,
@@ -63,7 +63,7 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
         area: "",
         postalCode: "",
         country: "Pakistan",
-        category: "Short term",
+        category: "Cash Customer",
         creditLimit: 0,
         creditDays: 30,
         openingBalance: 0,
@@ -147,9 +147,14 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
               className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 outline-none transition-all dark:text-white"
               required
             >
-              <option value="Urgent/COD">Urgent/COD</option>
-              <option value="Short term">Short term</option>
-              <option value="Long term">Long term</option>
+              <option value="Cash Customer">Cash Customer</option>
+              <option value="Credit Customer">Credit Customer</option>
+              <option value="Cash Customer (Jama)">Cash Customer (Jama)</option>
+              <option value="Credit Customer (Counter)">Credit Customer (Counter)</option>
+              <option value="Credit Customer Max">Credit Customer Max</option>
+              <option value="Credit Customer (Haji Gul)">Credit Customer (Haji Gul)</option>
+              <option value="Credit Customer (Makkah)">Credit Customer (Makkah)</option>
+              <option value="Credit Customer (Radbook)">Credit Customer (Radbook)</option>
             </select>
           </div>
           <div className="space-y-2">

@@ -19,7 +19,7 @@ export interface IParty extends mongoose.Document {
   creditLimit: number;
   creditDays?: number;
   openingBalance: number;
-  category?: "Urgent/COD" | "Short term" | "Long term";
+  category?: string;
   status?: string;
   notes?: string;
 }
@@ -44,7 +44,7 @@ const PartySchema = new Schema<IParty>(
     creditLimit: { type: Number, default: 0 },
     creditDays: { type: Number, default: 30 },
     openingBalance: { type: Number, default: 0 },
-    category: { type: String, enum: ["Urgent/COD", "Short term", "Long term"], default: "Short term" },
+    category: { type: String, default: "Cash Customer" },
     status: { type: String, default: "Active" },
     notes: String,
   },

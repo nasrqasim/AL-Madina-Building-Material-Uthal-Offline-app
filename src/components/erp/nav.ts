@@ -59,7 +59,7 @@ export const erpModules: ERPNavItem[] = [
     icon: Database,
     submenu: [
       { title: "Chart of Accounts", href: "/maintain/accounts", roles: ["admin", "dataentry"] },
-      { title: "Customers", href: "/maintain/customers", roles: ["admin", "dataentry"] },
+      { title: "Customer Balances", href: "/maintain/customer-balances", roles: ["admin", "dataentry"] },
       { title: "Vendors", href: "/maintain/vendors", roles: ["admin", "dataentry"] },
       { title: "Banks", href: "/maintain/banks", roles: ["admin", "dataentry"] },
       { title: "Items / Products", href: "/maintain/items", roles: ["admin", "dataentry"] },

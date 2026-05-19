@@ -9,7 +9,7 @@ import { Plus, FileText, Download, Printer, UserCheck, UserX, Wallet, Search, Ed
 import ERPStatCard from "@/components/erp/ui/ERPStatCard";
 import { exportToExcel, downloadTemplate, printPage, triggerFileInput, importFromExcel } from "@/lib/excel";
 
-export default function CustomersPage() {
+export default function CustomerBalancesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [customers, setCustomers] = useState<any[]>([]);
@@ -446,7 +446,7 @@ export default function CustomersPage() {
           </div>
 
           {/* Customer / Period Info */}
-          <div className="grid grid-cols-2 gap-8 mb-8 pb-4 border-b border-slate-100 dark:border-slate-855">
+          <div className="grid grid-cols-2 gap-8 mb-8 pb-4 border-b border-slate-100 dark:border-slate-850">
             <div>
               <p className="text-[10px] font-black text-maroon-800 uppercase tracking-widest mb-1.5">Statement For</p>
               <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase">{selectedLedgerCustomer.name}</h4>
@@ -475,7 +475,7 @@ export default function CustomersPage() {
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
-                <thead className="bg-slate-50 dark:bg-slate-855 border-b border-slate-200 dark:border-slate-800 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                <thead className="bg-slate-50 dark:bg-slate-850 border-b border-slate-200 dark:border-slate-800 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
                   <tr>
                     <th className="px-4 py-3">Date</th>
                     <th className="px-4 py-3">Doc No</th>
@@ -508,7 +508,7 @@ export default function CustomersPage() {
                     </tr>
                   ) : (
                     ledgerData.rows.map((row, i) => (
-                      <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-slate-855/50 transition-colors">
+                      <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/50 transition-colors">
                         <td className="px-4 py-3">{new Date(row.date).toLocaleDateString()}</td>
                         <td className="px-4 py-3 text-blue-600">{row.voucherNo}</td>
                         <td className="px-4 py-3">
