@@ -38,11 +38,30 @@ export default function WhatsAppShareModal({
       setStatus("idle");
       
       // Auto-generate default message
-      const outstanding = type === "Statement" && documentData?.closing 
-        ? documentData.closing 
-        : party?.balance || 0;
+      const customerName = party?.name || party?.companyName || party?.vendor || "Customer";
+      const shopName = shopProfile?.companyName || "Our Shop";
+      let defaultMsg = "";
+
+      if (type === "Invoice" && documentData) {
+        const docNo = documentData.invoiceNo || documentData.dcNo || documentData.voucherNo || "-";
+        const docDate = documentData.date ? documentData.date.split('T')[0] : "-";
+        const total = documentData.grandTotal || documentData.total || documentData.amount || 0;
         
-      const defaultMsg = `Assalamualaikum ${party?.name || party?.companyName || "Customer"},\n\nYour account ${type.toLowerCase()} from ${shopProfile?.companyName || "Our Shop"} is attached.\n\nTotal Outstanding Balance: Rs. ${outstanding.toLocaleString()}\n\nThank you.`;
+        defaultMsg = `Assalamualaikum ${customerName},\n\nHere are the details for your recent transaction from ${shopName}:\n\nInvoice/Ref No: ${docNo}\nDate: ${docDate}\nTotal Amount: Rs. ${total.toLocaleString()}\n\nThank you for visiting us.`;
+      } else if (type === "Receipt" && documentData) {
+        const docNo = documentData.receiptNumber || documentData.voucherNo || "-";
+        const docDate = documentData.date ? documentData.date.split('T')[0] : "-";
+        const total = documentData.amount || 0;
+
+        defaultMsg = `Assalamualaikum ${customerName},\n\nPayment details from ${shopName}:\n\nReceipt/Voucher No: ${docNo}\nDate: ${docDate}\nAmount: Rs. ${total.toLocaleString()}\n\nThank you for visiting us.`;
+      } else {
+        const outstanding = type === "Statement" && documentData?.closing 
+          ? documentData.closing 
+          : party?.balance || 0;
+          
+        defaultMsg = `Assalamualaikum ${customerName},\n\nYour account ${type.toLowerCase()} from ${shopName} is ready.\n\nTotal Outstanding Balance: Rs. ${outstanding.toLocaleString()}\n\nThank you for visiting us.`;
+      }
+
       setMessage(defaultMsg);
     }
   }, [isOpen, party, type, documentData, shopProfile]);
