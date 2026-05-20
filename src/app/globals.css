@@ -91,11 +91,70 @@ body {
    =================================================== */
 
 @media print {
-  aside, header, nav, footer, button, .no-print {
+  /* Hide all UI shell elements and interactive modules */
+  aside, 
+  header, 
+  nav, 
+  footer, 
+  button, 
+  .no-print,
+  .print\:hidden,
+  .print-hidden,
+  .sidebar,
+  .topbar,
+  [role="navigation"],
+  [role="button"] {
     display: none !important;
   }
-  main {
+
+  /* Reset outer layout wrappers and left offsets */
+  .ml-64,
+  div.ml-64,
+  body div.ml-64 {
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+  }
+
+  main, 
+  .main-content, 
+  .flex-1 {
     margin: 0 !important;
     padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Ensure body and html occupy the full width on print */
+  html, body {
+    background: white !important;
+    color: black !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Expand print containers to full page width */
+  .print-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Table adjustments on printing */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  th, td {
+    border: 1px solid #cbd5e1 !important;
+    padding: 6px 8px !important;
+    font-size: 11px !important;
+    color: black !important;
   }
 }

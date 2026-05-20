@@ -272,9 +272,28 @@ export default function CustomersPage() {
     { 
       header: "Phone", 
       accessor: "phone",
-      render: (val: string) => (
-        <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{val}</span>
-      )
+      render: (val: string, row: any) => {
+        const hasValidPhone = val && val.replace(/[^0-9]/g, "").length >= 10;
+        return (
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{val}</span>
+            {hasValidPhone && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setWaParty(row);
+                  setWaType("Reminder");
+                  setIsWhatsAppModalOpen(true);
+                }}
+                title="Send WhatsApp Reminder"
+                className="p-1 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-600 transition-colors"
+              >
+                <MessageCircle size={14} className="fill-emerald-600/10" />
+              </button>
+            )}
+          </div>
+        );
+      }
     },
     { 
       header: "Location", 
@@ -379,18 +398,20 @@ export default function CustomersPage() {
             Back to Customers
           </button>
           <div className="flex gap-2">
-            <button 
-              onClick={() => {
-                setWaParty(selectedLedgerCustomer);
-                setWaDocData(ledgerData);
-                setWaType("Statement");
-                setIsWhatsAppModalOpen(true);
-              }}
-              className="flex items-center gap-2 px-6 py-2.5 bg-[#25D366] hover:bg-[#1EBE5D] text-white rounded-xl text-sm font-black shadow-xl shadow-[#25D366]/20 transition-all"
-            >
-              <MessageCircle size={18} />
-              WhatsApp Statement
-            </button>
+            {selectedLedgerCustomer?.phone && selectedLedgerCustomer.phone.replace(/[^0-9]/g, "").length >= 10 && (
+              <button 
+                onClick={() => {
+                  setWaParty(selectedLedgerCustomer);
+                  setWaDocData(ledgerData);
+                  setWaType("Statement");
+                  setIsWhatsAppModalOpen(true);
+                }}
+                className="flex items-center gap-2 px-6 py-2.5 bg-[#25D366] hover:bg-[#1EBE5D] text-white rounded-xl text-sm font-black shadow-xl shadow-[#25D366]/20 transition-all"
+              >
+                <MessageCircle size={18} />
+                WhatsApp Statement
+              </button>
+            )}
             <button 
               onClick={printPage}
               className="flex items-center gap-2 px-6 py-2.5 bg-maroon-800 hover:bg-maroon-900 text-white rounded-xl text-sm font-black shadow-xl shadow-maroon-900/20 transition-all"
@@ -650,7 +671,12 @@ export default function CustomersPage() {
                     actions={[
                       { label: "Edit", onClick: handleEdit, icon: Edit2 },
                       { label: "View Ledger", onClick: handleOpenLedger, icon: FileText },
-                      { label: "WhatsApp Reminder", onClick: (row: any) => { setWaParty(row); setWaType("Reminder"); setIsWhatsAppModalOpen(true); }, icon: MessageCircle },
+                      { 
+                        label: "WhatsApp Reminder", 
+                        onClick: (row: any) => { setWaParty(row); setWaType("Reminder"); setIsWhatsAppModalOpen(true); }, 
+                        icon: MessageCircle,
+                        hide: (row: any) => !row.phone || row.phone.replace(/[^0-9]/g, "").length < 10
+                      },
                       { label: "Receive Payment", onClick: (row: any) => { setActiveCustomer(row); setIsReceiptModalOpen(true); }, icon: Wallet },
                       { label: "Delete", onClick: (row: any) => handleDelete(row._id), icon: Trash2, variant: "danger" },
                     ]}

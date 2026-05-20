@@ -125,16 +125,34 @@ export default function VendorsPage() {
     { 
       header: "Vendor Name", 
       accessor: "name",
-      render: (val: string, row: any) => (
-        <div className="flex flex-col">
-          <span className="font-black text-slate-900 dark:text-white">{val}</span>
-          {(row.phone || row.contactPerson) && (
-            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-              {row.contactPerson ? `${row.contactPerson} | ` : ""}{row.phone || ""}
-            </span>
-          )}
-        </div>
-      )
+      render: (val: string, row: any) => {
+        const hasValidPhone = row.phone && row.phone.replace(/[^0-9]/g, "").length >= 10;
+        return (
+          <div className="flex flex-col">
+            <span className="font-black text-slate-900 dark:text-white">{val}</span>
+            {(row.phone || row.contactPerson) && (
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                  {row.contactPerson ? `${row.contactPerson} | ` : ""}{row.phone || ""}
+                </span>
+                {hasValidPhone && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setWaParty(row);
+                      setIsWhatsAppModalOpen(true);
+                    }}
+                    title="Send WhatsApp Reminder"
+                    className="p-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-600 transition-colors"
+                  >
+                    <MessageCircle size={12} className="fill-emerald-600/10" />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      }
     },
     { 
       header: "Type", 
@@ -366,7 +384,12 @@ export default function VendorsPage() {
               data={filteredVendors} 
               actions={[
                 { label: "Edit", onClick: handleEdit, icon: Edit2 },
-                { label: "WhatsApp Reminder", onClick: (row: any) => { setWaParty(row); setIsWhatsAppModalOpen(true); }, icon: MessageCircle },
+                { 
+                  label: "WhatsApp Reminder", 
+                  onClick: (row: any) => { setWaParty(row); setIsWhatsAppModalOpen(true); }, 
+                  icon: MessageCircle,
+                  hide: (row: any) => !row.phone || row.phone.replace(/[^0-9]/g, "").length < 10
+                },
                 { label: "Pay", onClick: (row: any) => { setActiveVendor(row); setIsPaymentModalOpen(true); }, icon: Wallet },
                 { label: "Delete", onClick: (row: any) => handleDelete(row._id), icon: Trash2, variant: "danger" },
               ]}

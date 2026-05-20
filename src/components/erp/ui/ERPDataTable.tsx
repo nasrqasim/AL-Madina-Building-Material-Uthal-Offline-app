@@ -14,6 +14,8 @@ interface Action {
   onClick: (item: any) => void;
   icon?: any;
   variant?: "default" | "danger";
+  hide?: (item: any) => boolean;
+  disabled?: (item: any) => boolean;
 }
 
 interface ERPDataTableProps {
@@ -98,14 +100,19 @@ export default function ERPDataTable({
                       <div className="flex items-center justify-end gap-2">
                         {/* Primary Icons for Common Actions */}
                         {actions.filter(a => ["Edit", "Delete", "View", "Ledger", "Pay", "Receive Payment"].includes(a.label)).map((action, actIdx) => {
+                          if (action.hide?.(item)) return null;
+                          const isDisabled = action.disabled?.(item);
                           const ActionIcon = action.icon;
                           return (
                             <button
                               key={actIdx}
-                              onClick={() => action.onClick(item)}
+                              disabled={isDisabled}
+                              onClick={() => !isDisabled && action.onClick(item)}
                               title={action.label}
                               className={`p-2 rounded-lg transition-all ${
-                                action.variant === "danger"
+                                isDisabled
+                                  ? "opacity-40 cursor-not-allowed text-slate-300 dark:text-slate-600"
+                                  : action.variant === "danger"
                                   ? "text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
                                   : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50"
                               }`}
@@ -116,44 +123,56 @@ export default function ERPDataTable({
                         })}
 
                         {/* Overflow Menu for Other Actions */}
-                        {actions.filter(a => !["Edit", "Delete", "View", "Ledger", "Pay", "Receive Payment"].includes(a.label)).length > 0 && (
-                          <div className="relative">
-                            <button 
-                              onClick={() => setOpenActionMenu(openActionMenu === rowIdx ? null : rowIdx)}
-                              className="p-2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-                            >
-                              <MoreVertical size={18} />
-                            </button>
+                        {(() => {
+                          const overflowActions = actions.filter(
+                            a => !["Edit", "Delete", "View", "Ledger", "Pay", "Receive Payment"].includes(a.label) && !a.hide?.(item)
+                          );
+                          if (overflowActions.length === 0) return null;
+                          return (
+                            <div className="relative">
+                              <button 
+                                onClick={() => setOpenActionMenu(openActionMenu === rowIdx ? null : rowIdx)}
+                                className="p-2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                              >
+                                <MoreVertical size={18} />
+                              </button>
 
-                            {openActionMenu === rowIdx && (
-                              <>
-                                <div className="fixed inset-0 z-10" onClick={() => setOpenActionMenu(null)}></div>
-                                <div className="absolute right-0 mt-1 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-20 overflow-hidden py-1">
-                                  {actions.filter(a => !["Edit", "Delete", "View", "Ledger", "Pay", "Receive Payment"].includes(a.label)).map((action, actIdx) => {
-                                    const ActionIcon = action.icon;
-                                    return (
-                                      <button
-                                        key={actIdx}
-                                        onClick={() => {
-                                          action.onClick(item);
-                                          setOpenActionMenu(null);
-                                        }}
-                                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
-                                          action.variant === "danger" 
-                                            ? "text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20" 
-                                            : "text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                                        }`}
-                                      >
-                                        {ActionIcon && <ActionIcon size={16} />}
-                                        {action.label}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        )}
+                              {openActionMenu === rowIdx && (
+                                <>
+                                  <div className="fixed inset-0 z-10" onClick={() => setOpenActionMenu(null)}></div>
+                                  <div className="absolute right-0 mt-1 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-20 overflow-hidden py-1">
+                                    {overflowActions.map((action, actIdx) => {
+                                      const isDisabled = action.disabled?.(item);
+                                      const ActionIcon = action.icon;
+                                      return (
+                                        <button
+                                          key={actIdx}
+                                          disabled={isDisabled}
+                                          onClick={() => {
+                                            if (!isDisabled) {
+                                              action.onClick(item);
+                                              setOpenActionMenu(null);
+                                            }
+                                          }}
+                                          className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                                            isDisabled
+                                              ? "opacity-40 cursor-not-allowed text-slate-300 dark:text-slate-600"
+                                              : action.variant === "danger" 
+                                              ? "text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20" 
+                                              : "text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                                          }`}
+                                        >
+                                          {ActionIcon && <ActionIcon size={16} />}
+                                          {action.label}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     </td>
                   )}

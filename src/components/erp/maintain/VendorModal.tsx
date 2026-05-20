@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import ERPModal from "../ui/ERPModal";
-import { Save, User, Building, Phone, MapPin, CreditCard, Banknote, ShieldCheck, Mail, Hash } from "lucide-react";
+import { Save, User, Building, Phone, MapPin, CreditCard, Banknote, ShieldCheck, Mail, Hash, MessageCircle } from "lucide-react";
+import WhatsAppShareModal from "../whatsapp/WhatsAppShareModal";
 
 interface VendorModalProps {
   isOpen: boolean;
@@ -35,6 +36,24 @@ export default function VendorModal({ isOpen, onClose, vendor, onSave }: VendorM
     status: "Active",
     notes: "",
   });
+
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+  const [shopProfile, setShopProfile] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchShopProfile = async () => {
+      try {
+        const res = await fetch("/api/shop-profile");
+        const json = await res.json();
+        if (json.ok) setShopProfile(json.data);
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    if (isOpen) {
+      fetchShopProfile();
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (vendor) {
@@ -103,17 +122,31 @@ export default function VendorModal({ isOpen, onClose, vendor, onSave }: VendorM
       title={vendor ? "Edit Vendor" : "Add New Vendor"}
       size="xl"
       footer={
-        <div className="flex justify-end gap-3 w-full">
-          <button onClick={onClose} className="px-6 py-2.5 text-sm font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800 rounded-xl transition-all">
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            className="flex items-center gap-2 px-8 py-2.5 bg-maroon-800 text-white rounded-xl text-sm font-black hover:bg-maroon-900 transition-all shadow-xl shadow-maroon-900/20"
-          >
-            <Save size={18} />
-            {vendor ? "Update" : "Create"}
-          </button>
+        <div className="flex justify-between items-center w-full">
+          <div>
+            {vendor && (formData.phone || formData.mobile) && (formData.phone || formData.mobile).replace(/[^0-9]/g, "").length >= 10 && (
+              <button
+                type="button"
+                onClick={() => setIsWhatsAppModalOpen(true)}
+                className="flex items-center gap-2 px-5 py-2.5 bg-[#25D366] hover:bg-[#1EBE5D] text-white rounded-xl text-sm font-black shadow-lg shadow-[#25D366]/20 transition-all"
+              >
+                <MessageCircle size={18} className="fill-white/10" />
+                WhatsApp Details
+              </button>
+            )}
+          </div>
+          <div className="flex justify-end gap-3">
+            <button onClick={onClose} className="px-6 py-2.5 text-sm font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800 rounded-xl transition-all">
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmit}
+              className="flex items-center gap-2 px-8 py-2.5 bg-maroon-800 text-white rounded-xl text-sm font-black hover:bg-maroon-900 transition-all shadow-xl shadow-maroon-900/20"
+            >
+              <Save size={18} />
+              {vendor ? "Update" : "Create"}
+            </button>
+          </div>
         </div>
       }
     >
@@ -384,6 +417,21 @@ export default function VendorModal({ isOpen, onClose, vendor, onSave }: VendorM
           />
         </section>
       </form>
+
+      <WhatsAppShareModal 
+        isOpen={isWhatsAppModalOpen}
+        onClose={() => setIsWhatsAppModalOpen(false)}
+        party={{
+          ...vendor,
+          phone: formData.phone || formData.mobile,
+          name: formData.name,
+          status: formData.status,
+          balance: vendor?.balance !== undefined ? vendor.balance : formData.openingBalance,
+          type: "Vendor"
+        }}
+        type="Reminder"
+        shopProfile={shopProfile}
+      />
     </ERPModal>
   );
 }

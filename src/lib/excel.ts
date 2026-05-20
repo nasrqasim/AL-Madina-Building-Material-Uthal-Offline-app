@@ -131,6 +131,41 @@ export const printPage = () => {
 };
 
 /**
+ * Export the first visible table in the DOM to an Excel file using xlsx.
+ */
+export const exportDOMTableToExcel = (filename: string = 'Report') => {
+  try {
+    const table = document.querySelector('table');
+    if (!table) {
+      alert("No table data found to export.");
+      return;
+    }
+    
+    // Clean up interactive/temporary elements in cloned table
+    const tableClone = table.cloneNode(true) as HTMLTableElement;
+    
+    // Remove buttons, inputs, selects, dropdowns, and any elements marked no-export
+    const interactiveElements = tableClone.querySelectorAll('button, input, select, .no-export');
+    interactiveElements.forEach(el => el.remove());
+    
+    const worksheet = XLSX.utils.table_to_sheet(tableClone);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Report");
+    
+    const extension = '.xlsx';
+    let fullFilename = filename;
+    if (!fullFilename.toLowerCase().endsWith(extension)) {
+      fullFilename += extension;
+    }
+    
+    XLSX.writeFile(workbook, fullFilename);
+  } catch (error) {
+    console.error("DOM Excel Export failed:", error);
+    alert("Excel export failed. Please try again.");
+  }
+};
+
+/**
  * Print a clean list document in a new window — like a professional printable report.
  * @param title - Report title e.g. "Customer Balances Report"
  * @param companyName - Company name for the header

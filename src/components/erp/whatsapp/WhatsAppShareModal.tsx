@@ -54,12 +54,21 @@ export default function WhatsAppShareModal({
         const total = documentData.amount || 0;
 
         defaultMsg = `Assalamualaikum ${customerName},\n\nPayment details from ${shopName}:\n\nReceipt/Voucher No: ${docNo}\nDate: ${docDate}\nAmount: Rs. ${total.toLocaleString()}\n\nThank you for visiting us.`;
-      } else {
-        const outstanding = type === "Statement" && documentData?.closing 
+      } else if (type === "Statement") {
+        const outstanding = documentData?.closing !== undefined 
           ? documentData.closing 
           : party?.balance || 0;
           
-        defaultMsg = `Assalamualaikum ${customerName},\n\nYour account ${type.toLowerCase()} from ${shopName} is ready.\n\nTotal Outstanding Balance: Rs. ${outstanding.toLocaleString()}\n\nThank you for visiting us.`;
+        defaultMsg = `Assalamualaikum ${customerName},\n\nYour account statement from ${shopName} is ready.\n\nTotal Outstanding Balance: Rs. ${outstanding.toLocaleString()}\n\nThank you for visiting us.`;
+      } else if (party?.type === "Vendor") {
+        const vendorName = party.name || party.companyName || "Vendor";
+        const balance = party.balance || 0;
+        defaultMsg = `Vendor Details\n\nVendor: ${vendorName}\nPending Payment: Rs. ${balance.toLocaleString()}\n\nThank you.`;
+      } else {
+        const customerName = party?.name || party?.companyName || "Customer";
+        const balance = party?.balance || 0;
+        const status = party?.status || "Active";
+        defaultMsg = `Customer Details\n\nName: ${customerName}\nBalance: Rs. ${balance.toLocaleString()}\nAccount Status: ${status}\n\nThank you for visiting us.`;
       }
 
       setMessage(defaultMsg);
@@ -114,6 +123,8 @@ export default function WhatsAppShareModal({
       let cleanPhone = phone.replace(/[^0-9]/g, "");
       if (cleanPhone.startsWith("0")) {
         cleanPhone = "92" + cleanPhone.substring(1);
+      } else if (cleanPhone.length === 10 && cleanPhone.startsWith("3")) {
+        cleanPhone = "92" + cleanPhone;
       }
 
       // Encode message
@@ -123,7 +134,7 @@ export default function WhatsAppShareModal({
       const url = `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodedMsg}`;
 
       // Open in same named tab to prevent duplicate tabs
-      window.open(url, "whatsapp_erp_session");
+      window.open(url, "erp_whatsapp_window");
 
       setStatus("success");
       setTimeout(() => {
