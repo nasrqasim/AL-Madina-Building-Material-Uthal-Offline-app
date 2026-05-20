@@ -10,6 +10,7 @@ export async function POST(req: Request) {
 
     const token = process.env.WHATSAPP_ACCESS_TOKEN;
     const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+    const apiVersion = process.env.WHATSAPP_API_VERSION || "v22.0";
 
     // Clean phone number (remove + and spaces)
     const cleanPhone = recipientPhone.replace(/\D/g, '');
@@ -44,7 +45,7 @@ export async function POST(req: Request) {
       formData.append("type", "application/pdf");
       formData.append("messaging_product", "whatsapp");
 
-      const uploadRes = await fetch(`https://graph.facebook.com/v20.0/${phoneId}/media`, {
+      const uploadRes = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneId}/media`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -67,7 +68,17 @@ export async function POST(req: Request) {
       to: cleanPhone,
     };
 
-    if (mediaId) {
+    if (body.templateName) {
+      // Template sending support
+      payload.type = "template";
+      payload.template = {
+        name: body.templateName,
+        language: { code: body.templateLanguage || "en_US" }
+      };
+      if (body.templateComponents) {
+        payload.template.components = body.templateComponents;
+      }
+    } else if (mediaId) {
       // Send document with caption
       payload.type = "document";
       payload.document = {
@@ -84,7 +95,7 @@ export async function POST(req: Request) {
       };
     }
 
-    const sendRes = await fetch(`https://graph.facebook.com/v20.0/${phoneId}/messages`, {
+    const sendRes = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneId}/messages`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,

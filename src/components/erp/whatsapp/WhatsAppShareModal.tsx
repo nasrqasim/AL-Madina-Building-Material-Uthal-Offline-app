@@ -79,7 +79,7 @@ export default function WhatsAppShareModal({
     }
   };
 
-  const handleSend = async () => {
+  const handleSend = () => {
     if (!phone) {
       setErrorMessage("Please enter a valid WhatsApp number.");
       setStatus("error");
@@ -91,36 +91,25 @@ export default function WhatsAppShareModal({
     setErrorMessage("");
 
     try {
-      let pdfBase64 = null;
-      if (documentData && type === "Statement") {
-        pdfBase64 = await generatePDF();
+      // Format phone number
+      let cleanPhone = phone.replace(/[^0-9]/g, "");
+      if (cleanPhone.startsWith("0")) {
+        cleanPhone = "92" + cleanPhone.substring(1);
       }
 
-      const res = await fetch("/api/whatsapp/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          recipientName: party?.name || "Customer",
-          recipientPhone: phone,
-          type,
-          referenceId: referenceId || party?._id,
-          message,
-          pdfBase64,
-          useWebFallback: false
-        })
-      });
+      // Encode message
+      const encodedMsg = encodeURIComponent(message);
+      
+      // WhatsApp Web URL
+      const url = `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodedMsg}`;
 
-      const data = await res.json();
+      // Open in same named tab to prevent duplicate tabs
+      window.open(url, "whatsapp_erp_session");
 
-      if (data.ok) {
-        setStatus("success");
-        setTimeout(() => {
-          onClose();
-        }, 2000);
-      } else {
-        setStatus("error");
-        setErrorMessage(data.error || "Failed to send message");
-      }
+      setStatus("success");
+      setTimeout(() => {
+        onClose();
+      }, 2000);
     } catch (e: any) {
       setStatus("error");
       setErrorMessage(e.message || "An error occurred");
@@ -193,12 +182,12 @@ export default function WhatsAppShareModal({
 
           {documentData && type === "Statement" && (
             <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
-              <div className="w-10 h-10 bg-red-100 text-red-600 rounded-lg flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center shrink-0">
                 <FileText size={20} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-black text-slate-900 dark:text-white truncate">Statement_{party?.name?.replace(/\s+/g, '_')}.pdf</p>
-                <p className="text-xs text-slate-500 font-bold">Auto-generated • {documentData.rows?.length || 0} transactions</p>
+                <p className="text-sm font-black text-slate-900 dark:text-white truncate">Note: PDFs cannot be auto-attached in WhatsApp Web</p>
+                <p className="text-xs text-slate-500 font-bold">You can print and attach the PDF manually from the Print menu.</p>
               </div>
             </div>
           )}
