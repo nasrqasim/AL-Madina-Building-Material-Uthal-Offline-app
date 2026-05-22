@@ -91,7 +91,7 @@ body {
    =================================================== */
 
 @media print {
-  /* Hide all UI shell elements and interactive modules */
+  /* Hide all UI shell elements, interactive modules, buttons, and sidebars */
   aside, 
   header, 
   nav, 
@@ -104,6 +104,43 @@ body {
   .topbar,
   [role="navigation"],
   [role="button"] {
+    display: none !important;
+  }
+
+  /* Hide search inputs, filter containers, and form inputs globally */
+  input,
+  select,
+  textarea,
+  label,
+  .search-container,
+  .filter-container,
+  /* Hide filters bar in ReportLayout and detail pages */
+  div.mt-8.p-6.bg-slate-50,
+  div.mt-8.p-6.rounded-\[2rem\],
+  .shadow-inner {
+    display: none !important;
+  }
+
+  /* Hide sticky actions and form headers */
+  .sticky.top-0,
+  div.sticky {
+    display: none !important;
+  }
+
+  /* Hide KPI/metric grids and cards in list views */
+  .grid:has(.erp-card),
+  .erp-card,
+  .stats-grid {
+    display: none !important;
+  }
+
+  /* Hide the Last Column ("Actions") in tables if it contains button/svg elements */
+  th:last-child:has(button),
+  td:last-child:has(button),
+  th:last-child:has([role="button"]),
+  td:last-child:has([role="button"]),
+  th:last-child:has(svg),
+  td:last-child:has(svg) {
     display: none !important;
   }
 

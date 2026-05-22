@@ -1,15 +1,19 @@
 "use client";
-
 import React, { useState, useEffect } from "react";
 import ERPPageHeader from "@/components/erp/ui/ERPPageHeader";
 import { Search, ChevronDown, ChevronRight, FileText, Download, Printer, Maximize2, Minimize2, FileSpreadsheet } from "lucide-react";
 import { exportToExcel, printPage } from "@/lib/excel";
 
-
 export default function JournalReportPage() {
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [data, setData] = useState<any[]>([]);
+
+  // Filter states
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [transactionType, setTransactionType] = useState("All Types");
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     async function fetchData() {
@@ -18,23 +22,47 @@ export default function JournalReportPage() {
         const res = await fetch('/api/journal-entries');
         const json = await res.json();
         if (json.ok && json.data?.length > 0) {
-          const transformed = json.data.map((j: any) => ({
-            id: j.voucherNo || j._id,
-            date: new Date(j.date).toLocaleDateString(),
-            type: j.type || "Journal Voucher",
-            job: j.jobId?.name || "-",
-            employee: j.createdBy?.name || "Admin",
-            linesCount: j.entries?.length || 0,
-            debit: j.entries?.reduce((s: number, e: any) => s + (e.debit || 0), 0) || 0,
-            credit: j.entries?.reduce((s: number, e: any) => s + (e.credit || 0), 0) || 0,
-            entries: (j.entries || []).map((e: any) => ({
-              accountCode: e.accountId?.code || "N/A",
-              accountName: e.accountId?.name || "Unknown Account",
-              narration: e.narration || j.narration || "",
-              debit: e.debit || null,
-              credit: e.credit || null
-            }))
-          }));
+          // Group flat journal entries by voucherNo
+          const groups: { [key: string]: any } = {};
+
+          json.data.forEach((entry: any) => {
+            const groupKey = entry.voucherNo || `VOUCH-${entry._id}`;
+            if (!groups[groupKey]) {
+              groups[groupKey] = {
+                id: groupKey,
+                date: entry.date,
+                type: entry.remarks?.toLowerCase().includes("sale") || groupKey.startsWith("SI-") ? "Sale Invoice" :
+                      entry.remarks?.toLowerCase().includes("purchase") || groupKey.startsWith("PI-") ? "Purchase Invoice" :
+                      entry.remarks?.toLowerCase().includes("payment") || groupKey.startsWith("PV-") ? "Payment Voucher" :
+                      entry.remarks?.toLowerCase().includes("receipt") || groupKey.startsWith("RV-") || groupKey.startsWith("CRV-") ? "Receipt Voucher" :
+                      "Journal Voucher",
+                job: "-",
+                employee: "Admin",
+                entries: []
+              };
+            }
+            groups[groupKey].entries.push({
+              accountCode: entry.accountCode,
+              accountName: entry.accountTitle,
+              narration: entry.remarks || "",
+              debit: entry.debit || null,
+              credit: entry.credit || null
+            });
+          });
+
+          const transformed = Object.values(groups).map((g: any) => {
+            const totalDebit = g.entries.reduce((sum: number, e: any) => sum + (e.debit || 0), 0);
+            const totalCredit = g.entries.reduce((sum: number, e: any) => sum + (e.credit || 0), 0);
+            return {
+              ...g,
+              linesCount: g.entries.length,
+              debit: totalDebit,
+              credit: totalCredit
+            };
+          });
+
+          // Sort by date descending
+          transformed.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
           setData(transformed);
         }
       } catch (error) {
@@ -52,16 +80,58 @@ export default function JournalReportPage() {
     );
   };
 
+  // Dynamically filter data
+  const filteredData = data.filter((item) => {
+    // 1. From Date Filter
+    if (fromDate) {
+      const itemDate = new Date(item.date);
+      const fDate = new Date(fromDate);
+      fDate.setHours(0, 0, 0, 0);
+      if (itemDate < fDate) return false;
+    }
+
+    // 2. To Date Filter
+    if (toDate) {
+      const itemDate = new Date(item.date);
+      const tDate = new Date(toDate);
+      tDate.setHours(23, 59, 59, 999);
+      if (itemDate > tDate) return false;
+    }
+
+    // 3. Transaction Type Filter
+    if (transactionType !== "All Types" && item.type !== transactionType) {
+      return false;
+    }
+
+    // 4. Search Query Filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      const matchId = item.id.toLowerCase().includes(query);
+      const matchType = item.type.toLowerCase().includes(query);
+      const matchEntries = item.entries.some(
+        (e: any) =>
+          e.accountCode.toLowerCase().includes(query) ||
+          e.accountName.toLowerCase().includes(query) ||
+          e.narration.toLowerCase().includes(query)
+      );
+      if (!matchId && !matchType && !matchEntries) return false;
+    }
+
+    return true;
+  });
+
   const expandAll = () => {
-    setExpandedRows(data.map(d => d.id));
+    setExpandedRows(filteredData.map(d => d.id));
   };
 
   const collapseAll = () => {
     setExpandedRows([]);
   };
 
-  const totalDebit = data.reduce((sum, item) => sum + item.debit, 0);
-  const totalCredit = data.reduce((sum, item) => sum + item.credit, 0);
+  const totalDebit = filteredData.reduce((sum, item) => sum + item.debit, 0);
+  const totalCredit = filteredData.reduce((sum, item) => sum + item.credit, 0);
+  const difference = Math.abs(totalDebit - totalCredit);
+  const isBalanced = difference < 0.01;
 
   return (
     <div className="space-y-6">
@@ -70,7 +140,7 @@ export default function JournalReportPage() {
         description="Detailed accounting journal with drill-down transaction entries."
         actions={[
           { label: "Print Report", onClick: printPage, icon: Printer },
-          { label: "Export Excel", onClick: () => exportToExcel(data, "JournalReport.xlsx"), icon: FileSpreadsheet },
+          { label: "Export Excel", onClick: () => exportToExcel(filteredData, "JournalReport.xlsx"), icon: FileSpreadsheet },
         ]}
       />
 
@@ -82,7 +152,7 @@ export default function JournalReportPage() {
           </div>
           <div>
             <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Total Transactions</p>
-            <p className="text-xl font-black text-slate-800 dark:text-slate-100">{data.length}</p>
+            <p className="text-xl font-black text-slate-800 dark:text-slate-100">{filteredData.length}</p>
           </div>
         </div>
         <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
@@ -104,12 +174,14 @@ export default function JournalReportPage() {
           </div>
         </div>
         <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
-          <div className="w-10 h-10 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 font-black text-xl">
+          <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-black text-xl ${isBalanced ? "bg-emerald-50 border border-emerald-100 text-emerald-600" : "bg-amber-50 border border-amber-100 text-amber-600"}`}>
             =
           </div>
           <div>
             <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Balance</p>
-            <p className="text-xl font-black text-emerald-600">Balanced</p>
+            <p className={`text-xl font-black ${isBalanced ? "text-emerald-600" : "text-amber-600"}`}>
+              {isBalanced ? "Balanced" : `Diff: ${difference.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+            </p>
           </div>
         </div>
       </div>
@@ -126,16 +198,35 @@ export default function JournalReportPage() {
             </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">From Date</label>
-              <input type="date" className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-bold focus:outline-none focus:ring-2 focus:ring-maroon-800/20" />
+              <input 
+                type="date" 
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-bold focus:outline-none focus:ring-2 focus:ring-maroon-800/20" 
+              />
             </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">To Date</label>
-              <input type="date" className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-bold focus:outline-none focus:ring-2 focus:ring-maroon-800/20" />
+              <input 
+                type="date" 
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-bold focus:outline-none focus:ring-2 focus:ring-maroon-800/20" 
+              />
             </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Transaction Type</label>
-              <select className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-bold focus:outline-none focus:ring-2 focus:ring-maroon-800/20">
-                <option>All Types</option>
+              <select 
+                value={transactionType}
+                onChange={(e) => setTransactionType(e.target.value)}
+                className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-bold focus:outline-none focus:ring-2 focus:ring-maroon-800/20"
+              >
+                <option value="All Types">All Types</option>
+                <option value="Sale Invoice">Sale Invoice</option>
+                <option value="Purchase Invoice">Purchase Invoice</option>
+                <option value="Payment Voucher">Payment Voucher</option>
+                <option value="Receipt Voucher">Receipt Voucher</option>
+                <option value="Journal Voucher">Journal Voucher</option>
               </select>
             </div>
           </div>
@@ -143,7 +234,13 @@ export default function JournalReportPage() {
           <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
             <div className="relative flex-1 w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={18} />
-              <input type="text" placeholder="Search doc#, account, description..." className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-maroon-800/10 font-medium transition-all" />
+              <input 
+                type="text" 
+                placeholder="Search doc#, account, description..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-maroon-800/10 font-medium transition-all" 
+              />
             </div>
             <div className="flex gap-2 w-full md:w-auto">
               <button onClick={expandAll} className="px-3 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1.5">
@@ -152,10 +249,10 @@ export default function JournalReportPage() {
               <button onClick={collapseAll} className="px-3 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1.5">
                 <Minimize2 size={14} /> Collapse
               </button>
-              <button onClick={() => exportToExcel(data, "JournalReport.csv")} className="px-3 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1.5">
+              <button onClick={() => exportToExcel(filteredData, "JournalReport.csv")} className="px-3 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1.5">
                 <Download size={14} /> CSV
               </button>
-              <button className="px-3 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1.5">
+              <button onClick={printPage} className="px-3 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1.5">
                 <Printer size={14} /> Print
               </button>
             </div>
@@ -179,44 +276,63 @@ export default function JournalReportPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {data.map((row: any) => (
-                <React.Fragment key={row.id}>
-                  <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group" onClick={() => toggleRow(row.id)}>
-                    <td className="px-4 py-3 text-slate-400 dark:text-slate-500">
-                      {expandedRows.includes(row.id) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                    </td>
-                    <td className="px-4 py-3 text-sm font-bold text-maroon-800">
-                      {row.id}
-                    </td>
-                    <td className="px-4 py-3 text-sm font-medium text-slate-600 dark:text-slate-300">{row.date}</td>
-                    <td className="px-4 py-3">
-                      <span className="px-2 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded text-[10px] font-black uppercase tracking-wider">{row.type}</span>
-                    </td>
-                    <td className="px-4 py-3 text-sm font-medium text-slate-600 dark:text-slate-300">{row.job}</td>
-                    <td className="px-4 py-3 text-sm font-medium text-slate-600 dark:text-slate-300">{row.employee}</td>
-                    <td className="px-4 py-3 text-sm font-medium text-slate-500 text-center">{row.linesCount} entries</td>
-                    <td className="px-4 py-3 text-sm font-black text-blue-600 text-right">{row.debit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                    <td className="px-4 py-3 text-sm font-black text-rose-600 text-right">{row.credit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                  </tr>
-                  
-                  {expandedRows.includes(row.id) && row.entries.map((entry: any, idx: number) => (
-                    <tr key={`${row.id}-entry-${idx}`} className="bg-slate-50 dark:bg-slate-800/20">
-                      <td colSpan={2} className="px-4 py-2 pl-12 text-xs font-bold text-slate-500">{entry.accountCode}</td>
-                      <td colSpan={3} className="px-4 py-2">
-                        <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{entry.accountName}</span>
-                        <span className="text-xs text-slate-400 ml-2 italic">{entry.narration}</span>
+              {isLoading ? (
+                <tr>
+                  <td colSpan={9} className="px-4 py-8 text-center text-slate-400">
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-5 h-5 border-2 border-maroon-800 border-t-transparent rounded-full animate-spin"></div>
+                      Loading journal entries...
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredData.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="px-4 py-8 text-center text-slate-400">
+                    No matching journal entries found
+                  </td>
+                </tr>
+              ) : (
+                filteredData.map((row: any) => (
+                  <React.Fragment key={row.id}>
+                    <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group" onClick={() => toggleRow(row.id)}>
+                      <td className="px-4 py-3 text-slate-400 dark:text-slate-500">
+                        {expandedRows.includes(row.id) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                       </td>
-                      <td colSpan={2}></td>
-                      <td className="px-4 py-2 text-sm font-medium text-blue-600 text-right">
-                        {entry.debit !== null ? entry.debit.toLocaleString(undefined, { minimumFractionDigits: 2 }) : ""}
+                      <td className="px-4 py-3 text-sm font-bold text-maroon-800">
+                        {row.id}
                       </td>
-                      <td className="px-4 py-2 text-sm font-medium text-rose-600 text-right">
-                        {entry.credit !== null ? entry.credit.toLocaleString(undefined, { minimumFractionDigits: 2 }) : ""}
+                      <td className="px-4 py-3 text-sm font-medium text-slate-600 dark:text-slate-300">
+                        {new Date(row.date).toLocaleDateString()}
                       </td>
+                      <td className="px-4 py-3">
+                        <span className="px-2 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded text-[10px] font-black uppercase tracking-wider">{row.type}</span>
+                      </td>
+                      <td className="px-4 py-3 text-sm font-medium text-slate-600 dark:text-slate-300">{row.job}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-slate-600 dark:text-slate-300">{row.employee}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-slate-500 text-center">{row.linesCount} entries</td>
+                      <td className="px-4 py-3 text-sm font-black text-blue-600 text-right">{row.debit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                      <td className="px-4 py-3 text-sm font-black text-rose-600 text-right">{row.credit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                     </tr>
-                  ))}
-                </React.Fragment>
-              ))}
+                    
+                    {expandedRows.includes(row.id) && row.entries.map((entry: any, idx: number) => (
+                      <tr key={`${row.id}-entry-${idx}`} className="bg-slate-50 dark:bg-slate-800/20">
+                        <td colSpan={2} className="px-4 py-2 pl-12 text-xs font-bold text-slate-500">{entry.accountCode}</td>
+                        <td colSpan={3} className="px-4 py-2">
+                          <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{entry.accountName}</span>
+                          <span className="text-xs text-slate-400 ml-2 italic">{entry.narration}</span>
+                        </td>
+                        <td colSpan={2}></td>
+                        <td className="px-4 py-2 text-sm font-medium text-blue-600 text-right">
+                          {entry.debit !== null ? entry.debit.toLocaleString(undefined, { minimumFractionDigits: 2 }) : ""}
+                        </td>
+                        <td className="px-4 py-2 text-sm font-medium text-rose-600 text-right">
+                          {entry.credit !== null ? entry.credit.toLocaleString(undefined, { minimumFractionDigits: 2 }) : ""}
+                        </td>
+                      </tr>
+                    ))}
+                  </React.Fragment>
+                ))
+              )}
             </tbody>
             <tfoot>
               <tr className="bg-slate-50 dark:bg-slate-800/50 border-t-2 border-slate-200 dark:border-slate-800">

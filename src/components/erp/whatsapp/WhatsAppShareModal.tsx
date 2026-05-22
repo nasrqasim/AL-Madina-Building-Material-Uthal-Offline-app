@@ -60,6 +60,12 @@ export default function WhatsAppShareModal({
           : party?.balance || 0;
           
         defaultMsg = `Assalamualaikum ${customerName},\n\nYour account statement from ${shopName} is ready.\n\nTotal Outstanding Balance: Rs. ${outstanding.toLocaleString()}\n\nThank you for visiting us.`;
+      } else if (type === "Reminder") {
+        const outstanding = documentData?.closing !== undefined 
+          ? documentData.closing 
+          : party?.balance || 0;
+          
+        defaultMsg = `Assalamualaikum ${customerName},\n\nThis is a friendly reminder regarding your outstanding balance with ${shopName}.\n\nTotal Outstanding Amount: Rs. ${outstanding.toLocaleString()}\n\nWe kindly request you to clear the pending dues at your earliest convenience. If you have already made the payment, please ignore this message.\n\nThank you for your continued business and cooperation.`;
       } else if (party?.type === "Vendor") {
         const vendorName = party.name || party.companyName || "Vendor";
         const balance = party.balance || 0;
