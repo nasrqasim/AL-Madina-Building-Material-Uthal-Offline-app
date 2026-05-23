@@ -12,6 +12,7 @@ export default function UnitsPage() {
   const [selectedUnit, setSelectedUnit] = useState<any>(null);
   const [units, setUnits] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const fetchUnits = async () => {
     setIsLoading(true);
@@ -84,6 +85,16 @@ export default function UnitsPage() {
     }
   };
 
+  const filteredUnits = units.filter(unit => {
+    const q = searchTerm.toLowerCase();
+    return (
+      (unit.name || "").toLowerCase().includes(q) ||
+      (unit.code || "").toLowerCase().includes(q) ||
+      (unit.type || "").toLowerCase().includes(q) ||
+      (unit.description || "").toLowerCase().includes(q)
+    );
+  });
+
   const columns = [
     { header: "Code", accessor: "code", render: (val: string) => <span className="px-2 py-1 bg-rose-50 text-rose-600 rounded text-[10px] font-black uppercase tracking-widest">{val}</span> },
     { header: "Name", accessor: "name", render: (val: string) => <span className="font-black text-slate-900 dark:text-white">{val}</span> },
@@ -113,10 +124,16 @@ export default function UnitsPage() {
         <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
           <div className="relative max-w-xl flex-1">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={18} />
-            <input type="text" placeholder="Search units..." className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-2xl text-sm font-bold outline-none focus:ring-4 focus:ring-maroon-800/5 transition-all" />
+            <input 
+              type="text" 
+              placeholder="Search by unit name, code, type, or description..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-2xl text-sm font-bold outline-none focus:ring-4 focus:ring-maroon-800/5 transition-all" 
+            />
           </div>
         </div>
-        <ERPDataTable columns={columns} data={units}
+        <ERPDataTable columns={columns} data={filteredUnits}
           actions={[
             { label: "Edit", onClick: handleEdit, icon: Edit2 },
             { label: "Delete", onClick: (row: any) => handleDelete(row._id), icon: Trash2, variant: "danger" },

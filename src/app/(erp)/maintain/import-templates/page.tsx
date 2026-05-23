@@ -11,6 +11,7 @@ export default function ImportTemplatesPage() {
   const [importingId, setImportingId] = useState<string | null>(null);
   const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const [templates, setTemplates] = useState([
     { id: "1", name: "Items Import", type: "Excel", fields: 12, lastUpdated: "2026-04-15" },
@@ -94,6 +95,14 @@ export default function ImportTemplatesPage() {
     setTimeout(() => setNotification(null), 3000);
   };
 
+  const filteredTemplates = templates.filter(t => {
+    const q = searchTerm.toLowerCase();
+    return (
+      (t.name || "").toLowerCase().includes(q) ||
+      (t.type || "").toLowerCase().includes(q)
+    );
+  });
+
   return (
     <div className="space-y-6 relative">
       {/* Toast Notification */}
@@ -125,11 +134,13 @@ export default function ImportTemplatesPage() {
       {/* Action Bar */}
       <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="relative flex-1 max-w-xl">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500" size={18} />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={18} />
           <input 
             type="text" 
             placeholder="Search templates..." 
-            className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 dark:bg-slate-900 dark:focus:bg-slate-900 dark:bg-slate-900 focus:ring-4 focus:ring-maroon-800/5 outline-none transition-all"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-maroon-800/5 outline-none transition-all"
           />
         </div>
         <div className="flex items-center gap-3">
@@ -152,7 +163,7 @@ export default function ImportTemplatesPage() {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {templates.map((template) => (
+        {filteredTemplates.map((template) => (
           <div key={template.id} className="group bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 hover:border-maroon-300 hover:shadow-2xl transition-all relative overflow-hidden">
             <div className="flex items-start justify-between mb-6">
               <div className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl">

@@ -11,6 +11,7 @@ export default function RegionsPage() {
   const [selectedRegion, setSelectedRegion] = useState<any>(null);
   const [regions, setRegions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const fetchRegions = async () => {
     setIsLoading(true);
@@ -80,6 +81,19 @@ export default function RegionsPage() {
     setIsModalOpen(false);
   };
 
+  const filteredRegions = regions.filter(region => {
+    const q = searchTerm.toLowerCase();
+    return (
+      (region.name || "").toLowerCase().includes(q) ||
+      (region.code || "").toLowerCase().includes(q) ||
+      (region.coverage || "").toLowerCase().includes(q)
+    );
+  });
+
+  const columns = [
+    { header: "Code", accessor: "code" }
+  ];
+
   return (
     <div className="space-y-6">
       <ERPPageHeader 
@@ -122,7 +136,9 @@ export default function RegionsPage() {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={18} />
             <input 
               type="text" 
-              placeholder="Search regions..." 
+              placeholder="Search by region name, code, or coverage..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-2xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-maroon-800/5 outline-none transition-all"
             />
           </div>
@@ -138,7 +154,7 @@ export default function RegionsPage() {
         </div>
 
         <div className="divide-y divide-slate-50">
-          {regions.map((region) => (
+          {filteredRegions.map((region) => (
             <div key={region._id} className="p-6 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors flex items-center justify-between group">
               <div className="flex items-center gap-6">
                 <div className="p-3 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-xl group-hover:bg-maroon-800 group-hover:text-white transition-all">

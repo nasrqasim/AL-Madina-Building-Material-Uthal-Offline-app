@@ -10,6 +10,7 @@ export default function SaleRegisterReportPage() {
   const [data, setData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
     async function fetchData() {
@@ -40,12 +41,21 @@ export default function SaleRegisterReportPage() {
     fetchData();
   }, []);
 
-  const totalGross = data.reduce((acc, curr) => acc + curr.gross, 0);
-  const totalNet = data.reduce((acc, curr) => acc + curr.net, 0);
-  const totalGst = data.reduce((acc, curr) => acc + curr.gst, 0);
+  const filteredData = data.filter(row => {
+    const q = searchTerm.toLowerCase();
+    return (
+      (row.docNo || "").toLowerCase().includes(q) ||
+      (row.customer || "").toLowerCase().includes(q) ||
+      (row.type || "").toLowerCase().includes(q)
+    );
+  });
+
+  const totalGross = filteredData.reduce((acc, curr) => acc + curr.gross, 0);
+  const totalNet = filteredData.reduce((acc, curr) => acc + curr.net, 0);
+  const totalGst = filteredData.reduce((acc, curr) => acc + curr.gst, 0);
 
   const stats = [
-    { title: "Total Documents", value: data.length.toString(), icon: Hash, iconColor: "text-rose-600", iconBg: "bg-rose-50" },
+    { title: "Total Documents", value: filteredData.length.toString(), icon: Hash, iconColor: "text-rose-600", iconBg: "bg-rose-50" },
     { title: "Total Gross Amount", value: `Rs. ${totalGross.toLocaleString()}`, icon: DollarSign, iconColor: "text-emerald-600", iconBg: "bg-emerald-50", valueColor: "text-emerald-600" },
     { title: "Total Net Amount", value: `Rs. ${totalNet.toLocaleString()}`, icon: DollarSign, iconColor: "text-blue-600", iconBg: "bg-blue-50", valueColor: "text-blue-600" },
     { title: "Total GST", value: `Rs. ${totalGst.toLocaleString()}`, icon: Percent, iconColor: "text-amber-600", iconBg: "bg-amber-50" },
@@ -119,10 +129,16 @@ export default function SaleRegisterReportPage() {
           </select>
         </div>
         <div className="space-y-1 lg:col-span-1">
-          <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Search Doc #</label>
+          <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Search Doc #</label>
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500" size={12} />
-            <input type="text" placeholder="Search document number..." className="w-full pl-7 pr-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-maroon-800/10 font-medium transition-all" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={12} />
+            <input 
+              type="text" 
+              placeholder="Search document number..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-7 pr-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-maroon-800/10 font-medium transition-all" 
+            />
           </div>
         </div>
       </div>
@@ -145,7 +161,7 @@ export default function SaleRegisterReportPage() {
   );
 
 
-  const trendData = Object.entries(data.reduce((acc: any, curr) => {
+  const trendData = Object.entries(filteredData.reduce((acc: any, curr) => {
     const month = curr.date.split('/').slice(1).join('/');
     if (!acc[month]) acc[month] = { name: month, count: 0, net: 0 };
     acc[month].count += 1;
@@ -153,7 +169,7 @@ export default function SaleRegisterReportPage() {
     return acc;
   }, {})).map(([_, v]) => v);
 
-  const typeData = Object.entries(data.reduce((acc: any, curr) => {
+  const typeData = Object.entries(filteredData.reduce((acc: any, curr) => {
     if (!acc[curr.type]) acc[curr.type] = { name: curr.type, gross: 0, net: 0 };
     acc[curr.type].gross += curr.gross;
     acc[curr.type].net += curr.net;
@@ -168,7 +184,7 @@ export default function SaleRegisterReportPage() {
       filters={Filters}
       actions={[
         { label: "Print Register", onClick: printPage, icon: Printer },
-        { label: "Export Excel", onClick: () => exportToExcel(data, "SaleRegister.xlsx"), icon: FileSpreadsheet },
+        { label: "Export Excel", onClick: () => exportToExcel(filteredData, "SaleRegister.xlsx"), icon: FileSpreadsheet },
       ]}
     >
       <div className="space-y-6">
@@ -177,7 +193,7 @@ export default function SaleRegisterReportPage() {
             <div className="w-8 h-8 border-4 border-maroon-800 border-t-transparent rounded-full animate-spin mb-4"></div>
             <p className="text-sm font-bold">Fetching live sale records...</p>
           </div>
-        ) : data.length === 0 ? (
+        ) : filteredData.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-slate-400 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-800/50/50 mx-4">
             <Hash size={48} className="mb-4 opacity-30" />
             <p className="text-sm font-bold text-slate-600 dark:text-slate-300">No sale documents found for the selected criteria</p>
@@ -187,7 +203,7 @@ export default function SaleRegisterReportPage() {
             <div className="px-4">
               <div className="flex items-center gap-2 mb-4">
                 <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Sale Documents</h3>
-                <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded text-xs font-bold">{data.length} records</span>
+                <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded text-xs font-bold">{filteredData.length} records</span>
               </div>
               <table className="w-full text-left border-collapse border-b border-slate-200 dark:border-slate-800">
                 <thead className="bg-slate-50 dark:bg-slate-800/50 border-y border-slate-200 dark:border-slate-800">
@@ -203,7 +219,7 @@ export default function SaleRegisterReportPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {data.map((row) => (
+                  {filteredData.map((row) => (
                     <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors">
                       <td className="px-4 py-3 text-[11px] font-medium text-slate-600 dark:text-slate-300">{row.date}</td>
                       <td className="px-4 py-3 text-[11px] font-bold text-maroon-800 cursor-pointer hover:underline">{row.docNo}</td>
@@ -222,7 +238,7 @@ export default function SaleRegisterReportPage() {
                     </tr>
                   ))}
                   <tr className="bg-slate-50 dark:bg-slate-800/50 font-black">
-                    <td colSpan={4} className="px-4 py-3 text-right text-[10px] uppercase tracking-widest text-slate-800 dark:text-slate-100">TOTAL ({data.length} records)</td>
+                    <td colSpan={4} className="px-4 py-3 text-right text-[10px] uppercase tracking-widest text-slate-800 dark:text-slate-100">TOTAL ({filteredData.length} records)</td>
                     <td className="px-4 py-3 text-[11px] text-right">{totalGross.toLocaleString()}</td>
                     <td className="px-4 py-3 text-[11px] text-right">{totalGst.toLocaleString()}</td>
                     <td className="px-4 py-3 text-[11px] text-right text-blue-600">{totalNet.toLocaleString()}</td>

@@ -13,6 +13,7 @@ export default function JobsPage() {
   const [selectedJob, setSelectedJob] = useState<any>(null);
   const [jobs, setJobs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const fetchJobs = async () => {
     setIsLoading(true);
@@ -87,6 +88,16 @@ export default function JobsPage() {
     }
   };
 
+  const filteredJobs = jobs.filter(job => {
+    const q = searchTerm.toLowerCase();
+    return (
+      (job.name || "").toLowerCase().includes(q) ||
+      (job.code || "").toLowerCase().includes(q) ||
+      (job.customer || "").toLowerCase().includes(q) ||
+      (job.status || "").toLowerCase().includes(q)
+    );
+  });
+
   const columns = [
     { header: "Job Code", accessor: "code", render: (val: string) => <span className="px-2 py-1 bg-rose-50 text-rose-600 rounded text-[10px] font-black uppercase tracking-widest">{val}</span> },
     { header: "Job Name", accessor: "name", render: (val: string) => <span className="font-black text-slate-900 dark:text-white">{val}</span> },
@@ -147,13 +158,19 @@ export default function JobsPage() {
         <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex flex-col md:flex-row gap-4 items-center justify-between">
           <div className="relative flex-1 max-w-xl">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={18} />
-            <input type="text" placeholder="Search jobs..." className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-2xl text-sm font-bold outline-none focus:ring-4 focus:ring-maroon-800/5 transition-all" />
+            <input 
+              type="text" 
+              placeholder="Search by job name, code, or customer..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-2xl text-sm font-bold outline-none focus:ring-4 focus:ring-maroon-800/5 transition-all" 
+            />
           </div>
           <button onClick={handleAdd} className="flex items-center gap-2 px-8 py-3 bg-maroon-800 text-white rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-maroon-900 transition-all shadow-lg shadow-maroon-800/20">
             <Plus size={18} /> New Job
           </button>
         </div>
-        <ERPDataTable columns={columns} data={jobs}
+        <ERPDataTable columns={columns} data={filteredJobs}
           actions={[
             { label: "Edit", onClick: handleEdit, icon: Edit2 },
             { label: "Delete", onClick: (row: any) => handleDelete(row._id), icon: Trash2, variant: "danger" },

@@ -11,6 +11,7 @@ export default function StaffSalaryPage() {
   const [selectedStaff, setSelectedStaff] = useState<any>(null);
   const [staffList, setStaffList] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const fetchStaff = async () => {
     setIsLoading(true);
@@ -36,6 +37,17 @@ export default function StaffSalaryPage() {
     } catch (e) { console.error(e); }
   };
 
+  const filteredStaff = staffList.filter(s => {
+    const q = searchTerm.toLowerCase();
+    return (
+      (s.name || "").toLowerCase().includes(q) ||
+      (s.code || "").toLowerCase().includes(q) ||
+      (s.cnic || "").toLowerCase().includes(q) ||
+      (s.designation || "").toLowerCase().includes(q) ||
+      (s.department || "").toLowerCase().includes(q)
+    );
+  });
+
   return (
     <div className="space-y-6">
       <ERPPageHeader
@@ -60,7 +72,13 @@ export default function StaffSalaryPage() {
       <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-wrap gap-4 items-center justify-between">
         <div className="flex-1 min-w-[300px] relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={18} />
-          <input type="text" placeholder="Search by code, name, CNIC, or designation..." className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-maroon-800/10 font-medium transition-all" />
+          <input 
+            type="text" 
+            placeholder="Search by code, name, CNIC, or designation..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-maroon-800/10 font-medium transition-all" 
+          />
         </div>
         <div className="flex gap-3">
           <select className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/10 transition-all">
@@ -77,7 +95,7 @@ export default function StaffSalaryPage() {
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
         {isLoading ? (
           <div className="py-20 text-center text-slate-400 font-bold">Loading...</div>
-        ) : staffList.length > 0 ? (
+        ) : filteredStaff.length > 0 ? (
           <table className="w-full text-left border-collapse">
             <thead className="bg-slate-50 dark:bg-slate-800/50/50 border-b border-slate-100 dark:border-slate-800">
               <tr>
@@ -90,7 +108,7 @@ export default function StaffSalaryPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {staffList.map((staff) => (
+              {filteredStaff.map((staff) => (
                 <tr key={staff._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
                   <td className="px-6 py-4">
                     <span className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-maroon-800 transition-colors">{staff.code}</span>

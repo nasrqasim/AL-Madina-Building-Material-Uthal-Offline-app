@@ -12,6 +12,7 @@ export default function LocationsPage() {
   const [selectedLocation, setSelectedLocation] = useState<any>(null);
   const [locations, setLocations] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const fetchLocations = async () => {
     setIsLoading(true);
@@ -67,6 +68,17 @@ export default function LocationsPage() {
     setIsModalOpen(false);
   };
 
+  const filteredLocations = locations.filter(loc => {
+    const q = searchTerm.toLowerCase();
+    return (
+      (loc.name || "").toLowerCase().includes(q) ||
+      (loc.code || "").toLowerCase().includes(q) ||
+      (loc.type || "").toLowerCase().includes(q) ||
+      (loc.city || "").toLowerCase().includes(q) ||
+      (loc.contact || "").toLowerCase().includes(q)
+    );
+  });
+
   const columns = [
     { header: "Code", accessor: "code", render: (val: string) => <span className="font-black text-slate-900 dark:text-white uppercase tracking-tighter">{val}</span> },
     { header: "Location Name", accessor: "name", render: (val: string, row: any) => (
@@ -120,13 +132,19 @@ export default function LocationsPage() {
         <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex flex-col md:flex-row gap-4 items-center justify-between">
           <div className="relative flex-1 max-w-xl">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={18} />
-            <input type="text" placeholder="Search locations..." className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-2xl text-sm font-bold outline-none focus:ring-4 focus:ring-maroon-800/5 transition-all" />
+            <input 
+              type="text" 
+              placeholder="Search by location name, code, type, or city..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-2xl text-sm font-bold outline-none focus:ring-4 focus:ring-maroon-800/5 transition-all" 
+            />
           </div>
           <button onClick={handleAdd} className="flex items-center gap-2 px-8 py-3 bg-maroon-800 text-white rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-maroon-900 transition-all shadow-lg shadow-maroon-800/20">
             <Plus size={18} /> New Location
           </button>
         </div>
-        <ERPDataTable columns={columns} data={locations}
+        <ERPDataTable columns={columns} data={filteredLocations}
           actions={[
             { label: "Edit", onClick: handleEdit, icon: Edit2 },
             { label: "Delete", onClick: (row: any) => handleDelete(row._id), icon: Trash2, variant: "danger" },

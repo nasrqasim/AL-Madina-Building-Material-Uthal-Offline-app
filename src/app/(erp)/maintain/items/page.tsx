@@ -20,6 +20,7 @@ export default function ItemsPage() {
   const [selectedCatId, setSelectedCatId] = useState<string | null>(null);
   const [selectedSubCatId, setSelectedSubCatId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const fetchItems = async () => {
     setIsLoading(true);
@@ -123,8 +124,16 @@ export default function ItemsPage() {
   const filteredSubCats = categories.filter(c => c.type === "sub" && (selectedCatId ? String(c.parentId) === String(selectedCatId) : true));
   
   const filteredItems = items.filter(item => {
-    if (selectedSubCatId) return String(item.subCategoryId) === String(selectedSubCatId);
-    if (selectedCatId) return String(item.mainCategoryId) === String(selectedCatId);
+    if (selectedSubCatId && String(item.subCategoryId) !== String(selectedSubCatId)) return false;
+    if (selectedCatId && String(item.mainCategoryId) !== String(selectedCatId)) return false;
+    if (searchTerm) {
+      const q = searchTerm.toLowerCase();
+      return (
+        (item.name || "").toLowerCase().includes(q) ||
+        (item.code || "").toLowerCase().includes(q) ||
+        (item.description || "").toLowerCase().includes(q)
+      );
+    }
     return true;
   });
 
@@ -266,6 +275,8 @@ export default function ItemsPage() {
             </div>
           </div>
           <ERPDataTable columns={columns} data={filteredItems}
+            onSearch={setSearchTerm}
+            searchPlaceholder="Search by item name or code..."
             actions={[
               { label: "Edit", onClick: handleEdit, icon: Edit2 },
               { label: "Delete", onClick: (row: any) => handleDelete(row._id), icon: Trash2, variant: "danger" },

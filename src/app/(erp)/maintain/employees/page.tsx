@@ -13,6 +13,7 @@ export default function EmployeesPage() {
   const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
   const [employees, setEmployees] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const fetchEmployees = async () => {
     setIsLoading(true);
@@ -92,6 +93,18 @@ export default function EmployeesPage() {
     }
   };
 
+  const filteredEmployees = employees.filter(emp => {
+    const q = searchTerm.toLowerCase();
+    return (
+      (emp.name || "").toLowerCase().includes(q) ||
+      (emp.code || "").toLowerCase().includes(q) ||
+      (emp.cnic || "").toLowerCase().includes(q) ||
+      (emp.department || "").toLowerCase().includes(q) ||
+      (emp.designation || "").toLowerCase().includes(q) ||
+      (emp.phone || "").toLowerCase().includes(q)
+    );
+  });
+
   const columns = [
     { header: "Code", accessor: "code" },
     { header: "Name (CNIC)", accessor: "name", render: (val: string, item: any) => (
@@ -134,7 +147,9 @@ export default function EmployeesPage() {
 
       <ERPDataTable 
         columns={columns} 
-        data={employees} 
+        data={filteredEmployees} 
+        onSearch={setSearchTerm}
+        searchPlaceholder="Search employees by name, CNIC, code, department..."
         actions={[
           { label: "Edit", onClick: handleEdit, icon: Edit2 },
           { label: "Delete", onClick: (row: any) => handleDelete(row._id), icon: Trash2, variant: "danger" },

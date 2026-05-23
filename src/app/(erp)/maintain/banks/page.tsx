@@ -12,6 +12,7 @@ export default function BanksPage() {
   const [selectedBank, setSelectedBank] = useState<any>(null);
   const [banks, setBanks] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const fetchBanks = async () => {
     setIsLoading(true);
@@ -83,6 +84,18 @@ export default function BanksPage() {
     } catch (e) { console.error(e); }
     setIsModalOpen(false);
   };
+
+  const filteredBanks = banks.filter(bank => {
+    const q = searchTerm.toLowerCase();
+    return (
+      (bank.name || "").toLowerCase().includes(q) ||
+      (bank.code || "").toLowerCase().includes(q) ||
+      (bank.accountNo || "").toLowerCase().includes(q) ||
+      (bank.branch || "").toLowerCase().includes(q) ||
+      (bank.accountTitle || "").toLowerCase().includes(q) ||
+      (bank.type || "").toLowerCase().includes(q)
+    );
+  });
 
   const columns = [
     { 
@@ -160,6 +173,8 @@ export default function BanksPage() {
             <input 
               type="text" 
               placeholder="Search by bank name, branch, or account number..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-2xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-maroon-800/5 outline-none transition-all"
             />
           </div>
@@ -176,7 +191,7 @@ export default function BanksPage() {
 
         <ERPDataTable 
           columns={columns} 
-          data={banks} 
+          data={filteredBanks} 
           actions={[
             { label: "Edit", onClick: handleEdit, icon: Edit2 },
             { label: "Delete", onClick: (row: any) => handleDelete(row._id), icon: Trash2, variant: "danger" },
