@@ -173,10 +173,10 @@ export default function OpeningBalancesPage() {
               {activeTab === "Items" ? (
                 <tr>
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Item Name</th>
-                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-24 text-center">Unit</th>
-                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-44 text-center">Opening Qty</th>
-                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-44 text-right">Avg. Rate</th>
-                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-48 text-right">Total Value</th>
+                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-24 min-w-[96px] text-center">Unit</th>
+                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-44 min-w-[150px] text-center">Opening Qty</th>
+                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-44 min-w-[150px] text-right">Avg. Rate</th>
+                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-48 min-w-[160px] text-right">Total Value</th>
                 </tr>
               ) : (
                 <tr>
@@ -202,10 +202,10 @@ export default function OpeningBalancesPage() {
                     <td className="px-8 py-4">
                       <p className="text-sm font-black text-slate-900 dark:text-white">{item.itemName}</p>
                     </td>
-                    <td className="px-4 py-4 text-center">
+                    <td className="px-4 py-4 text-center w-24 min-w-[96px]">
                       <span className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase">{item.unit}</span>
                     </td>
-                    <td className="px-3 py-4">
+                    <td className="px-3 py-4 w-44 min-w-[150px]">
                       <input 
                         type="number" 
                         step="any"
@@ -214,7 +214,7 @@ export default function OpeningBalancesPage() {
                         className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-black text-center focus:bg-white dark:focus:bg-slate-900 focus:border-maroon-800 transition-all" 
                       />
                     </td>
-                    <td className="px-3 py-4">
+                    <td className="px-3 py-4 w-44 min-w-[150px]">
                       <input 
                         type="number" 
                         step="any"
@@ -223,7 +223,7 @@ export default function OpeningBalancesPage() {
                         className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-black text-right focus:bg-white dark:focus:bg-slate-900 focus:border-maroon-800 transition-all" 
                       />
                     </td>
-                    <td className="px-8 py-4 text-right">
+                    <td className="px-8 py-4 text-right w-48 min-w-[160px]">
                       <span className="text-sm font-black text-maroon-800">{((parseFloat(item.qty) || 0) * (parseFloat(item.rate) || 0)).toLocaleString()}</span>
                     </td>
                   </tr>
