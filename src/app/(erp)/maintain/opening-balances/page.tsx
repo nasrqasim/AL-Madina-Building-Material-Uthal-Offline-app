@@ -52,7 +52,7 @@ export default function OpeningBalancesPage() {
         ...(isItem ? {
           itemName: row["Item Name"] || row.name || "Unknown Item",
           unit: row["Unit"] || row.unit || "Nos",
-          qty: parseInt(row["Qty"] || row.qty || "0"),
+          qty: parseFloat(row["Qty"] || row.qty || "0"),
           rate: parseFloat(row["Rate"] || row.rate || "0"),
         } : {
           accountName: row["Account Name"] || row.name || "Unknown Account",
@@ -90,18 +90,27 @@ export default function OpeningBalancesPage() {
     try {
       // Save items
       if (itemBalances.length > 0) {
+        const parsedItems = itemBalances.map(item => ({
+          ...item,
+          qty: parseFloat(item.qty) || 0,
+          rate: parseFloat(item.rate) || 0
+        }));
         await fetch("/api/opening-balances", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(itemBalances),
+          body: JSON.stringify(parsedItems),
         });
       }
       // Save accounts
       if (accountBalances.length > 0) {
+        const parsedAccounts = accountBalances.map(acc => ({
+          ...acc,
+          amount: parseFloat(acc.amount) || 0
+        }));
         await fetch("/api/opening-balances", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(accountBalances),
+          body: JSON.stringify(parsedAccounts),
         });
       }
       alert("Opening balances saved successfully!");
@@ -134,7 +143,7 @@ export default function OpeningBalancesPage() {
             className={`px-8 py-2.5 rounded-xl text-sm font-black transition-all ${
               activeTab === tab 
                 ? "bg-white dark:bg-slate-900 text-maroon-800 shadow-sm" 
-                : "text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:text-slate-200"
+                : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:text-slate-200"
             }`}
           >
             {tab}
@@ -145,7 +154,7 @@ export default function OpeningBalancesPage() {
       <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden min-h-[500px]">
         <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-4">
           <div className="flex-1 relative max-w-md">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500" size={18} />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={18} />
             <input 
               type="text" 
               placeholder={`Search ${activeTab.toLowerCase()}...`} 
@@ -164,9 +173,9 @@ export default function OpeningBalancesPage() {
               {activeTab === "Items" ? (
                 <tr>
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Item Name</th>
-                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Unit</th>
-                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-32 text-center">Opening Qty</th>
-                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-40 text-right">Avg. Rate</th>
+                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-24 text-center">Unit</th>
+                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-44 text-center">Opening Qty</th>
+                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-44 text-right">Avg. Rate</th>
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-48 text-right">Total Value</th>
                 </tr>
               ) : (
@@ -190,40 +199,42 @@ export default function OpeningBalancesPage() {
               {activeTab === "Items" ? (
                 itemBalances.map((item, index) => (
                   <tr key={item._id || index} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
-                    <td className="px-8 py-6">
+                    <td className="px-8 py-4">
                       <p className="text-sm font-black text-slate-900 dark:text-white">{item.itemName}</p>
                     </td>
-                    <td className="px-8 py-6">
+                    <td className="px-4 py-4 text-center">
                       <span className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase">{item.unit}</span>
                     </td>
-                    <td className="px-8 py-6">
+                    <td className="px-3 py-4">
                       <input 
                         type="number" 
-                        value={item.qty || 0} 
-                        onChange={(e) => updateItem(index, 'qty', parseInt(e.target.value) || 0)}
-                        className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-black text-center focus:bg-white dark:focus:bg-slate-900 focus:border-maroon-800 transition-all" 
+                        step="any"
+                        value={item.qty ?? ""} 
+                        onChange={(e) => updateItem(index, 'qty', e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-black text-center focus:bg-white dark:focus:bg-slate-900 focus:border-maroon-800 transition-all" 
                       />
                     </td>
-                    <td className="px-8 py-6">
+                    <td className="px-3 py-4">
                       <input 
                         type="number" 
-                        value={item.rate || 0} 
-                        onChange={(e) => updateItem(index, 'rate', parseFloat(e.target.value) || 0)}
-                        className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-black text-right focus:bg-white dark:focus:bg-slate-900 focus:border-maroon-800 transition-all" 
+                        step="any"
+                        value={item.rate ?? ""} 
+                        onChange={(e) => updateItem(index, 'rate', e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-black text-right focus:bg-white dark:focus:bg-slate-900 focus:border-maroon-800 transition-all" 
                       />
                     </td>
-                    <td className="px-8 py-6 text-right">
-                      <span className="text-sm font-black text-maroon-800">{((item.qty || 0) * (item.rate || 0)).toLocaleString()}</span>
+                    <td className="px-8 py-4 text-right">
+                      <span className="text-sm font-black text-maroon-800">{((parseFloat(item.qty) || 0) * (parseFloat(item.rate) || 0)).toLocaleString()}</span>
                     </td>
                   </tr>
                 ))
               ) : (
                 accountBalances.map((acc, index) => (
                   <tr key={acc._id || index} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                    <td className="px-8 py-6">
+                    <td className="px-8 py-4">
                       <p className="text-sm font-black text-slate-900 dark:text-white">{acc.accountName}</p>
                     </td>
-                    <td className="px-8 py-6 text-center">
+                    <td className="px-8 py-4 text-center">
                       <select 
                         value={acc.balanceType || "Debit"}
                         onChange={(e) => updateAccount(index, 'balanceType', e.target.value)}
@@ -233,11 +244,12 @@ export default function OpeningBalancesPage() {
                         <option value="Credit">Credit</option>
                       </select>
                     </td>
-                    <td className="px-8 py-6 text-right">
+                    <td className="px-8 py-4 text-right">
                       <input 
                         type="number" 
-                        value={acc.amount || 0} 
-                        onChange={(e) => updateAccount(index, 'amount', parseFloat(e.target.value) || 0)}
+                        step="any"
+                        value={acc.amount ?? ""} 
+                        onChange={(e) => updateAccount(index, 'amount', e.target.value)}
                         className="w-48 px-4 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-black text-right focus:bg-white dark:focus:bg-slate-900 focus:border-maroon-800 transition-all ml-auto" 
                       />
                     </td>
@@ -254,8 +266,8 @@ export default function OpeningBalancesPage() {
             <p className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Grand Total Value</p>
             <p className="text-2xl font-black text-maroon-800 tracking-tighter">
               PKR {activeTab === "Items" 
-                ? itemBalances.reduce((s,i) => s + ((i.qty || 0) * (i.rate || 0)), 0).toLocaleString() 
-                : accountBalances.reduce((s,a) => s + (a.amount || 0), 0).toLocaleString()
+                ? itemBalances.reduce((s,i) => s + ((parseFloat(i.qty) || 0) * (parseFloat(i.rate) || 0)), 0).toLocaleString() 
+                : accountBalances.reduce((s,a) => s + (parseFloat(a.amount) || 0), 0).toLocaleString()
               }
             </p>
           </div>
