@@ -20,6 +20,17 @@ export default function OpeningBalancesPage() {
   const [itemBalances, setItemBalances] = useState<any[]>([]);
   const [accountBalances, setAccountBalances] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const filteredItems = itemBalances.filter(item => 
+    item.itemName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.unit?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const filteredAccounts = accountBalances.filter(acc => 
+    acc.accountName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    acc.balanceType?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const fetchBalances = async () => {
     setIsLoading(true);
@@ -74,16 +85,16 @@ export default function OpeningBalancesPage() {
     }
   };
 
-  const updateItem = (index: number, field: string, value: any) => {
-    const newItems = [...itemBalances];
-    newItems[index][field] = value;
-    setItemBalances(newItems);
+  const updateItem = (id: string, field: string, value: any) => {
+    setItemBalances(prev => prev.map(item => 
+      (item.itemId === id || item._id === id) ? { ...item, [field]: value } : item
+    ));
   };
 
-  const updateAccount = (index: number, field: string, value: any) => {
-    const newAccounts = [...accountBalances];
-    newAccounts[index][field] = value;
-    setAccountBalances(newAccounts);
+  const updateAccount = (id: string, field: string, value: any) => {
+    setAccountBalances(prev => prev.map(acc => 
+      (acc.accountId === id || acc._id === id) ? { ...acc, [field]: value } : acc
+    ));
   };
 
   const handleSave = async () => {
@@ -158,7 +169,9 @@ export default function OpeningBalancesPage() {
             <input 
               type="text" 
               placeholder={`Search ${activeTab.toLowerCase()}...`} 
-              className="w-full pl-12 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-12 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold dark:text-white outline-none"
             />
           </div>
           <div className="flex items-center gap-2 px-4 py-2 bg-maroon-50 text-maroon-800 rounded-xl text-xs font-black uppercase tracking-widest">
@@ -190,15 +203,15 @@ export default function OpeningBalancesPage() {
               {isLoading && (
                 <tr><td colSpan={5} className="py-8 text-center text-slate-400">Loading...</td></tr>
               )}
-              {!isLoading && activeTab === "Items" && itemBalances.length === 0 && (
-                <tr><td colSpan={5} className="py-8 text-center text-slate-400">No items found. Import items to get started.</td></tr>
+              {!isLoading && activeTab === "Items" && filteredItems.length === 0 && (
+                <tr><td colSpan={5} className="py-8 text-center text-slate-400">No items found.</td></tr>
               )}
-              {!isLoading && activeTab === "Accounts" && accountBalances.length === 0 && (
-                <tr><td colSpan={3} className="py-8 text-center text-slate-400">No accounts found. Import accounts to get started.</td></tr>
+              {!isLoading && activeTab === "Accounts" && filteredAccounts.length === 0 && (
+                <tr><td colSpan={3} className="py-8 text-center text-slate-400">No accounts found.</td></tr>
               )}
               {activeTab === "Items" ? (
-                itemBalances.map((item, index) => (
-                  <tr key={item._id || index} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+                filteredItems.map((item, index) => (
+                  <tr key={item._id || item.itemId || index} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
                     <td className="px-8 py-4">
                       <p className="text-sm font-black text-slate-900 dark:text-white">{item.itemName}</p>
                     </td>
@@ -210,7 +223,7 @@ export default function OpeningBalancesPage() {
                         type="number" 
                         step="any"
                         value={item.qty ?? ""} 
-                        onChange={(e) => updateItem(index, 'qty', e.target.value)}
+                        onChange={(e) => updateItem(item.itemId || item._id, 'qty', e.target.value)}
                         className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-black text-center focus:bg-white dark:focus:bg-slate-900 focus:border-maroon-800 transition-all" 
                       />
                     </td>
@@ -219,7 +232,7 @@ export default function OpeningBalancesPage() {
                         type="number" 
                         step="any"
                         value={item.rate ?? ""} 
-                        onChange={(e) => updateItem(index, 'rate', e.target.value)}
+                        onChange={(e) => updateItem(item.itemId || item._id, 'rate', e.target.value)}
                         className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-black text-right focus:bg-white dark:focus:bg-slate-900 focus:border-maroon-800 transition-all" 
                       />
                     </td>
@@ -229,15 +242,15 @@ export default function OpeningBalancesPage() {
                   </tr>
                 ))
               ) : (
-                accountBalances.map((acc, index) => (
-                  <tr key={acc._id || index} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                filteredAccounts.map((acc, index) => (
+                  <tr key={acc._id || acc.accountId || index} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                     <td className="px-8 py-4">
                       <p className="text-sm font-black text-slate-900 dark:text-white">{acc.accountName}</p>
                     </td>
                     <td className="px-8 py-4 text-center">
                       <select 
                         value={acc.balanceType || "Debit"}
-                        onChange={(e) => updateAccount(index, 'balanceType', e.target.value)}
+                        onChange={(e) => updateAccount(acc.accountId || acc._id, 'balanceType', e.target.value)}
                         className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full outline-none cursor-pointer ${acc.balanceType === "Debit" ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"}`}
                       >
                         <option value="Debit">Debit</option>
@@ -249,7 +262,7 @@ export default function OpeningBalancesPage() {
                         type="number" 
                         step="any"
                         value={acc.amount ?? ""} 
-                        onChange={(e) => updateAccount(index, 'amount', e.target.value)}
+                        onChange={(e) => updateAccount(acc.accountId || acc._id, 'amount', e.target.value)}
                         className="w-48 px-4 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-black text-right focus:bg-white dark:focus:bg-slate-900 focus:border-maroon-800 transition-all ml-auto" 
                       />
                     </td>

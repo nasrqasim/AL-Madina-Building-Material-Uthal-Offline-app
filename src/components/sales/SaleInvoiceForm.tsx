@@ -232,17 +232,30 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
     setItems(items.map(i => {
       if (i.id === id) {
         const updated = { ...i, [field]: value };
+        if (field === "itemCode") {
+          updated.itemId = "";
+          updated.description = "";
+        }
         const item = availableItems.find(ai => ai._id === (field === "itemId" ? value : i.itemId));
 
+        const isFilter = item && (
+          item.name?.toLowerCase().includes("filter") || 
+          item.name?.toLowerCase().includes("fliter") ||
+          updated.description?.toLowerCase().includes("filter") ||
+          updated.description?.toLowerCase().includes("fliter")
+        );
+        const gallonsInCtn = isFilter ? 1 : (item?.gallonsInCtn || 4);
+        const litersInCtn = isFilter ? 1 : (item?.litersInCtn || 16);
+
         if (field === "cartons") {
-          updated.gallons = value * 4;
-          updated.liters = value * 16;
+          updated.gallons = value * gallonsInCtn;
+          updated.liters = value * litersInCtn;
         } else if (field === "gallons") {
-          updated.cartons = value / 4;
-          updated.liters = value * 4;
+          updated.cartons = gallonsInCtn > 0 ? value / gallonsInCtn : 0;
+          updated.liters = gallonsInCtn > 0 ? (value / gallonsInCtn) * litersInCtn : 0;
         } else if (field === "liters") {
-          updated.cartons = value / 16;
-          updated.gallons = value / 4;
+          updated.cartons = litersInCtn > 0 ? value / litersInCtn : 0;
+          updated.gallons = litersInCtn > 0 ? (value / litersInCtn) * gallonsInCtn : 0;
         }
 
         if (field === "cartons" || field === "gallons" || field === "liters" || field === "ratePerCtn" || field === "discPercent" || field === "itemId") {
@@ -256,6 +269,14 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
           updated.itemCode = item.code;
           updated.description = item.name;
           updated.ratePerCtn = formData.isWholesale ? (item.wholesaleRate || item.rate || 0) : (item.retailRate || item.rate || 0);
+          
+          updated.cartons = 1;
+          const isFilterNow = item.name?.toLowerCase().includes("filter") || item.name?.toLowerCase().includes("fliter");
+          const defaultGals = isFilterNow ? 1 : (item.gallonsInCtn || 4);
+          const defaultLtrs = isFilterNow ? 1 : (item.litersInCtn || 16);
+          updated.gallons = defaultGals;
+          updated.liters = defaultLtrs;
+
           const qty = Number(updated.cartons) || 0;
           updated.grossAmount = qty * (Number(updated.ratePerCtn) || 0);
           updated.discount = (updated.grossAmount * (Number(updated.discPercent) || 0)) / 100;
@@ -439,16 +460,6 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
         <ToolbarButton icon={<Save size={16} className="text-blue-600" />} label="Save (Ctrl+S)" onClick={() => handleSave("posted")} />
         <ToolbarButton icon={<X size={16} className="text-red-600" />} label="Cancel" onClick={onClose} />
         <ToolbarButton icon={<Trash2 size={16} />} label="Delete" />
-        <div className="w-[1px] h-6 bg-[#cbd5e1] mx-1" />
-        <ToolbarButton icon={<Undo size={16} />} label="Un-Post" />
-        <ToolbarButton icon={<ArrowRightLeft size={16} />} label="Convert D.C" />
-        <ToolbarButton icon={<ArrowRightLeft size={16} />} label="Convert O.R.P" />
-        <div className="w-[1px] h-6 bg-[#cbd5e1] mx-1" />
-        <ToolbarButton icon={<Search size={16} />} label="Find" />
-        <ToolbarButton icon={<History size={16} />} label="Retrieve Last Saved" />
-        <ToolbarButton icon={<Settings size={16} />} label="Print Settings" />
-        <ToolbarButton icon={<Printer size={16} />} label="Print" />
-        <ToolbarButton icon={<FileText size={16} />} label="Voucher" />
       </div>
 
       <div className="flex-1 overflow-auto p-4 space-y-4">
@@ -532,16 +543,36 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                   <div className="flex-1 flex gap-1">
                     <input type="text" value={formData.customerCode} className="w-32 border border-[#eab308] rounded px-2 py-1 text-xs" readOnly />
                     <div className="flex-1 relative">
-                       <input type="text" placeholder="Search Customer..." value={formData.customerName} onChange={e => { setFormData({...formData, customerName: e.target.value}); setShowCustomerSearch(true); }} className="w-full border border-[#eab308] rounded px-2 py-1 text-xs outline-none" />
-                       {showCustomerSearch && formData.customerName && (
-                         <div className="absolute top-full left-0 w-full bg-white border border-slate-200 rounded shadow-xl z-50 max-h-48 overflow-auto mt-1">
-                            {customers.filter(c => c.name.toLowerCase().includes(formData.customerName.toLowerCase())).map(c => (
-                              <div key={c._id} className="px-3 py-2 text-xs hover:bg-yellow-50 cursor-pointer font-bold border-b" onClick={() => {
-                                setFormData({...formData, customerId: c._id, customerName: c.name, customerCode: c.code, customerAddress: c.address, customerTelephone: c.phone, customerBalance: 0});
-                                setShowCustomerSearch(false);
-                              }}>{c.code} - {c.name}</div>
-                            ))}
-                         </div>
+                       <input 
+                         type="text" 
+                         placeholder="Search Customer..." 
+                         value={formData.customerName} 
+                         onFocus={(e) => { e.target.select(); setShowCustomerSearch(true); }}
+                         onChange={e => { 
+                           setFormData({
+                             ...formData, 
+                             customerName: e.target.value,
+                             customerId: "",
+                             customerCode: "",
+                             customerAddress: "",
+                             customerTelephone: ""
+                           }); 
+                           setShowCustomerSearch(true); 
+                         }} 
+                         className="w-full border border-[#eab308] rounded px-2 py-1 text-xs outline-none font-bold" 
+                       />
+                       {showCustomerSearch && (
+                         <>
+                           <div className="fixed inset-0 z-40" onClick={() => setShowCustomerSearch(false)} />
+                           <div className="absolute top-full left-0 w-full bg-white border border-slate-200 rounded shadow-xl z-50 max-h-48 overflow-auto mt-1">
+                              {(formData.customerId ? customers : customers.filter(c => c.name.toLowerCase().includes(formData.customerName.toLowerCase()))).map(c => (
+                                <div key={c._id} className="px-3 py-2 text-xs hover:bg-yellow-50 cursor-pointer font-bold border-b relative z-50 text-slate-800" onClick={() => {
+                                  setFormData({...formData, customerId: c._id, customerName: c.name, customerCode: c.code, customerAddress: c.address, customerTelephone: c.phone, customerBalance: 0});
+                                  setShowCustomerSearch(false);
+                                }}>{c.code} - {c.name}</div>
+                              ))}
+                           </div>
+                         </>
                        )}
                     </div>
                   </div>
@@ -574,7 +605,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                   </thead>
                   <tbody className="divide-y">
                     {items.map((line) => {
-                      const query = line.itemCode.toLowerCase();
+                      const query = line.itemId && showItemSearch === line.id ? "" : line.itemCode.toLowerCase();
                       const filteredItems = availableItems.filter(i => 
                         i.code.toLowerCase().includes(query) || i.name.toLowerCase().includes(query)
                       ).sort((a, b) => {
@@ -593,22 +624,25 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                             value={line.itemCode} 
                             placeholder="Search..."
                             onChange={e => { updateItem(line.id, "itemCode", e.target.value); setShowItemSearch(line.id); setActiveIndex(0); }} 
-                            onFocus={() => { setShowItemSearch(line.id); setActiveIndex(0); }}
+                            onFocus={(e) => { e.target.select(); setShowItemSearch(line.id); setActiveIndex(0); }}
                             onKeyDown={(e) => handleItemKeyDown(e, line.id, filteredItems)}
                             className="w-full px-3 py-2 text-xs font-bold outline-none bg-transparent" 
                           />
                           {showItemSearch === line.id && (
-                            <div className="absolute top-full left-0 w-max min-w-[250px] bg-white text-black border border-slate-300 shadow-lg z-50 max-h-48 overflow-auto">
-                              {filteredItems.map((i, idx) => (
-                                <div 
-                                  key={i._id} 
-                                  className={`px-3 py-1 cursor-pointer text-xs whitespace-nowrap transition-all ${idx === activeIndex ? 'bg-blue-600 text-white' : 'hover:bg-blue-600 hover:text-white'}`}
-                                  onClick={() => { updateItem(line.id, "itemId", i._id); setShowItemSearch(null); }}
-                                >
-                                  {i.code} ({i.name})
-                                </div>
-                              ))}
-                            </div>
+                            <>
+                              <div className="fixed inset-0 z-40" onClick={() => setShowItemSearch(null)} />
+                              <div className="absolute top-full left-0 w-max min-w-[250px] bg-white text-black border border-slate-300 shadow-lg z-50 max-h-48 overflow-auto mt-1 relative z-50">
+                                {filteredItems.map((i, idx) => (
+                                  <div 
+                                    key={i._id} 
+                                    className={`px-3 py-1 cursor-pointer text-xs whitespace-nowrap transition-all ${idx === activeIndex ? 'bg-blue-600 text-white' : 'hover:bg-blue-600 hover:text-white'}`}
+                                    onClick={() => { updateItem(line.id, "itemId", i._id); setShowItemSearch(null); }}
+                                  >
+                                    {i.code} ({i.name})
+                                  </div>
+                                ))}
+                              </div>
+                            </>
                           )}
                         </td>
                         <td className="px-3 py-2 text-xs font-medium border-r">{line.description}</td>
