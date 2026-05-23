@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import ItemSearchInput from "@/components/erp/ui/ItemSearchInput";
 import { 
   Plus, 
   Trash2, 
@@ -196,16 +197,18 @@ export default function BillOfMaterialsForm({ onClose, initialData }: BillOfMate
             </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Finished Item *</label>
-              <select 
-                value={formData.finishedItem} 
-                onChange={(e) => setFormData({...formData, finishedItem: e.target.value})} 
-                className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold focus:border-maroon-800 outline-none transition-all appearance-none"
-              >
-                <option value="">-- Select Product --</option>
-                {availableItems.map(ai => (
-                  <option key={ai._id} value={ai._id}>{ai.code} - {ai.name}</option>
-                ))}
-              </select>
+              <div className="px-4 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl">
+                <ItemSearchInput
+                  value={availableItems.find(ai => ai._id === formData.finishedItem)?.code || ""}
+                  availableItems={availableItems}
+                  onSelect={(selected) => setFormData({...formData, finishedItem: selected._id})}
+                  onChange={(val) => {
+                    const matched = availableItems.find(ai => ai.code === val);
+                    if (matched) setFormData({...formData, finishedItem: matched._id});
+                  }}
+                  placeholder="Search finished item..."
+                />
+              </div>
             </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Version No</label>
@@ -249,17 +252,17 @@ export default function BillOfMaterialsForm({ onClose, initialData }: BillOfMate
                 {components.map((item, index) => (
                   <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/30 transition-colors group">
                     <td className="px-8 py-4 text-xs font-bold text-slate-300 text-center">{index + 1}</td>
-                    <td className="px-8 py-4">
-                      <select 
-                        value={item.itemId} 
-                        onChange={(e) => updateComponent(item.id, "itemId", e.target.value)} 
-                        className="w-full bg-transparent text-sm font-bold focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all appearance-none"
-                      >
-                        <option value="">Select Item...</option>
-                        {availableItems.map(ai => (
-                          <option key={ai._id} value={ai._id}>{ai.code} - {ai.name}</option>
-                        ))}
-                      </select>
+                    <td className="px-4 py-4">
+                      <ItemSearchInput
+                        value={availableItems.find(ai => ai._id === item.itemId)?.code || ""}
+                        availableItems={availableItems}
+                        onSelect={(selected) => updateComponent(item.id, "itemId", selected._id)}
+                        onChange={(val) => {
+                          const matched = availableItems.find(ai => ai.code === val);
+                          if (matched) updateComponent(item.id, "itemId", matched._id);
+                        }}
+                        placeholder="Search item..."
+                      />
                     </td>
                     <td className="px-8 py-4">
                       <input placeholder="Litre/Pcs" value={item.uom} onChange={(e) => updateComponent(item.id, "uom", e.target.value)} className="w-full bg-transparent text-sm font-bold text-center focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" />

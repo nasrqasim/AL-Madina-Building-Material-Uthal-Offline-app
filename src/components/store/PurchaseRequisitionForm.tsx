@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import ItemSearchInput from "@/components/erp/ui/ItemSearchInput";
 import { 
   Plus, 
   Trash2, 
@@ -240,8 +241,18 @@ export default function PurchaseRequisitionForm({ onClose, initialData }: Purcha
                 {items.map((item, index) => (
                   <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/30 transition-colors group">
                     <td className="px-8 py-4 text-xs font-bold text-slate-300 text-center">{index + 1}</td>
-                    <td className="px-8 py-4">
-                      <input placeholder="Enter item name or description..." value={item.description} onChange={(e) => updateItem(item.id, "description", e.target.value)} className="w-full bg-transparent text-sm font-bold focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" />
+                    <td className="px-4 py-4">
+                      <ItemSearchInput
+                        value={item.description || ""}
+                        availableItems={availableItems}
+                        onSelect={(selected) => {
+                          updateItem(item.id, "itemId", selected._id);
+                        }}
+                        onChange={(val) => {
+                          updateItem(item.id, "description", val);
+                        }}
+                        placeholder="Search item..."
+                      />
                     </td>
                     <td className="px-8 py-4">
                       <input placeholder="UOM" value={item.uom} onChange={(e) => updateItem(item.id, "uom", e.target.value)} className="w-full bg-transparent text-sm font-bold text-center focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" />

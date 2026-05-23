@@ -1,7 +1,8 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
-import { 
+import ItemSearchInput from "@/components/erp/ui/ItemSearchInput";
+import {
   Plus, 
   Trash2, 
   Save, 
@@ -340,52 +341,18 @@ export default function NonTaxSaleInvoiceForm({ onClose, initialData }: NonTaxSa
                   return (
                   <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/30 transition-colors group">
                     <td className="px-8 py-4 text-xs font-bold text-slate-300 text-center">{index + 1}</td>
-                    <td className="px-4 py-4 relative">
-                      <input 
-                        type="text" 
-                        value={item.itemCode} 
-                        placeholder="Search Item..."
-                        onChange={e => { updateItem(item.id, "itemCode", e.target.value); setShowItemSearch(item.id); setActiveIndex(0); }} 
-                        onFocus={() => { setShowItemSearch(item.id); setActiveIndex(0); }}
-                        onKeyDown={(e) => handleItemKeyDown(e, item.id, filteredItems)}
-                        className="w-full bg-transparent text-sm font-bold focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" 
+                    <td className="px-4 py-4">
+                      <ItemSearchInput
+                        value={item.itemCode || ""}
+                        availableItems={availableItems}
+                        onSelect={(selected) => {
+                          updateItem(item.id, "itemId", selected._id);
+                          updateItem(item.id, "itemCode", selected.code);
+                          updateItem(item.id, "description", selected.name);
+                        }}
+                        onChange={(val) => updateItem(item.id, "itemCode", val)}
+                        placeholder="Search item..."
                       />
-                      {showItemSearch === item.id && (
-                        <div className="absolute top-full left-0 w-[450px] bg-slate-900 text-white border border-slate-700 rounded-xl shadow-2xl z-50 max-h-80 overflow-auto py-2">
-                          {filteredItems.map((i, idx) => (
-                            <div 
-                              key={i._id} 
-                              className={`px-4 py-3 cursor-pointer border-b border-slate-800 transition-all ${idx === activeIndex ? 'bg-maroon-800 text-white' : 'hover:bg-slate-800'}`}
-                              onClick={() => { updateItem(item.id, "itemId", i._id); setShowItemSearch(null); }}
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
-                                <div className="flex-1">
-                                  <div className="flex items-center justify-between mb-1">
-                                    <span className="text-xs font-black uppercase tracking-widest text-slate-400">{i.code}</span>
-                                    <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-800 rounded text-slate-400">{i.category || "Lubricants"}</span>
-                                  </div>
-                                  <div className="text-sm font-black mb-2">{i.name}</div>
-                                  <div className="grid grid-cols-3 gap-2">
-                                    <div className="flex flex-col">
-                                      <span className="text-[8px] font-black uppercase text-slate-500">Cartons</span>
-                                      <span className="text-xs font-black text-emerald-400">{i.stockQtyCartons || 0}</span>
-                                    </div>
-                                    <div className="flex flex-col">
-                                      <span className="text-[8px] font-black uppercase text-slate-500">Gallons</span>
-                                      <span className="text-xs font-black text-blue-400">{(i.stockQtyCartons || 0) * 4}</span>
-                                    </div>
-                                    <div className="flex flex-col items-end">
-                                      <span className="text-[8px] font-black uppercase text-slate-500">Price</span>
-                                      <span className="text-xs font-black text-yellow-400">Rs. {i.retailRate || 0}</span>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
                     </td>
                     <td className="px-2 py-4 text-center">
                       <input type="number" value={item.cartons} onChange={(e) => updateItem(item.id, "cartons", parseFloat(e.target.value) || 0)} className="w-full bg-transparent text-sm font-black text-center focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" />

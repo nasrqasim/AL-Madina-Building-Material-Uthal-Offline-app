@@ -1,11 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import ItemSearchInput from "@/components/erp/ui/ItemSearchInput";
 import { Plus, Trash2, Save, ArrowLeft, X, CheckCircle2, Package, Settings, Activity, DollarSign, Clock, Layers } from "lucide-react";
 
 interface ComponentLine {
   id: string;
   itemId: string;
+  itemCode?: string;
+  description?: string;
   uom: string;
   isCritical: boolean;
   estQty: number;
@@ -118,6 +121,8 @@ export default function ProductionOrderForm({ onClose, initialData }: Production
         if (field === "itemId") {
           const selected = availableItems.find(ai => ai._id === value);
           if (selected) {
+            updated.itemCode = selected.code;
+            updated.description = selected.name;
             updated.uom = "Units";
             updated.estCost = selected.purchaseRate || 0;
             updated.actCost = selected.purchaseRate || 0;
@@ -265,16 +270,18 @@ export default function ProductionOrderForm({ onClose, initialData }: Production
                   <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors">
                     <td className="px-4 py-3 font-bold text-slate-400 dark:text-slate-500 text-center">{index + 1}</td>
                     <td className="px-4 py-3">
-                      <select 
-                        value={item.itemId} 
-                        onChange={(e) => updateComponent(item.id, "itemId", e.target.value)} 
-                        className="w-full bg-transparent focus:outline-none appearance-none"
-                      >
-                        <option value="">Select Item</option>
-                        {availableItems.map(ai => (
-                          <option key={ai._id} value={ai._id}>{ai.code} - {ai.name}</option>
-                        ))}
-                      </select>
+                      <ItemSearchInput
+                        value={availableItems.find(ai => ai._id === item.itemId)?.code || item.itemCode || ""}
+                        availableItems={availableItems}
+                        onSelect={(selected) => {
+                          updateComponent(item.id, "itemId", selected._id);
+                        }}
+                        onChange={(val) => {
+                          const matched = availableItems.find(ai => ai.code === val);
+                          if (matched) updateComponent(item.id, "itemId", matched._id);
+                        }}
+                        placeholder="Search item..."
+                      />
                     </td>
                     <td className="px-4 py-3 text-center">
                       <input value={item.uom} onChange={(e) => updateComponent(item.id, "uom", e.target.value)} className="w-full bg-transparent text-center focus:outline-none" placeholder="-" />
