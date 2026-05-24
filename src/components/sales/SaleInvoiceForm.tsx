@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import PrintTemplate from "@/components/print/PrintTemplate";
 import CustomerModal from "@/components/erp/maintain/CustomerModal";
 import { 
@@ -34,7 +34,6 @@ interface SIItem {
   gallons: number;
   liters: number;
   ratePerCtn: number;
-  purchasePrice: number;
   grossAmount: number;
   discPercent: number;
   discount: number;
@@ -77,10 +76,10 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
     // Customer
     customerId: initialData?.partyId?._id || initialData?.partyId || "",
     customerCode: initialData?.partyId?.code || "",
-    customerName: initialData?.partyId?.name || "Walk-in Cash Customer",
+    customerName: initialData?.partyId?.name || "",
     customerAddress: initialData?.partyId?.address || "",
     customerTelephone: initialData?.partyId?.phone || "",
-    customerBalance: 0.00,
+    customerBalance: initialData?.partyId?.balance || 0.00,
     
     // Bottom Section
     locationId: initialData?.locationId?._id || initialData?.locationId || "",
@@ -91,7 +90,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
     // Totals
     additionalDiscount: initialData?.discountAmount || 0,
     carService: initialData?.carService || 0,
-    carWashDiscount: initialData?.carWashDiscount || 0,
+    carServiceDiscount: initialData?.carServiceDiscount || 0,
     amountReceived: initialData?.amountReceived || 0
   });
 
@@ -145,7 +144,6 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
         gallons: l.gallons || 0,
         liters: l.liters || 0,
         ratePerCtn: l.rate || 0,
-        purchasePrice: l.purchasePrice || 0,
         grossAmount: l.grossAmount || 0,
         discPercent: l.discountPercent || 0,
         discount: (l.grossAmount * (l.discountPercent || 0)) / 100,
@@ -161,7 +159,6 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
       gallons: 0,
       liters: 0,
       ratePerCtn: 0,
-      purchasePrice: 0,
       grossAmount: 0,
       discPercent: 0,
       discount: 0,
@@ -203,6 +200,122 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
     fetchData();
   }, [fetchData]);
 
+  // Default customer loading & editing customer balance Sync
+  useEffect(() => {
+    if (customers.length > 0) {
+      if (!initialData?._id) {
+        const defaultCust = customers.find(c => 
+          c.name.toLowerCase() === "walk-in cash customer" || 
+          c.name.toLowerCase() === "walk-in(cash) customer" ||
+          c.name.toLowerCase().includes("walk-in")
+        );
+        if (defaultCust) {
+          setFormData(prev => ({
+            ...prev,
+            customerId: defaultCust._id,
+            customerName: defaultCust.name,
+            customerCode: defaultCust.code,
+            customerAddress: defaultCust.address || "",
+            customerTelephone: defaultCust.phone || "",
+            customerBalance: defaultCust.balance || 0
+          }));
+        }
+      } else {
+        const currentCust = customers.find(c => c._id === formData.customerId);
+        if (currentCust) {
+          setFormData(prev => ({
+            ...prev,
+            customerBalance: currentCust.balance || 0
+          }));
+        }
+      }
+    }
+  }, [customers, initialData, formData.customerId]);
+
+  const [activeCustomerIndex, setActiveCustomerIndex] = useState(0);
+  const customerListRef = useRef<HTMLDivElement>(null);
+
+  const displayedCustomers = useMemo(() => {
+    if (!showCustomerSearch) return [];
+    if (formData.customerId && formData.customerName) {
+      return customers;
+    }
+    const q = formData.customerName.toLowerCase();
+    return customers.filter(c => 
+      c.name.toLowerCase().includes(q) || 
+      c.code.toLowerCase().includes(q)
+    );
+  }, [showCustomerSearch, customers, formData.customerId, formData.customerName]);
+
+  useEffect(() => {
+    setActiveCustomerIndex(0);
+  }, [displayedCustomers.length]);
+
+  useEffect(() => {
+    if (showCustomerSearch && customerListRef.current) {
+      const container = customerListRef.current;
+      const activeItem = container.children[activeCustomerIndex] as HTMLElement;
+      if (activeItem) {
+        const containerTop = container.scrollTop;
+        const containerBottom = containerTop + container.clientHeight;
+        const elemTop = activeItem.offsetTop;
+        const elemBottom = elemTop + activeItem.clientHeight;
+
+        if (elemTop < containerTop) {
+          container.scrollTo({ top: elemTop, behavior: "smooth" });
+        } else if (elemBottom > containerBottom) {
+          container.scrollTo({ top: elemBottom - container.clientHeight, behavior: "smooth" });
+        }
+      }
+    }
+  }, [activeCustomerIndex, showCustomerSearch]);
+
+  const handleCustomerKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showCustomerSearch) {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        setShowCustomerSearch(true);
+        e.preventDefault();
+      }
+      return;
+    }
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveCustomerIndex(prev => 
+        prev < displayedCustomers.length - 1 ? prev + 1 : prev
+      );
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveCustomerIndex(prev => (prev > 0 ? prev - 1 : 0));
+    } else if (e.key === "PageDown") {
+      e.preventDefault();
+      setActiveCustomerIndex(prev => 
+        Math.min(displayedCustomers.length - 1, prev + 5)
+      );
+    } else if (e.key === "PageUp") {
+      e.preventDefault();
+      setActiveCustomerIndex(prev => Math.max(0, prev - 5));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const selected = displayedCustomers[activeCustomerIndex];
+      if (selected) {
+        setFormData(prev => ({
+          ...prev,
+          customerId: selected._id,
+          customerName: selected.name,
+          customerCode: selected.code,
+          customerAddress: selected.address || "",
+          customerTelephone: selected.phone || "",
+          customerBalance: selected.balance || 0
+        }));
+        setShowCustomerSearch(false);
+      }
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setShowCustomerSearch(false);
+    }
+  };
+
   const handlePriceTypeChange = (isWholesale: boolean) => {
     setFormData({ ...formData, isWholesale, isRetail: !isWholesale });
     setItems(prev => prev.map(i => {
@@ -220,7 +333,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
   };
 
   const addItem = () => {
-    const newItem = { id: Date.now().toString(), itemId: "", itemCode: "", description: "", cartons: 0, gallons: 0, liters: 0, ratePerCtn: 0, purchasePrice: 0, grossAmount: 0, discPercent: 0, discount: 0, netAmount: 0 };
+    const newItem = { id: Date.now().toString(), itemId: "", itemCode: "", description: "", cartons: 0, gallons: 0, liters: 0, ratePerCtn: 0, grossAmount: 0, discPercent: 0, discount: 0, netAmount: 0 };
     setItems([...items, newItem]);
     setSelectedLineId(newItem.id);
   };
@@ -273,7 +386,6 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
           updated.itemCode = item.code;
           updated.description = item.name;
           updated.ratePerCtn = formData.isWholesale ? (item.wholesaleRate || item.rate || 0) : (item.retailRate || item.rate || 0);
-          updated.purchasePrice = item.lastPurchaseRate || item.avgCost || 0;
           
           updated.cartons = 1;
           const isFilterNow = item.name?.toLowerCase().includes("filter") || item.name?.toLowerCase().includes("fliter");
@@ -294,11 +406,16 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
   };
 
   const grossTotal = useMemo(() => items.reduce((acc, curr) => acc + curr.grossAmount, 0), [items]);
+  const subTotalAmount = useMemo(() => items.reduce((acc, curr) => acc + curr.netAmount, 0), [items]);
   const netTotal = useMemo(() => {
-    const total = items.reduce((acc, curr) => acc + curr.netAmount, 0);
-    const carWashTotal = Number(formData.carService) - Number(formData.carWashDiscount);
-    return total + carWashTotal - Number(formData.additionalDiscount);
-  }, [items, formData.carService, formData.carWashDiscount, formData.additionalDiscount]);
+    const serviceAmt = Math.max(0, Number(formData.carService) || 0);
+    const serviceDisc = Math.min(serviceAmt, Math.max(0, Number(formData.carServiceDiscount) || 0));
+    const maxAddDisc = subTotalAmount + serviceAmt - serviceDisc;
+    const addDisc = Math.min(maxAddDisc, Math.max(0, Number(formData.additionalDiscount) || 0));
+    
+    const calculated = subTotalAmount + serviceAmt - serviceDisc - addDisc;
+    return Math.max(0, calculated);
+  }, [subTotalAmount, formData.carService, formData.carServiceDiscount, formData.additionalDiscount]);
   const balanceAmount = netTotal - Number(formData.amountReceived);
 
   const handleSave = useCallback(async (status: string) => {
@@ -318,8 +435,6 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
       locationId: formData.locationId || null,
       employeeId: formData.employeeRef || null,
       notes: formData.remarks,
-      carService: Number(formData.carService) || 0,
-      carWashDiscount: Number(formData.carWashDiscount) || 0,
       lines: items.filter(l => l.itemId).map(l => ({
         itemId: l.itemId,
         description: l.description,
@@ -327,13 +442,14 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
         gallons: l.gallons || 0,
         liters: l.liters || 0,
         rate: l.ratePerCtn || 0,
-        purchasePrice: l.purchasePrice || 0,
         grossAmount: l.grossAmount || 0,
         discountPercent: l.discPercent || 0,
         netAmount: l.netAmount || 0
       })),
       subTotal: grossTotal || 0,
       discountAmount: Number(formData.additionalDiscount) || 0,
+      carService: Number(formData.carService) || 0,
+      carServiceDiscount: Number(formData.carServiceDiscount) || 0,
       totalAmount: netTotal || 0,
       amountReceived: Number(formData.amountReceived) || 0,
       status: status
@@ -357,6 +473,12 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
             subtotal: payload.subTotal,
             taxAmount: 0,
             discountAmount: payload.discountAmount,
+            carService: payload.carService,
+            carServiceDiscount: payload.carServiceDiscount,
+            regNo: payload.regNo,
+            startKms: payload.startKms,
+            endKms: payload.endKms,
+            rangeKms: payload.rangeKms,
             lines: items.filter(l => l.itemId).map(l => ({
               description: l.description,
               cartons: l.cartons || 0,
@@ -438,55 +560,61 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleSave]);
 
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [customerActiveIndex, setCustomerActiveIndex] = useState(0);
+  // Per-row active index stored in a ref to avoid shared-state bug
+  const itemActiveIndexRef = useRef<Record<string, number>>({});
+  const [, forceUpdate] = useState(0);
+  const itemListRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  const getActiveIndex = (lineId: string) => itemActiveIndexRef.current[lineId] ?? 0;
+
+  const setActiveIndex = (lineId: string, value: number | ((prev: number) => number)) => {
+    const prev = itemActiveIndexRef.current[lineId] ?? 0;
+    const next = typeof value === 'function' ? value(prev) : value;
+    itemActiveIndexRef.current[lineId] = next;
+    forceUpdate(n => n + 1);
+    // Scroll into view
+    const container = itemListRefs.current[lineId];
+    if (container) {
+      const activeEl = container.children[next] as HTMLElement;
+      if (activeEl) {
+        const top = container.scrollTop;
+        const bottom = top + container.clientHeight;
+        if (activeEl.offsetTop < top) {
+          container.scrollTo({ top: activeEl.offsetTop, behavior: 'smooth' });
+        } else if (activeEl.offsetTop + activeEl.clientHeight > bottom) {
+          container.scrollTo({ top: activeEl.offsetTop + activeEl.clientHeight - container.clientHeight, behavior: 'smooth' });
+        }
+      }
+    }
+  };
 
   const handleItemKeyDown = (e: React.KeyboardEvent, lineId: string, filteredItems: any[]) => {
+    const activeIndex = getActiveIndex(lineId);
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActiveIndex(prev => (prev < filteredItems.length - 1 ? prev + 1 : prev));
+      if (!showItemSearch) {
+        setShowItemSearch(lineId);
+        setActiveIndex(lineId, 0);
+      } else {
+        setActiveIndex(lineId, prev => (prev < filteredItems.length - 1 ? prev + 1 : prev));
+      }
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setActiveIndex(prev => (prev > 0 ? prev - 1 : prev));
+      setActiveIndex(lineId, prev => (prev > 0 ? prev - 1 : prev));
     } else if (e.key === "PageDown") {
       e.preventDefault();
-      setActiveIndex(prev => Math.min(prev + 5, filteredItems.length - 1));
+      setActiveIndex(lineId, prev => Math.min(filteredItems.length - 1, prev + 8));
     } else if (e.key === "PageUp") {
       e.preventDefault();
-      setActiveIndex(prev => Math.max(prev - 5, 0));
+      setActiveIndex(lineId, prev => Math.max(0, prev - 8));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      if (filteredItems[activeIndex]) {
+      if (showItemSearch === lineId && filteredItems[activeIndex]) {
         updateItem(lineId, "itemId", filteredItems[activeIndex]._id);
         setShowItemSearch(null);
       }
     } else if (e.key === "Escape") {
       setShowItemSearch(null);
-    }
-  };
-
-  const handleCustomerKeyDown = (e: React.KeyboardEvent, filteredCustomers: any[]) => {
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setCustomerActiveIndex(prev => (prev < filteredCustomers.length - 1 ? prev + 1 : prev));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setCustomerActiveIndex(prev => (prev > 0 ? prev - 1 : prev));
-    } else if (e.key === "PageDown") {
-      e.preventDefault();
-      setCustomerActiveIndex(prev => Math.min(prev + 5, filteredCustomers.length - 1));
-    } else if (e.key === "PageUp") {
-      e.preventDefault();
-      setCustomerActiveIndex(prev => Math.max(prev - 5, 0));
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      if (filteredCustomers[customerActiveIndex]) {
-        const c = filteredCustomers[customerActiveIndex];
-        setFormData({...formData, customerId: c._id, customerName: c.name, customerCode: c.code, customerAddress: c.address, customerTelephone: c.phone, customerBalance: 0});
-        setShowCustomerSearch(false);
-      }
-    } else if (e.key === "Escape") {
-      setShowCustomerSearch(false);
     }
   };
 
@@ -541,7 +669,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                 </div>
                 <div className="flex items-center gap-2">
                   <label className="text-xs font-bold w-24">Range KMs</label>
-                  <input type="number" value={formData.rangeKms} onChange={e => { const v = Number(e.target.value) || 0; if (v >= 0) setFormData({...formData, rangeKms: v, endKms: formData.startKms + v}); }} className="flex-1 border border-[#cbd5e1] rounded px-2 py-1 text-xs outline-none" />
+                  <input type="number" value={formData.rangeKms} onChange={e => { const range = Math.max(0, Number(e.target.value) || 0); setFormData({...formData, rangeKms: range, endKms: formData.startKms + range}); }} className="flex-1 border border-[#cbd5e1] rounded px-2 py-1 text-xs outline-none" />
                 </div>
                 <div className="flex items-center gap-2">
                   <label className="text-xs font-bold w-24">Payment Terms</label>
@@ -558,8 +686,8 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                 </div>
                 <div className="grid grid-cols-2 gap-2 pt-2">
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2"><label className="text-[10px] font-black w-20">Start KMs</label><input type="number" value={formData.startKms} onChange={e => { const v = Number(e.target.value) || 0; if (v >= 0) setFormData({...formData, startKms: v, endKms: v + formData.rangeKms}); }} className="flex-1 border border-[#cbd5e1] rounded px-2 py-1 text-xs" /></div>
-                    <div className="flex items-center gap-2"><label className="text-[10px] font-black w-20">End KMs</label><input type="number" value={formData.endKms} onChange={e => { const v = Number(e.target.value) || 0; if (v >= 0) setFormData({...formData, endKms: v, rangeKms: Math.max(0, v - formData.startKms)}); }} className="flex-1 border border-[#cbd5e1] rounded px-2 py-1 text-xs" /></div>
+                    <div className="flex items-center gap-2"><label className="text-[10px] font-black w-20">Start KMs</label><input type="number" value={formData.startKms} onChange={e => { const start = Math.max(0, Number(e.target.value) || 0); setFormData({...formData, startKms: start, endKms: start + formData.rangeKms}); }} className="flex-1 border border-[#cbd5e1] rounded px-2 py-1 text-xs" /></div>
+                    <div className="flex items-center gap-2"><label className="text-[10px] font-black w-20">End KMs</label><input type="number" value={formData.endKms} onChange={e => { const end = Math.max(0, Number(e.target.value) || 0); setFormData({...formData, endKms: end, rangeKms: Math.max(0, end - formData.startKms)}); }} className="flex-1 border border-[#cbd5e1] rounded px-2 py-1 text-xs" /></div>
                     <div className="flex items-center gap-2"><label className="text-[10px] font-black w-20">Limit</label><input type="number" value={formData.oilGaugeLimit} onChange={e => setFormData({...formData, oilGaugeLimit: Number(e.target.value)})} className="flex-1 border border-[#cbd5e1] rounded px-2 py-1 text-xs" /></div>
                   </div>
                   <div className="flex flex-col justify-end">
@@ -588,7 +716,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                          type="text" 
                          placeholder="Search Customer..." 
                          value={formData.customerName} 
-                         onFocus={(e) => { e.target.select(); setShowCustomerSearch(true); setCustomerActiveIndex(0); }}
+                         onFocus={(e) => { e.target.select(); setShowCustomerSearch(true); }}
                          onChange={e => { 
                            setFormData({
                              ...formData, 
@@ -599,28 +727,28 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                              customerTelephone: ""
                            }); 
                            setShowCustomerSearch(true); 
-                           setCustomerActiveIndex(0);
                          }} 
-                         onKeyDown={(e) => handleCustomerKeyDown(e, formData.customerId ? customers : customers.filter(c => c.name.toLowerCase().includes(formData.customerName.toLowerCase())))}
+                         onKeyDown={handleCustomerKeyDown}
                          className="w-full border border-[#eab308] rounded px-2 py-1 text-xs outline-none font-bold" 
                        />
                        {showCustomerSearch && (
                          <>
                            <div className="fixed inset-0 z-40" onClick={() => setShowCustomerSearch(false)} />
-                           <div className="absolute top-full left-0 w-full bg-white border border-slate-200 rounded shadow-xl z-50 max-h-48 overflow-auto mt-1">
-                              {(formData.customerId ? customers : customers.filter(c => c.name.toLowerCase().includes(formData.customerName.toLowerCase()))).map((c, idx) => (
-                                <div 
-                                  key={c._id} 
-                                  ref={idx === customerActiveIndex ? (el: any) => el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }) : undefined}
-                                  className={`px-3 py-2 text-xs cursor-pointer font-bold border-b relative z-50 text-slate-800 transition-all ${idx === customerActiveIndex ? 'bg-yellow-100' : 'hover:bg-yellow-50'}`}
-                                  onClick={() => {
-                                    setFormData({...formData, customerId: c._id, customerName: c.name, customerCode: c.code, customerAddress: c.address, customerTelephone: c.phone, customerBalance: 0});
-                                    setShowCustomerSearch(false);
-                                  }}
-                                >
-                                  {c.code} - {c.name}
-                                </div>
-                              ))}
+                           <div ref={customerListRef} className="absolute top-full left-0 w-full bg-white border border-slate-200 rounded shadow-xl z-50 max-h-48 overflow-auto mt-1">
+                               {displayedCustomers.map((c, idx) => (
+                                 <div 
+                                   key={c._id} 
+                                   className={`px-3 py-2 text-xs cursor-pointer font-bold border-b relative z-50 transition-colors ${
+                                     idx === activeCustomerIndex ? 'bg-yellow-100 text-yellow-900' : 'hover:bg-yellow-50 text-slate-800'
+                                   }`} 
+                                   onClick={() => {
+                                     setFormData({...formData, customerId: c._id, customerName: c.name, customerCode: c.code, customerAddress: c.address || "", customerTelephone: c.phone || "", customerBalance: c.balance || 0});
+                                     setShowCustomerSearch(false);
+                                   }}
+                                 >
+                                   {c.code} - {c.name}
+                                 </div>
+                               ))}
                            </div>
                          </>
                        )}
@@ -642,11 +770,11 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                     <tr>
                       <th className="px-3 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-32">Item Code</th>
                       <th className="px-3 py-2 text-[10px] font-black text-slate-500 uppercase border-r min-w-[200px]">Description</th>
+                      <th className="px-3 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-24 text-right">Purchase Price</th>
                       <th className="px-2 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-20 text-center">Ctns</th>
                       <th className="px-2 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-20 text-center">Gals</th>
                       <th className="px-2 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-20 text-center">Ltrs</th>
                       <th className="px-3 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-24 text-right">Rate Ctn</th>
-                      <th className="px-3 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-24 text-right">Purch Price</th>
                       <th className="px-3 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-28 text-right">Gross Amt</th>
                       <th className="px-3 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-16 text-center">Disc%</th>
                       <th className="px-3 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-24 text-right">Discount</th>
@@ -658,14 +786,16 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                     {items.map((line) => {
                       const query = line.itemId && showItemSearch === line.id ? "" : line.itemCode.toLowerCase();
                       const filteredItems = availableItems.filter(i => 
-                        i.code.toLowerCase().includes(query) || i.name.toLowerCase().includes(query)
+                        !query || i.code.toLowerCase().includes(query) || i.name.toLowerCase().includes(query)
                       ).sort((a, b) => {
+                        if (!query) return 0;
                         const aStart = a.name.toLowerCase().startsWith(query) || a.code.toLowerCase().startsWith(query);
                         const bStart = b.name.toLowerCase().startsWith(query) || b.code.toLowerCase().startsWith(query);
                         if (aStart && !bStart) return -1;
                         if (!aStart && bStart) return 1;
                         return 0;
                       });
+                      const rowActiveIndex = getActiveIndex(line.id);
 
                       return (
                       <tr key={line.id} className={`group ${selectedLineId === line.id ? 'bg-blue-50' : 'hover:bg-slate-50'}`} onClick={() => setSelectedLineId(line.id)}>
@@ -674,22 +804,29 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                             type="text" 
                             value={line.itemCode} 
                             placeholder="Search..."
-                            onChange={e => { updateItem(line.id, "itemCode", e.target.value); setShowItemSearch(line.id); setActiveIndex(0); }} 
-                            onFocus={(e) => { e.target.select(); setShowItemSearch(line.id); setActiveIndex(0); }}
+                            onChange={e => { updateItem(line.id, "itemCode", e.target.value); setShowItemSearch(line.id); setActiveIndex(line.id, 0); }} 
+                            onFocus={(e) => { e.target.select(); setShowItemSearch(line.id); setActiveIndex(line.id, 0); }}
                             onKeyDown={(e) => handleItemKeyDown(e, line.id, filteredItems)}
                             className="w-full px-3 py-2 text-xs font-bold outline-none bg-transparent" 
                           />
                           {showItemSearch === line.id && (
                             <>
                               <div className="fixed inset-0 z-40" onClick={() => setShowItemSearch(null)} />
-                              <div className="absolute top-full left-0 w-max min-w-[250px] bg-white text-black border border-slate-300 shadow-lg z-50 max-h-48 overflow-auto mt-1 relative z-50">
-                                {filteredItems.map((i, idx) => (
+                              <div 
+                                ref={el => { itemListRefs.current[line.id] = el; }}
+                                className="absolute top-full left-0 w-max min-w-[300px] bg-white text-black border border-slate-300 shadow-xl z-50 max-h-56 overflow-auto mt-1"
+                              >
+                                {filteredItems.length === 0 ? (
+                                  <div className="px-3 py-2 text-xs text-slate-400 italic">No items found</div>
+                                ) : filteredItems.map((i, idx) => (
                                   <div 
                                     key={i._id} 
-                                    className={`px-3 py-1 cursor-pointer text-xs whitespace-nowrap transition-all ${idx === activeIndex ? 'bg-blue-600 text-white' : 'hover:bg-blue-600 hover:text-white'}`}
+                                    className={`px-3 py-1.5 cursor-pointer text-xs whitespace-nowrap transition-all border-b border-slate-100 last:border-0 ${
+                                      idx === rowActiveIndex ? 'bg-blue-600 text-white font-bold' : 'hover:bg-blue-50 text-slate-800'
+                                    }`}
                                     onClick={() => { updateItem(line.id, "itemId", i._id); setShowItemSearch(null); }}
                                   >
-                                    {i.code} ({i.name})
+                                    <span className="font-mono text-[10px] opacity-70 mr-2">{i.code}</span>{i.name}
                                   </div>
                                 ))}
                               </div>
@@ -697,11 +834,13 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                           )}
                         </td>
                         <td className="px-3 py-2 text-xs font-medium border-r">{line.description}</td>
+                        <td className="px-3 py-2 text-xs font-black text-right border-r font-mono bg-slate-50">
+                          {(availableItems.find(ai => ai._id === line.itemId)?.purchaseRate || 0).toFixed(2)}
+                        </td>
                         <td className="p-0 border-r"><input type="number" value={line.cartons} onChange={e => updateItem(line.id, "cartons", parseFloat(e.target.value) || 0)} className="w-full px-2 py-2 text-xs font-black text-center outline-none bg-transparent" /></td>
                         <td className="p-0 border-r"><input type="number" value={line.gallons} onChange={e => updateItem(line.id, "gallons", parseFloat(e.target.value) || 0)} className="w-full px-2 py-2 text-xs font-black text-center outline-none bg-transparent" /></td>
                         <td className="p-0 border-r"><input type="number" value={line.liters} onChange={e => updateItem(line.id, "liters", parseFloat(e.target.value) || 0)} className="w-full px-2 py-2 text-xs font-black text-center outline-none bg-transparent" /></td>
                         <td className="p-0 border-r"><input type="number" value={line.ratePerCtn} onChange={e => updateItem(line.id, "ratePerCtn", parseFloat(e.target.value) || 0)} className="w-full px-3 py-2 text-xs font-black text-right outline-none bg-transparent" /></td>
-                        <td className="px-3 py-2 text-xs font-black text-right border-r font-mono text-slate-500 bg-slate-50">{line.purchasePrice.toFixed(2)}</td>
                         <td className="px-3 py-2 text-xs font-black text-right border-r font-mono">{line.grossAmount.toFixed(2)}</td>
                         <td className="p-0 border-r"><input type="number" value={line.discPercent} onChange={e => updateItem(line.id, "discPercent", parseFloat(e.target.value) || 0)} className="w-full px-2 py-2 text-xs font-black text-center outline-none bg-transparent" /></td>
                         <td className="px-3 py-2 text-xs font-black text-right border-r font-mono text-rose-600">{line.discount.toFixed(2)}</td>
@@ -710,7 +849,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                       </tr>
                       );
                     })}
-                    <tr className="bg-slate-50"><td colSpan={12} className="p-2"><button onClick={addItem} className="flex items-center gap-1 text-[10px] font-black text-blue-600 uppercase"><PlusCircle size={14}/> Add New Row</button></td></tr>
+                    <tr className="bg-slate-50"><td colSpan={11} className="p-2"><button onClick={addItem} className="flex items-center gap-1 text-[10px] font-black text-blue-600 uppercase"><PlusCircle size={14}/> Add New Row</button></td></tr>
                   </tbody>
                 </table>
              </div>
@@ -728,10 +867,18 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                          (selectedItemDetails.retailRate || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                      </span>
                    </div>
-                   <div className="flex gap-2 text-rose-600 font-bold">
-                     <span>Balance:</span>
-                     <span>{Number(selectedItemDetails.stockQtyCartons || 0)} Pcs</span>
-                   </div>
+                    <div className="flex gap-2 text-rose-600 font-bold flex-col items-end">
+                      <div className="flex gap-2">
+                        <span>Cartons:</span>
+                        <span>{Number(selectedItemDetails.stockQtyCartons || 0).toFixed(2)}</span>
+                      </div>
+                      {selectedItemDetails.gallonsInCtn || selectedItemDetails.litersInCtn ? (
+                        <div className="text-[10px] text-slate-500 font-normal">
+                          ({(Number(selectedItemDetails.stockQtyCartons || 0) * (selectedItemDetails.gallonsInCtn || 0)).toFixed(1)} G / 
+                           {(Number(selectedItemDetails.stockQtyCartons || 0) * (selectedItemDetails.litersInCtn || 0)).toFixed(1)} L)
+                        </div>
+                      ) : null}
+                    </div>
                  </div>
                  
                  <div className="flex gap-2">
@@ -820,10 +967,10 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
 
            <div className="col-span-12 lg:col-span-5 bg-slate-800 text-white p-6 rounded border border-slate-900 shadow-xl space-y-4">
               <div className="space-y-3">
-                 <div className="flex justify-between items-center border-b border-slate-700 pb-2"><span className="text-xs font-bold text-slate-400 uppercase">Gross Total</span><span className="text-lg font-black font-mono">{grossTotal.toFixed(2)}</span></div>
-                 <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-400 uppercase">Additional Discount</span><input type="number" value={formData.additionalDiscount} onChange={e => { const v = Number(e.target.value) || 0; if (v <= grossTotal) setFormData({...formData, additionalDiscount: v}); }} className="w-32 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-right font-black font-mono text-rose-400 outline-none" /></div>
-                 <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-400 uppercase">Car Service</span><input type="number" value={formData.carService} onChange={e => setFormData({...formData, carService: Number(e.target.value)})} className="w-32 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-right font-black font-mono text-blue-300 outline-none" /></div>
-                 <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-400 uppercase">Car Wash Discount</span><input type="number" value={formData.carWashDiscount} onChange={e => { const v = Number(e.target.value) || 0; if (v <= Number(formData.carService)) setFormData({...formData, carWashDiscount: v}); }} className="w-32 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-right font-black font-mono text-rose-300 outline-none" /></div>
+                  <div className="flex justify-between items-center border-b border-slate-700 pb-2"><span className="text-xs font-bold text-slate-400 uppercase">Gross Total</span><span className="text-lg font-black font-mono">{grossTotal.toFixed(2)}</span></div>
+                  <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-400 uppercase">Additional Discount</span><input type="number" value={formData.additionalDiscount} onChange={e => setFormData({...formData, additionalDiscount: Math.max(0, Number(e.target.value) || 0)})} className="w-32 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-right font-black font-mono text-rose-400 outline-none" /></div>
+                  <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-400 uppercase">Car Service</span><input type="number" value={formData.carService} onChange={e => setFormData({...formData, carService: Math.max(0, Number(e.target.value) || 0)})} className="w-32 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-right font-black font-mono text-blue-300 outline-none" /></div>
+                  <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-400 uppercase">Car Wash Discount</span><input type="number" value={formData.carServiceDiscount} onChange={e => setFormData({...formData, carServiceDiscount: Math.max(0, Number(e.target.value) || 0)})} className="w-32 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-right font-black font-mono text-rose-300 outline-none" /></div>
                  <div className="flex justify-between items-center bg-slate-700/50 p-3 rounded-lg border border-slate-600 mt-4"><span className="text-sm font-black text-white uppercase tracking-wider">Net Total</span><span className="text-3xl font-black font-mono text-yellow-400">{netTotal.toFixed(2)}</span></div>
                  <div className="flex justify-between items-center pt-4"><span className="text-xs font-bold text-slate-400 uppercase">Amount Received</span><input type="number" value={formData.amountReceived} onChange={e => setFormData({...formData, amountReceived: Number(e.target.value)})} className="w-40 bg-white text-slate-900 border-none rounded px-3 py-2 text-right text-lg font-black font-mono outline-none" /></div>
                  <div className="flex justify-between items-center pt-2"><span className="text-xs font-bold text-slate-400 uppercase">Balance</span><span className={`text-xl font-black font-mono ${balanceAmount > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>{balanceAmount.toFixed(2)}</span></div>

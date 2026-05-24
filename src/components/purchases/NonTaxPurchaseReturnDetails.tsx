@@ -24,17 +24,9 @@ interface NonTaxPurchaseReturnDetailsProps {
 }
 
 export default function NonTaxPurchaseReturnDetails({ record, onClose, onEdit }: NonTaxPurchaseReturnDetailsProps) {
-  // Mock items for the view
-  const items = [
-    { 
-      id: "1", 
-      description: "REJECTED - DAMAGED CEMENT BAGS", 
-      origQty: 50,
-      returnQty: 5,
-      unitPrice: (record.totalAmount || record.amount || 0) / 5, 
-      total: record.totalAmount || record.amount || 0
-    }
-  ];
+  const lines = (record.lines && record.lines.length > 0) ? record.lines : [];
+  const vendorName = record.partyId?.name || record.partyId?.companyName || record.vendor || "—";
+  const locationName = record.locationId?.name || "—";
 
   return (
     <div className="bg-slate-50 dark:bg-slate-800/50 min-h-screen">
@@ -84,7 +76,7 @@ export default function NonTaxPurchaseReturnDetails({ record, onClose, onEdit }:
             </div>
             <div className="space-y-1">
               <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Vendor</p>
-              <p className="text-sm font-bold text-slate-900 dark:text-white">{record.vendor}</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white">{vendorName}</p>
             </div>
             <div className="space-y-1">
               <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Total Return Value</p>
@@ -94,13 +86,17 @@ export default function NonTaxPurchaseReturnDetails({ record, onClose, onEdit }:
             <div className="space-y-1 md:col-span-2">
               <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Reason</p>
               <p className="text-sm font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2">
-                <AlertTriangle size={14} className="text-orange-500" /> Damaged goods found during inspection.
+                <AlertTriangle size={14} className="text-orange-500" /> {record.notes || record.reason || "—"}
               </p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Location</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white">{locationName}</p>
             </div>
             <div className="space-y-1">
               <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Linked Invoice</p>
               <div className="flex items-center gap-1 text-sm font-bold text-maroon-800">
-                NTPI-2026-042 <Link2 size={14} />
+                {record.reference || "—"} <Link2 size={14} />
               </div>
             </div>
           </div>
@@ -124,14 +120,18 @@ export default function NonTaxPurchaseReturnDetails({ record, onClose, onEdit }:
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50 font-bold">
-                {items.map((item, index) => (
-                  <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors">
+                {lines.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-8 py-8 text-center text-sm text-slate-400 italic">No line items saved</td>
+                  </tr>
+                ) : lines.map((line: any, index: number) => (
+                  <tr key={index} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors">
                     <td className="px-8 py-6 text-xs font-bold text-slate-400 dark:text-slate-500 text-center">{index + 1}</td>
-                    <td className="px-8 py-6 text-sm text-slate-600 dark:text-slate-300 font-bold">{item.description}</td>
-                    <td className="px-8 py-6 text-sm text-slate-400 dark:text-slate-500 text-center">{item.origQty}</td>
-                    <td className="px-8 py-6 text-sm text-maroon-800 text-center">{item.returnQty}</td>
-                    <td className="px-8 py-6 text-sm text-slate-900 dark:text-white text-center">{item.unitPrice.toLocaleString()}</td>
-                    <td className="px-8 py-6 text-sm font-black text-slate-900 dark:text-white text-right">{item.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                    <td className="px-8 py-6 text-sm text-slate-600 dark:text-slate-300 font-bold">{line.description || line.itemId?.name || "—"}</td>
+                    <td className="px-8 py-6 text-sm text-slate-400 dark:text-slate-500 text-center">{line.cartons ?? line.qty ?? 0}</td>
+                    <td className="px-8 py-6 text-sm text-maroon-800 text-center">{line.cartons ?? line.qty ?? 0}</td>
+                    <td className="px-8 py-6 text-sm text-slate-900 dark:text-white text-center">{(line.rate || 0).toLocaleString()}</td>
+                    <td className="px-8 py-6 text-sm font-black text-slate-900 dark:text-white text-right">{(line.netAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                   </tr>
                 ))}
               </tbody>

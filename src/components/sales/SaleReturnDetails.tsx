@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { printPage } from "@/lib/excel";
+import PrintTemplate from "@/components/print/PrintTemplate";
 
 interface SaleReturnDetailsProps {
   record: any;
@@ -23,6 +24,10 @@ interface SaleReturnDetailsProps {
 
 export default function SaleReturnDetails({ record, onClose, onEdit }: SaleReturnDetailsProps) {
   const items = record.lines || record.items || [];
+  const itemsDiscount = items.reduce((acc: number, curr: any) => acc + ((curr.grossAmount || 0) - (curr.netAmount || curr.total || 0)), 0);
+  const carService = record.carService || 0;
+  const carServiceDiscount = record.carServiceDiscount || 0;
+  const additionalDiscount = record.discountAmount || 0;
 
   return (
     <div className="bg-slate-50 dark:bg-slate-800/50 min-h-screen">
@@ -94,6 +99,10 @@ export default function SaleReturnDetails({ record, onClose, onEdit }: SaleRetur
               <p className="text-sm font-bold text-slate-900 dark:text-white">{record.regNo || "-"}</p>
             </div>
             <div className="space-y-1">
+              <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">KMs (S/E/R)</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white">{record.startKms || 0} / {record.endKms || 0} / {record.rangeKms || 0}</p>
+            </div>
+            <div className="space-y-1">
               <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Remarks</p>
               <p className="text-sm font-bold text-slate-900 dark:text-white">{record.notes || "-"}</p>
             </div>
@@ -113,7 +122,6 @@ export default function SaleReturnDetails({ record, onClose, onEdit }: SaleRetur
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest min-w-[200px]">Description</th>
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Cartons</th>
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Rate</th>
-                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Purch Price</th>
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-right">Net Amount</th>
                 </tr>
               </thead>
@@ -124,7 +132,6 @@ export default function SaleReturnDetails({ record, onClose, onEdit }: SaleRetur
                     <td className="px-8 py-6 text-sm text-slate-600 dark:text-slate-300 font-bold">{item.description || item.itemId?.name || item.itemName}</td>
                     <td className="px-8 py-6 text-sm text-slate-900 dark:text-white text-center">{item.cartons || item.qty || 0}</td>
                     <td className="px-8 py-6 text-sm text-slate-900 dark:text-white text-center">{(item.rate || item.unitPrice || 0).toLocaleString()}</td>
-                    <td className="px-8 py-6 text-sm text-slate-500 dark:text-slate-400 text-center">{(item.purchasePrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                     <td className="px-8 py-6 text-sm font-black text-slate-900 dark:text-white text-right">{(item.netAmount || item.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                   </tr>
                 ))}
@@ -134,6 +141,40 @@ export default function SaleReturnDetails({ record, onClose, onEdit }: SaleRetur
           
           <div className="p-8 bg-white dark:bg-slate-900 flex flex-col items-end space-y-3">
             <div className="w-full md:w-80 space-y-4">
+              <div className="flex justify-between text-sm">
+                <span className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-[10px]">Subtotal (Gross)</span>
+                <span className="font-bold text-slate-900 dark:text-white">{(record.subTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              </div>
+              {itemsDiscount > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-[10px]">Product Discount</span>
+                  <span className="font-bold text-rose-600">-{itemsDiscount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              {carService > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-[10px]">Car Service Charges</span>
+                  <span className="font-bold text-slate-900 dark:text-white">+{carService.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              {carServiceDiscount > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-[10px]">Car Wash Discount</span>
+                  <span className="font-bold text-rose-600">-{carServiceDiscount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              {additionalDiscount > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-[10px]">Additional Discount</span>
+                  <span className="font-bold text-rose-600">-{additionalDiscount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              {record.taxAmount > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-[10px]">Sales Tax</span>
+                  <span className="font-bold text-slate-900 dark:text-white">+{(record.taxAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
               <div className="pt-6 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center">
                 <span className="text-xs font-black text-maroon-800 uppercase tracking-[0.2em]">Total Credit (PKR)</span>
                 <span className="text-2xl font-black text-maroon-800 tracking-tighter">{(record.totalAmount || record.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
@@ -142,6 +183,26 @@ export default function SaleReturnDetails({ record, onClose, onEdit }: SaleRetur
           </div>
         </section>
       </div>
+      <PrintTemplate 
+        formatName="Sale Return" 
+        data={{
+          invoiceNo: record.invoiceNo || record.returnNo,
+          date: record.date,
+          customer: record.partyId?.companyName || record.partyId?.name || record.customer || "Walk-in Customer",
+          linkedRef: record.reference || record.invoiceRef,
+          total: record.totalAmount || record.amount,
+          subtotal: record.subTotal || 0,
+          taxAmount: record.taxAmount || 0,
+          discountAmount: record.discountAmount || 0,
+          carService: record.carService || 0,
+          carServiceDiscount: record.carServiceDiscount || 0,
+          regNo: record.regNo,
+          startKms: record.startKms,
+          endKms: record.endKms,
+          rangeKms: record.rangeKms,
+        }}
+        items={items}
+      />
     </div>
   );
 }

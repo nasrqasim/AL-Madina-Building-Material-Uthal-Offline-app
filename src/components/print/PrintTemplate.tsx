@@ -79,6 +79,15 @@ export default function PrintTemplate({
   const amountReceived = Math.round(data.amountReceived || data.receivedAmount || netTotal);
   const cashBack = amountReceived - netTotal;
 
+  const carService = Math.round(data.carService || 0);
+  const carServiceDiscount = Math.round(data.carServiceDiscount || 0);
+  
+  const itemsDiscount = items.reduce((acc: number, item: any) => {
+    const gross = (Number(item.qty || item.cartons || 1) * Number(item.rate || item.unitPrice || 0));
+    const net = Number(item.netAmount || item.total || item.amount || 0);
+    return acc + Math.max(0, gross - net);
+  }, 0);
+
   // Format date and time
   const rawDate = data.date ? new Date(data.date) : new Date();
   const dateStr = rawDate.toLocaleDateString('en-GB'); // dd-mm-yyyy format
@@ -179,6 +188,18 @@ export default function PrintTemplate({
           <span>Payment Type:</span>
           <span>{data.paymentMethod || data.paymentMode || "Cash"}</span>
         </div>
+        {data.regNo && (
+          <div className="flex justify-between">
+            <span>Vehicle No:</span>
+            <span>{data.regNo}</span>
+          </div>
+        )}
+        {data.startKms !== undefined && (data.startKms > 0 || data.endKms > 0) && (
+          <div className="flex justify-between">
+            <span>KMs (S/E/R):</span>
+            <span>{data.startKms || 0} / {data.endKms || 0} / {data.rangeKms || 0}</span>
+          </div>
+        )}
       </div>
 
       {/* Items Table Headers */}
@@ -229,10 +250,30 @@ export default function PrintTemplate({
           <span>Gross Total</span>
           <span>{grossTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
         </div>
-        <div className="flex justify-between">
-          <span>Discount</span>
-          <span>{discount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-        </div>
+        {itemsDiscount > 0 && (
+          <div className="flex justify-between">
+            <span>Product Discount</span>
+            <span>-{itemsDiscount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+          </div>
+        )}
+        {carService > 0 && (
+          <div className="flex justify-between">
+            <span>Car Service Charges</span>
+            <span>+{carService.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+          </div>
+        )}
+        {carServiceDiscount > 0 && (
+          <div className="flex justify-between">
+            <span>Car Wash Discount</span>
+            <span>-{carServiceDiscount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+          </div>
+        )}
+        {discount > 0 && (
+          <div className="flex justify-between">
+            <span>Additional Discount</span>
+            <span>-{discount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+          </div>
+        )}
         <div className="flex justify-between text-xs font-black pt-1 border-t border-black uppercase">
           <span>Net Total PKR</span>
           <span>{netTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>

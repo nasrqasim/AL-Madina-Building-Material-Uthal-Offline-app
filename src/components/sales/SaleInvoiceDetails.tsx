@@ -26,6 +26,10 @@ interface SaleInvoiceDetailsProps {
 
 export default function SaleInvoiceDetails({ invoice, onClose, onEdit }: SaleInvoiceDetailsProps) {
   const items = invoice.lines || [];
+  const itemsDiscount = items.reduce((acc: number, curr: any) => acc + ((curr.grossAmount || 0) - (curr.netAmount || curr.total || 0)), 0);
+  const carService = invoice.carService || 0;
+  const carServiceDiscount = invoice.carServiceDiscount || 0;
+  const additionalDiscount = invoice.discountAmount || 0;
 
   return (
     <div className="bg-slate-50 dark:bg-slate-800/50 min-h-screen">
@@ -136,7 +140,6 @@ export default function SaleInvoiceDetails({ invoice, onClose, onEdit }: SaleInv
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest min-w-[200px]">Description</th>
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Cartons</th>
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Rate</th>
-                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Purch Price</th>
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Gross Amt</th>
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Disc %</th>
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-right">Net Amount</th>
@@ -149,7 +152,6 @@ export default function SaleInvoiceDetails({ invoice, onClose, onEdit }: SaleInv
                     <td className="px-8 py-6 text-sm text-slate-600 dark:text-slate-300 font-bold">{item.description || item.itemId?.name || item.itemName}</td>
                     <td className="px-8 py-6 text-sm text-slate-900 dark:text-white text-center">{item.cartons || item.qty || 0}</td>
                     <td className="px-8 py-6 text-sm text-slate-900 dark:text-white text-center">{(item.rate || item.unitPrice || 0).toLocaleString()}</td>
-                    <td className="px-8 py-6 text-sm text-slate-500 dark:text-slate-400 text-center">{(item.purchasePrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                     <td className="px-8 py-6 text-sm text-slate-900 dark:text-white text-center">{(item.grossAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                     <td className="px-8 py-6 text-sm text-rose-600 text-center">{item.discountPercent || item.discPercent || 0}%</td>
                     <td className="px-8 py-6 text-sm font-black text-slate-900 dark:text-white text-right">{(item.netAmount || item.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
@@ -162,25 +164,39 @@ export default function SaleInvoiceDetails({ invoice, onClose, onEdit }: SaleInv
           <div className="p-8 bg-white dark:bg-slate-900 flex flex-col items-end space-y-3">
             <div className="w-full md:w-80 space-y-4">
               <div className="flex justify-between text-sm">
-                <span className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-[10px]">Subtotal</span>
+                <span className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-[10px]">Subtotal (Gross)</span>
                 <span className="font-bold text-slate-900 dark:text-white">{(invoice.subTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-[10px]">Car Service</span>
-                <span className="font-bold text-blue-600">+{(invoice.carService || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-[10px]">Car Wash Discount</span>
-                <span className="font-bold text-rose-600">-{(invoice.carWashDiscount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-[10px]">Additional Discount</span>
-                <span className="font-bold text-rose-600">-{(invoice.discountAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-[10px]">Sales Tax</span>
-                <span className="font-bold text-slate-900 dark:text-white">+{(invoice.taxAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-              </div>
+              {itemsDiscount > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-[10px]">Product Discount</span>
+                  <span className="font-bold text-rose-600">-{itemsDiscount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              {carService > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-[10px]">Car Service Charges</span>
+                  <span className="font-bold text-slate-900 dark:text-white">+{carService.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              {carServiceDiscount > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-[10px]">Car Wash Discount</span>
+                  <span className="font-bold text-rose-600">-{carServiceDiscount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              {additionalDiscount > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-[10px]">Additional Discount</span>
+                  <span className="font-bold text-rose-600">-{additionalDiscount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              {invoice.taxAmount > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-[10px]">Sales Tax</span>
+                  <span className="font-bold text-slate-900 dark:text-white">+{(invoice.taxAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
               <div className="pt-6 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center">
                 <span className="text-xs font-black text-maroon-800 uppercase tracking-[0.2em]">Invoice Total (PKR)</span>
                 <span className="text-3xl font-black text-maroon-800 tracking-tighter">{(invoice.totalAmount || invoice.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
@@ -195,12 +211,18 @@ export default function SaleInvoiceDetails({ invoice, onClose, onEdit }: SaleInv
         data={{
           invoiceNo: invoice.invoiceNo,
           date: invoice.date,
-          customer: invoice.customer,
+          customer: invoice.partyId?.companyName || invoice.partyId?.name || invoice.customer || "Walk-in Customer",
           linkedRef: invoice.linkedRef,
           total: invoice.totalAmount || invoice.total,
           subtotal: invoice.subTotal || 0,
           taxAmount: invoice.taxAmount || 0,
-          discountAmount: invoice.discountAmount || 0
+          discountAmount: invoice.discountAmount || 0,
+          carService: invoice.carService || 0,
+          carServiceDiscount: invoice.carServiceDiscount || 0,
+          regNo: invoice.regNo,
+          startKms: invoice.startKms,
+          endKms: invoice.endKms,
+          rangeKms: invoice.rangeKms,
         }}
         items={items}
       />

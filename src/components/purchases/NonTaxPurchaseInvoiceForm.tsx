@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from "react";
 import ItemSearchInput from "@/components/erp/ui/ItemSearchInput";
@@ -40,38 +40,44 @@ interface NonTaxPurchaseInvoiceFormProps {
 }
 
 export default function NonTaxPurchaseInvoiceForm({ onClose, onSave, initialData }: NonTaxPurchaseInvoiceFormProps) {
-  const [items, setItems] = useState<NTItem[]>(initialData?.items?.map((l: any, i: number) => ({
-    id: i.toString(),
-    itemId: l.itemId?._id || l.itemId || "",
-    itemCode: l.itemId?.code || "",
-    description: l.description || "",
-    cartons: l.cartons || l.qty || 0,
-    gallons: l.gallons || 0,
-    liters: l.liters || 0,
-    unitPrice: l.rate || 0,
-    discPercent: l.discountPercent || 0,
-    total: l.netAmount || 0
-  })) || [
-    { id: "1", itemId: "", itemCode: "", description: "", cartons: 1, gallons: 4, liters: 16, unitPrice: 0, discPercent: 0, total: 0 }
-  ]);
+  const [items, setItems] = useState<NTItem[]>(() => {
+    const src = initialData?.lines || initialData?.items || [];
+    if (src.length > 0) {
+      return src.map((l: any, i: number) => ({
+        id: i.toString(),
+        itemId: l.itemId?._id || l.itemId || "",
+        itemCode: l.itemId?.code || "",
+        description: l.description || "",
+        cartons: l.cartons || l.qty || 0,
+        gallons: l.gallons || 0,
+        liters: l.liters || 0,
+        unitPrice: l.rate || l.unitPrice || 0,
+        discPercent: l.discountPercent || 0,
+        total: l.netAmount || l.total || 0
+      }));
+    }
+    return [
+      { id: "1", itemId: "", itemCode: "", description: "", cartons: 1, gallons: 4, liters: 16, unitPrice: 0, discPercent: 0, total: 0 }
+    ];
+  });
   
   const [formData, setFormData] = useState({
-    invoiceNumber: initialData?.docNo || "Auto-generated",
-    invoiceDate: initialData?.date || new Date().toISOString().split("T")[0],
+    invoiceNumber: initialData?.invoiceNo || "Auto-generated",
+    invoiceDate: initialData?.date ? new Date(initialData.date).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
     status: initialData?.status || "Draft",
     linkToGRN: initialData?.linkToGRN || "",
     linkToPO: initialData?.linkToPO || "",
-    vendorId: initialData?.vendor || "",
+    vendorId: initialData?.partyId?._id || initialData?.partyId || "",
     vendorInvoiceNo: initialData?.vendorInvNo || "",
     vendorInvoiceDate: initialData?.vendorInvoiceDate || "",
     dueDate: initialData?.dueDate || "",
     paymentTerms: initialData?.paymentTerms || "30 days",
-    poReference: initialData?.linkedRef || "",
+    poReference: initialData?.reference || "",
     currency: initialData?.currency || "PKR",
-    employeeId: initialData?.employeeId || "",
-    jobId: initialData?.jobId || "",
-    locationId: initialData?.locationId || "",
-    amountPaid: initialData?.amountPaid || 0,
+    employeeId: initialData?.employeeId?._id || initialData?.employeeId || "",
+    jobId: initialData?.jobId?._id || initialData?.jobId || "",
+    locationId: initialData?.locationId?._id || initialData?.locationId || "",
+    amountPaid: initialData?.amountReceived || 0,
     paymentAccountId: initialData?.paymentAccountId || "",
     notes: initialData?.notes || ""
   });
@@ -200,7 +206,7 @@ export default function NonTaxPurchaseInvoiceForm({ onClose, onSave, initialData
       employeeId: formData.employeeId || null,
       jobId: formData.jobId || null,
       locationId: formData.locationId || null,
-      items: items.map(i => ({
+      lines: items.filter(i => i.itemId).map(i => ({
         itemId: i.itemId,
         description: i.description,
         cartons: i.cartons,

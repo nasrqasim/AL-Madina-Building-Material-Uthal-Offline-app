@@ -47,6 +47,8 @@ const InvoiceSchema = new Schema(
     endKms: { type: Number, default: 0 },
     rangeKms: { type: Number, default: 0 },
     oilGaugeLimit: { type: Number, default: 0 },
+    carService: { type: Number, default: 0 },
+    carServiceDiscount: { type: Number, default: 0 },
     
     isCreditBill: { type: Boolean, default: true },
     linkedInvoiceId: { type: Schema.Types.ObjectId, ref: "Invoice", default: null },

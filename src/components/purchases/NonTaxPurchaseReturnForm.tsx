@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from "react";
 import ItemSearchInput from "@/components/erp/ui/ItemSearchInput";
@@ -39,32 +39,38 @@ interface NonTaxPurchaseReturnFormProps {
 }
 
 export default function NonTaxPurchaseReturnForm({ onClose, onSave, initialData }: NonTaxPurchaseReturnFormProps) {
-  const [items, setItems] = useState<NTRItem[]>(initialData?.items?.map((l: any, i: number) => ({
-    id: i.toString(),
-    itemId: l.itemId?._id || l.itemId || "",
-    itemCode: l.itemId?.code || "",
-    description: l.description || "",
-    cartons: l.cartons || l.qty || 0,
-    gallons: l.gallons || 0,
-    liters: l.liters || 0,
-    unitPrice: l.rate || 0,
-    total: l.netAmount || 0
-  })) || [
-    { id: "1", itemId: "", itemCode: "", description: "", cartons: 0, gallons: 0, liters: 0, unitPrice: 0, total: 0 }
-  ]);
+  const [items, setItems] = useState<NTRItem[]>(() => {
+    const src = initialData?.lines || initialData?.items || [];
+    if (src.length > 0) {
+      return src.map((l: any, i: number) => ({
+        id: i.toString(),
+        itemId: l.itemId?._id || l.itemId || "",
+        itemCode: l.itemId?.code || "",
+        description: l.description || "",
+        cartons: l.cartons || l.qty || 0,
+        gallons: l.gallons || 0,
+        liters: l.liters || 0,
+        unitPrice: l.rate || l.unitPrice || 0,
+        total: l.netAmount || l.total || 0
+      }));
+    }
+    return [
+      { id: "1", itemId: "", itemCode: "", description: "", cartons: 0, gallons: 0, liters: 0, unitPrice: 0, total: 0 }
+    ];
+  });
   
   const [formData, setFormData] = useState({
-    returnNumber: initialData?.docNo || "Auto-generated",
-    returnDate: initialData?.date || new Date().toISOString().split("T")[0],
+    returnNumber: initialData?.invoiceNo || "Auto-generated",
+    returnDate: initialData?.date ? new Date(initialData.date).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
     status: initialData?.status || "Draft",
-    vendorId: initialData?.vendor || "",
-    nonTaxPurchaseInvoiceId: initialData?.invoiceRef || "",
-    reason: initialData?.reason || "",
+    vendorId: initialData?.partyId?._id || initialData?.partyId || "",
+    nonTaxPurchaseInvoiceId: initialData?.reference || "",
+    reason: initialData?.reason || initialData?.notes || "",
     whtRate: initialData?.whtRate || 0,
-    employeeId: initialData?.employeeId || "",
-    jobId: initialData?.jobId || "",
-    locationId: initialData?.locationId || "",
-    refundAmount: initialData?.refundAmount || 0,
+    employeeId: initialData?.employeeId?._id || initialData?.employeeId || "",
+    jobId: initialData?.jobId?._id || initialData?.jobId || "",
+    locationId: initialData?.locationId?._id || initialData?.locationId || "",
+    refundAmount: initialData?.amountReceived || 0,
     refundAccountId: initialData?.refundAccountId || "",
     notes: initialData?.notes || ""
   });
@@ -187,7 +193,7 @@ export default function NonTaxPurchaseReturnForm({ onClose, onSave, initialData 
       employeeId: formData.employeeId || null,
       jobId: formData.jobId || null,
       locationId: formData.locationId || null,
-      items: items.map(i => ({
+      lines: items.filter(i => i.itemId).map(i => ({
         itemId: i.itemId,
         description: i.description,
         cartons: i.cartons,

@@ -23,16 +23,9 @@ interface NonTaxPurchaseInvoiceDetailsProps {
 }
 
 export default function NonTaxPurchaseInvoiceDetails({ record, onClose, onEdit }: NonTaxPurchaseInvoiceDetailsProps) {
-  // Mock items for the view
-  const items = [
-    { 
-      id: "1", 
-      description: "LOCAL HARDWARE - BRICKS & CEMENT", 
-      qty: 1, 
-      unitPrice: record.totalAmount || record.amount || 0, 
-      total: record.totalAmount || record.amount || 0
-    }
-  ];
+  const lines = (record.lines && record.lines.length > 0) ? record.lines : [];
+  const vendorName = record.partyId?.name || record.partyId?.companyName || record.vendor || "—";
+  const locationName = record.locationId?.name || "—";
 
   return (
     <div className="bg-slate-50 dark:bg-slate-800/50 min-h-screen">
@@ -82,7 +75,7 @@ export default function NonTaxPurchaseInvoiceDetails({ record, onClose, onEdit }
             </div>
             <div className="space-y-1">
               <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Vendor</p>
-              <p className="text-sm font-bold text-slate-900 dark:text-white">{record.vendor}</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white">{vendorName}</p>
             </div>
             <div className="space-y-1">
               <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Total Amount</p>
@@ -91,12 +84,12 @@ export default function NonTaxPurchaseInvoiceDetails({ record, onClose, onEdit }
 
             <div className="space-y-1">
               <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Location</p>
-              <p className="text-sm font-bold text-slate-900 dark:text-white">Main Warehouse</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white">{locationName}</p>
             </div>
             <div className="space-y-1">
               <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Linked Document</p>
               <div className="flex items-center gap-1 text-sm font-bold text-maroon-800">
-                None <Link2 size={14} />
+                {record.reference || "None"} <Link2 size={14} />
               </div>
             </div>
           </div>
@@ -119,13 +112,17 @@ export default function NonTaxPurchaseInvoiceDetails({ record, onClose, onEdit }
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50 font-bold">
-                {items.map((item, index) => (
-                  <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors">
+                {lines.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-8 py-8 text-center text-sm text-slate-400 italic">No line items saved</td>
+                  </tr>
+                ) : lines.map((line: any, index: number) => (
+                  <tr key={index} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors">
                     <td className="px-8 py-6 text-xs font-bold text-slate-400 dark:text-slate-500 text-center">{index + 1}</td>
-                    <td className="px-8 py-6 text-sm text-slate-600 dark:text-slate-300 font-bold">{item.description}</td>
-                    <td className="px-8 py-6 text-sm text-slate-900 dark:text-white text-center">{item.qty}</td>
-                    <td className="px-8 py-6 text-sm text-slate-900 dark:text-white text-center">{item.unitPrice.toLocaleString()}</td>
-                    <td className="px-8 py-6 text-sm font-black text-slate-900 dark:text-white text-right">{item.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                    <td className="px-8 py-6 text-sm text-slate-600 dark:text-slate-300 font-bold">{line.description || line.itemId?.name || "—"}</td>
+                    <td className="px-8 py-6 text-sm text-slate-900 dark:text-white text-center">{line.cartons ?? line.qty ?? 0}</td>
+                    <td className="px-8 py-6 text-sm text-slate-900 dark:text-white text-center">{(line.rate || 0).toLocaleString()}</td>
+                    <td className="px-8 py-6 text-sm font-black text-slate-900 dark:text-white text-right">{(line.netAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                   </tr>
                 ))}
               </tbody>

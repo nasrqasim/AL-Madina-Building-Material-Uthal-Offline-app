@@ -2,7 +2,7 @@ import { fail, ok } from "@/lib/api";
 import dbConnect from "@/lib/db";
 import Invoice from "@/models/Invoice";
 import JournalEntry from "@/models/JournalEntry";
-import { generateInvoiceJournalEntries } from "@/services/posting/invoicePostingHelper";
+import { generateInvoiceJournalEntries, recalculatePartyBalance } from "@/services/posting/invoicePostingHelper";
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
   try {
@@ -34,11 +34,21 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 export async function DELETE(_: Request, { params }: { params: { id: string } }) {
   try {
     await dbConnect();
+    
+    // Get the invoice to extract partyId before deletion
+    const invoice = await Invoice.findById(params.id);
+    const partyId = invoice?.partyId;
+
     await Invoice.findByIdAndDelete(params.id);
     
     // Automatically delete associated journal entries
     await JournalEntry.deleteMany({ invoiceId: params.id });
     
+    // Recalculate party balance
+    if (partyId) {
+      await recalculatePartyBalance(partyId.toString());
+    }
+
     return ok({ deleted: true });
   } catch (e) {
     return fail((e as Error).message);
