@@ -136,6 +136,7 @@ export default function SaleInvoiceDetails({ invoice, onClose, onEdit }: SaleInv
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest min-w-[200px]">Description</th>
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Cartons</th>
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Rate</th>
+                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Purch Price</th>
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Gross Amt</th>
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Disc %</th>
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-right">Net Amount</th>
@@ -148,6 +149,7 @@ export default function SaleInvoiceDetails({ invoice, onClose, onEdit }: SaleInv
                     <td className="px-8 py-6 text-sm text-slate-600 dark:text-slate-300 font-bold">{item.description || item.itemId?.name || item.itemName}</td>
                     <td className="px-8 py-6 text-sm text-slate-900 dark:text-white text-center">{item.cartons || item.qty || 0}</td>
                     <td className="px-8 py-6 text-sm text-slate-900 dark:text-white text-center">{(item.rate || item.unitPrice || 0).toLocaleString()}</td>
+                    <td className="px-8 py-6 text-sm text-slate-500 dark:text-slate-400 text-center">{(item.purchasePrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                     <td className="px-8 py-6 text-sm text-slate-900 dark:text-white text-center">{(item.grossAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                     <td className="px-8 py-6 text-sm text-rose-600 text-center">{item.discountPercent || item.discPercent || 0}%</td>
                     <td className="px-8 py-6 text-sm font-black text-slate-900 dark:text-white text-right">{(item.netAmount || item.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
@@ -164,7 +166,15 @@ export default function SaleInvoiceDetails({ invoice, onClose, onEdit }: SaleInv
                 <span className="font-bold text-slate-900 dark:text-white">{(invoice.subTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-[10px]">Discount</span>
+                <span className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-[10px]">Car Service</span>
+                <span className="font-bold text-blue-600">+{(invoice.carService || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-[10px]">Car Wash Discount</span>
+                <span className="font-bold text-rose-600">-{(invoice.carWashDiscount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-[10px]">Additional Discount</span>
                 <span className="font-bold text-rose-600">-{(invoice.discountAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between text-sm">

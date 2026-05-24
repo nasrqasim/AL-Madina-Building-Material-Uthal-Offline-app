@@ -34,6 +34,7 @@ interface SIItem {
   gallons: number;
   liters: number;
   ratePerCtn: number;
+  purchasePrice: number;
   grossAmount: number;
   discPercent: number;
   discount: number;
@@ -76,7 +77,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
     // Customer
     customerId: initialData?.partyId?._id || initialData?.partyId || "",
     customerCode: initialData?.partyId?.code || "",
-    customerName: initialData?.partyId?.name || "",
+    customerName: initialData?.partyId?.name || "Walk-in Cash Customer",
     customerAddress: initialData?.partyId?.address || "",
     customerTelephone: initialData?.partyId?.phone || "",
     customerBalance: 0.00,
@@ -89,7 +90,8 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
     
     // Totals
     additionalDiscount: initialData?.discountAmount || 0,
-    carService: 0,
+    carService: initialData?.carService || 0,
+    carWashDiscount: initialData?.carWashDiscount || 0,
     amountReceived: initialData?.amountReceived || 0
   });
 
@@ -143,6 +145,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
         gallons: l.gallons || 0,
         liters: l.liters || 0,
         ratePerCtn: l.rate || 0,
+        purchasePrice: l.purchasePrice || 0,
         grossAmount: l.grossAmount || 0,
         discPercent: l.discountPercent || 0,
         discount: (l.grossAmount * (l.discountPercent || 0)) / 100,
@@ -158,6 +161,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
       gallons: 0,
       liters: 0,
       ratePerCtn: 0,
+      purchasePrice: 0,
       grossAmount: 0,
       discPercent: 0,
       discount: 0,
@@ -216,7 +220,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
   };
 
   const addItem = () => {
-    const newItem = { id: Date.now().toString(), itemId: "", itemCode: "", description: "", cartons: 0, gallons: 0, liters: 0, ratePerCtn: 0, grossAmount: 0, discPercent: 0, discount: 0, netAmount: 0 };
+    const newItem = { id: Date.now().toString(), itemId: "", itemCode: "", description: "", cartons: 0, gallons: 0, liters: 0, ratePerCtn: 0, purchasePrice: 0, grossAmount: 0, discPercent: 0, discount: 0, netAmount: 0 };
     setItems([...items, newItem]);
     setSelectedLineId(newItem.id);
   };
@@ -269,6 +273,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
           updated.itemCode = item.code;
           updated.description = item.name;
           updated.ratePerCtn = formData.isWholesale ? (item.wholesaleRate || item.rate || 0) : (item.retailRate || item.rate || 0);
+          updated.purchasePrice = item.lastPurchaseRate || item.avgCost || 0;
           
           updated.cartons = 1;
           const isFilterNow = item.name?.toLowerCase().includes("filter") || item.name?.toLowerCase().includes("fliter");
@@ -291,8 +296,9 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
   const grossTotal = useMemo(() => items.reduce((acc, curr) => acc + curr.grossAmount, 0), [items]);
   const netTotal = useMemo(() => {
     const total = items.reduce((acc, curr) => acc + curr.netAmount, 0);
-    return total + Number(formData.carService) - Number(formData.additionalDiscount);
-  }, [items, formData.carService, formData.additionalDiscount]);
+    const carWashTotal = Number(formData.carService) - Number(formData.carWashDiscount);
+    return total + carWashTotal - Number(formData.additionalDiscount);
+  }, [items, formData.carService, formData.carWashDiscount, formData.additionalDiscount]);
   const balanceAmount = netTotal - Number(formData.amountReceived);
 
   const handleSave = useCallback(async (status: string) => {
@@ -312,6 +318,8 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
       locationId: formData.locationId || null,
       employeeId: formData.employeeRef || null,
       notes: formData.remarks,
+      carService: Number(formData.carService) || 0,
+      carWashDiscount: Number(formData.carWashDiscount) || 0,
       lines: items.filter(l => l.itemId).map(l => ({
         itemId: l.itemId,
         description: l.description,
@@ -319,6 +327,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
         gallons: l.gallons || 0,
         liters: l.liters || 0,
         rate: l.ratePerCtn || 0,
+        purchasePrice: l.purchasePrice || 0,
         grossAmount: l.grossAmount || 0,
         discountPercent: l.discPercent || 0,
         netAmount: l.netAmount || 0
@@ -430,6 +439,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
   }, [handleSave]);
 
   const [activeIndex, setActiveIndex] = useState(0);
+  const [customerActiveIndex, setCustomerActiveIndex] = useState(0);
 
   const handleItemKeyDown = (e: React.KeyboardEvent, lineId: string, filteredItems: any[]) => {
     if (e.key === "ArrowDown") {
@@ -438,6 +448,12 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActiveIndex(prev => (prev > 0 ? prev - 1 : prev));
+    } else if (e.key === "PageDown") {
+      e.preventDefault();
+      setActiveIndex(prev => Math.min(prev + 5, filteredItems.length - 1));
+    } else if (e.key === "PageUp") {
+      e.preventDefault();
+      setActiveIndex(prev => Math.max(prev - 5, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
       if (filteredItems[activeIndex]) {
@@ -446,6 +462,31 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
       }
     } else if (e.key === "Escape") {
       setShowItemSearch(null);
+    }
+  };
+
+  const handleCustomerKeyDown = (e: React.KeyboardEvent, filteredCustomers: any[]) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setCustomerActiveIndex(prev => (prev < filteredCustomers.length - 1 ? prev + 1 : prev));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setCustomerActiveIndex(prev => (prev > 0 ? prev - 1 : prev));
+    } else if (e.key === "PageDown") {
+      e.preventDefault();
+      setCustomerActiveIndex(prev => Math.min(prev + 5, filteredCustomers.length - 1));
+    } else if (e.key === "PageUp") {
+      e.preventDefault();
+      setCustomerActiveIndex(prev => Math.max(prev - 5, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (filteredCustomers[customerActiveIndex]) {
+        const c = filteredCustomers[customerActiveIndex];
+        setFormData({...formData, customerId: c._id, customerName: c.name, customerCode: c.code, customerAddress: c.address, customerTelephone: c.phone, customerBalance: 0});
+        setShowCustomerSearch(false);
+      }
+    } else if (e.key === "Escape") {
+      setShowCustomerSearch(false);
     }
   };
 
@@ -500,7 +541,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                 </div>
                 <div className="flex items-center gap-2">
                   <label className="text-xs font-bold w-24">Range KMs</label>
-                  <input type="number" value={formData.rangeKms} onChange={e => setFormData({...formData, rangeKms: Number(e.target.value)})} className="flex-1 border border-[#cbd5e1] rounded px-2 py-1 text-xs outline-none" />
+                  <input type="number" value={formData.rangeKms} onChange={e => { const v = Number(e.target.value) || 0; if (v >= 0) setFormData({...formData, rangeKms: v, endKms: formData.startKms + v}); }} className="flex-1 border border-[#cbd5e1] rounded px-2 py-1 text-xs outline-none" />
                 </div>
                 <div className="flex items-center gap-2">
                   <label className="text-xs font-bold w-24">Payment Terms</label>
@@ -517,8 +558,8 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                 </div>
                 <div className="grid grid-cols-2 gap-2 pt-2">
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2"><label className="text-[10px] font-black w-20">Start KMs</label><input type="number" value={formData.startKms} onChange={e => { const v = Number(e.target.value); setFormData({...formData, startKms: v, rangeKms: Math.max(0, formData.endKms - v)}); }} className="flex-1 border border-[#cbd5e1] rounded px-2 py-1 text-xs" /></div>
-                    <div className="flex items-center gap-2"><label className="text-[10px] font-black w-20">End KMs</label><input type="number" value={formData.endKms} onChange={e => { const v = Number(e.target.value); setFormData({...formData, endKms: v, rangeKms: Math.max(0, v - formData.startKms)}); }} className="flex-1 border border-[#cbd5e1] rounded px-2 py-1 text-xs" /></div>
+                    <div className="flex items-center gap-2"><label className="text-[10px] font-black w-20">Start KMs</label><input type="number" value={formData.startKms} onChange={e => { const v = Number(e.target.value) || 0; if (v >= 0) setFormData({...formData, startKms: v, endKms: v + formData.rangeKms}); }} className="flex-1 border border-[#cbd5e1] rounded px-2 py-1 text-xs" /></div>
+                    <div className="flex items-center gap-2"><label className="text-[10px] font-black w-20">End KMs</label><input type="number" value={formData.endKms} onChange={e => { const v = Number(e.target.value) || 0; if (v >= 0) setFormData({...formData, endKms: v, rangeKms: Math.max(0, v - formData.startKms)}); }} className="flex-1 border border-[#cbd5e1] rounded px-2 py-1 text-xs" /></div>
                     <div className="flex items-center gap-2"><label className="text-[10px] font-black w-20">Limit</label><input type="number" value={formData.oilGaugeLimit} onChange={e => setFormData({...formData, oilGaugeLimit: Number(e.target.value)})} className="flex-1 border border-[#cbd5e1] rounded px-2 py-1 text-xs" /></div>
                   </div>
                   <div className="flex flex-col justify-end">
@@ -547,7 +588,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                          type="text" 
                          placeholder="Search Customer..." 
                          value={formData.customerName} 
-                         onFocus={(e) => { e.target.select(); setShowCustomerSearch(true); }}
+                         onFocus={(e) => { e.target.select(); setShowCustomerSearch(true); setCustomerActiveIndex(0); }}
                          onChange={e => { 
                            setFormData({
                              ...formData, 
@@ -558,18 +599,27 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                              customerTelephone: ""
                            }); 
                            setShowCustomerSearch(true); 
+                           setCustomerActiveIndex(0);
                          }} 
+                         onKeyDown={(e) => handleCustomerKeyDown(e, formData.customerId ? customers : customers.filter(c => c.name.toLowerCase().includes(formData.customerName.toLowerCase())))}
                          className="w-full border border-[#eab308] rounded px-2 py-1 text-xs outline-none font-bold" 
                        />
                        {showCustomerSearch && (
                          <>
                            <div className="fixed inset-0 z-40" onClick={() => setShowCustomerSearch(false)} />
                            <div className="absolute top-full left-0 w-full bg-white border border-slate-200 rounded shadow-xl z-50 max-h-48 overflow-auto mt-1">
-                              {(formData.customerId ? customers : customers.filter(c => c.name.toLowerCase().includes(formData.customerName.toLowerCase()))).map(c => (
-                                <div key={c._id} className="px-3 py-2 text-xs hover:bg-yellow-50 cursor-pointer font-bold border-b relative z-50 text-slate-800" onClick={() => {
-                                  setFormData({...formData, customerId: c._id, customerName: c.name, customerCode: c.code, customerAddress: c.address, customerTelephone: c.phone, customerBalance: 0});
-                                  setShowCustomerSearch(false);
-                                }}>{c.code} - {c.name}</div>
+                              {(formData.customerId ? customers : customers.filter(c => c.name.toLowerCase().includes(formData.customerName.toLowerCase()))).map((c, idx) => (
+                                <div 
+                                  key={c._id} 
+                                  ref={idx === customerActiveIndex ? (el: any) => el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }) : undefined}
+                                  className={`px-3 py-2 text-xs cursor-pointer font-bold border-b relative z-50 text-slate-800 transition-all ${idx === customerActiveIndex ? 'bg-yellow-100' : 'hover:bg-yellow-50'}`}
+                                  onClick={() => {
+                                    setFormData({...formData, customerId: c._id, customerName: c.name, customerCode: c.code, customerAddress: c.address, customerTelephone: c.phone, customerBalance: 0});
+                                    setShowCustomerSearch(false);
+                                  }}
+                                >
+                                  {c.code} - {c.name}
+                                </div>
                               ))}
                            </div>
                          </>
@@ -596,6 +646,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                       <th className="px-2 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-20 text-center">Gals</th>
                       <th className="px-2 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-20 text-center">Ltrs</th>
                       <th className="px-3 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-24 text-right">Rate Ctn</th>
+                      <th className="px-3 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-24 text-right">Purch Price</th>
                       <th className="px-3 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-28 text-right">Gross Amt</th>
                       <th className="px-3 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-16 text-center">Disc%</th>
                       <th className="px-3 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-24 text-right">Discount</th>
@@ -650,6 +701,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                         <td className="p-0 border-r"><input type="number" value={line.gallons} onChange={e => updateItem(line.id, "gallons", parseFloat(e.target.value) || 0)} className="w-full px-2 py-2 text-xs font-black text-center outline-none bg-transparent" /></td>
                         <td className="p-0 border-r"><input type="number" value={line.liters} onChange={e => updateItem(line.id, "liters", parseFloat(e.target.value) || 0)} className="w-full px-2 py-2 text-xs font-black text-center outline-none bg-transparent" /></td>
                         <td className="p-0 border-r"><input type="number" value={line.ratePerCtn} onChange={e => updateItem(line.id, "ratePerCtn", parseFloat(e.target.value) || 0)} className="w-full px-3 py-2 text-xs font-black text-right outline-none bg-transparent" /></td>
+                        <td className="px-3 py-2 text-xs font-black text-right border-r font-mono text-slate-500 bg-slate-50">{line.purchasePrice.toFixed(2)}</td>
                         <td className="px-3 py-2 text-xs font-black text-right border-r font-mono">{line.grossAmount.toFixed(2)}</td>
                         <td className="p-0 border-r"><input type="number" value={line.discPercent} onChange={e => updateItem(line.id, "discPercent", parseFloat(e.target.value) || 0)} className="w-full px-2 py-2 text-xs font-black text-center outline-none bg-transparent" /></td>
                         <td className="px-3 py-2 text-xs font-black text-right border-r font-mono text-rose-600">{line.discount.toFixed(2)}</td>
@@ -658,7 +710,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                       </tr>
                       );
                     })}
-                    <tr className="bg-slate-50"><td colSpan={11} className="p-2"><button onClick={addItem} className="flex items-center gap-1 text-[10px] font-black text-blue-600 uppercase"><PlusCircle size={14}/> Add New Row</button></td></tr>
+                    <tr className="bg-slate-50"><td colSpan={12} className="p-2"><button onClick={addItem} className="flex items-center gap-1 text-[10px] font-black text-blue-600 uppercase"><PlusCircle size={14}/> Add New Row</button></td></tr>
                   </tbody>
                 </table>
              </div>
@@ -769,8 +821,9 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
            <div className="col-span-12 lg:col-span-5 bg-slate-800 text-white p-6 rounded border border-slate-900 shadow-xl space-y-4">
               <div className="space-y-3">
                  <div className="flex justify-between items-center border-b border-slate-700 pb-2"><span className="text-xs font-bold text-slate-400 uppercase">Gross Total</span><span className="text-lg font-black font-mono">{grossTotal.toFixed(2)}</span></div>
-                 <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-400 uppercase">Additional Discount</span><input type="number" value={formData.additionalDiscount} onChange={e => setFormData({...formData, additionalDiscount: Number(e.target.value)})} className="w-32 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-right font-black font-mono text-rose-400 outline-none" /></div>
+                 <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-400 uppercase">Additional Discount</span><input type="number" value={formData.additionalDiscount} onChange={e => { const v = Number(e.target.value) || 0; if (v <= grossTotal) setFormData({...formData, additionalDiscount: v}); }} className="w-32 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-right font-black font-mono text-rose-400 outline-none" /></div>
                  <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-400 uppercase">Car Service</span><input type="number" value={formData.carService} onChange={e => setFormData({...formData, carService: Number(e.target.value)})} className="w-32 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-right font-black font-mono text-blue-300 outline-none" /></div>
+                 <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-400 uppercase">Car Wash Discount</span><input type="number" value={formData.carWashDiscount} onChange={e => { const v = Number(e.target.value) || 0; if (v <= Number(formData.carService)) setFormData({...formData, carWashDiscount: v}); }} className="w-32 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-right font-black font-mono text-rose-300 outline-none" /></div>
                  <div className="flex justify-between items-center bg-slate-700/50 p-3 rounded-lg border border-slate-600 mt-4"><span className="text-sm font-black text-white uppercase tracking-wider">Net Total</span><span className="text-3xl font-black font-mono text-yellow-400">{netTotal.toFixed(2)}</span></div>
                  <div className="flex justify-between items-center pt-4"><span className="text-xs font-bold text-slate-400 uppercase">Amount Received</span><input type="number" value={formData.amountReceived} onChange={e => setFormData({...formData, amountReceived: Number(e.target.value)})} className="w-40 bg-white text-slate-900 border-none rounded px-3 py-2 text-right text-lg font-black font-mono outline-none" /></div>
                  <div className="flex justify-between items-center pt-2"><span className="text-xs font-bold text-slate-400 uppercase">Balance</span><span className={`text-xl font-black font-mono ${balanceAmount > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>{balanceAmount.toFixed(2)}</span></div>
