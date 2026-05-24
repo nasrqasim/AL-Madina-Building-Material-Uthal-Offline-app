@@ -142,8 +142,8 @@ export default function BillOfMaterialsForm({ onClose, initialData }: BillOfMate
         if (field === "itemId") {
           const selected = availableItems.find(ai => ai._id === value);
           if (selected) {
-            updated.unitCost = selected.purchaseRate || 0;
-            updated.uom = "Units";
+            updated.unitCost = selected.purchaseRate || selected.rate || 0;
+            updated.uom = selected.unit?.name || selected.unit || "Units";
           }
         }
 
@@ -254,14 +254,14 @@ export default function BillOfMaterialsForm({ onClose, initialData }: BillOfMate
                     <td className="px-8 py-4 text-xs font-bold text-slate-300 text-center">{index + 1}</td>
                     <td className="px-4 py-4">
                       <ItemSearchInput
-                        value={availableItems.find(ai => ai._id === item.itemId)?.code || ""}
+                        value={availableItems.find(ai => ai._id === item.itemId)?.name || ""}
                         availableItems={availableItems}
                         onSelect={(selected) => updateComponent(item.id, "itemId", selected._id)}
                         onChange={(val) => {
-                          const matched = availableItems.find(ai => ai.code === val);
+                          const matched = availableItems.find(ai => ai.name === val || ai.code === val);
                           if (matched) updateComponent(item.id, "itemId", matched._id);
                         }}
-                        placeholder="Search item..."
+                        placeholder="Search component item..."
                       />
                     </td>
                     <td className="px-8 py-4">

@@ -378,11 +378,7 @@ export default function GoodsReceiptForm({ onClose, onSave, initialData }: Goods
                       <ItemSearchInput
                         value={item.itemCode || ""}
                         availableItems={availableItems}
-                        onSelect={(selected) => {
-                          updateItem(item.id, "itemId", selected._id);
-                          updateItem(item.id, "itemCode", selected.code);
-                          updateItem(item.id, "description", selected.name);
-                        }}
+                        onSelect={(selected) => updateItem(item.id, "itemId", selected._id)}
                         onChange={(val) => updateItem(item.id, "itemCode", val)}
                         placeholder="Search item..."
                       />

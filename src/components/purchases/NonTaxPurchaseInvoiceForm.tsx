@@ -140,15 +140,21 @@ export default function NonTaxPurchaseInvoiceForm({ onClose, onSave, initialData
       if (i.id === id) {
         let updated = { ...i, [field]: value };
         
-        if (field === "cartons") {
-          updated.gallons = value * 4;
-          updated.liters = value * 16;
-        } else if (field === "gallons") {
-          updated.cartons = value / 4;
-          updated.liters = value * 4;
-        } else if (field === "liters") {
-          updated.cartons = value / 16;
-          updated.gallons = value / 4;
+        if (field === "cartons" || field === "gallons" || field === "liters") {
+          const selItem = availableItems.find(ai => ai._id === i.itemId);
+          const isFltr = selItem?.name?.toLowerCase().includes("filter") || selItem?.name?.toLowerCase().includes("fliter");
+          const galsInCtn = isFltr ? 1 : (selItem?.gallonsInCtn || 4);
+          const ltrsInCtn = isFltr ? 1 : (selItem?.litersInCtn || 16);
+          if (field === "cartons") {
+            updated.gallons = value * galsInCtn;
+            updated.liters = value * ltrsInCtn;
+          } else if (field === "gallons") {
+            updated.cartons = galsInCtn > 0 ? value / galsInCtn : 0;
+            updated.liters = galsInCtn > 0 ? (value / galsInCtn) * ltrsInCtn : 0;
+          } else if (field === "liters") {
+            updated.cartons = ltrsInCtn > 0 ? value / ltrsInCtn : 0;
+            updated.gallons = ltrsInCtn > 0 ? (value / ltrsInCtn) * galsInCtn : 0;
+          }
         }
 
         if (field === "itemId") {
@@ -156,7 +162,13 @@ export default function NonTaxPurchaseInvoiceForm({ onClose, onSave, initialData
           if (selected) {
             updated.itemCode = selected.code;
             updated.description = selected.name;
-            updated.unitPrice = selected.purchaseRate || 0;
+            updated.unitPrice = selected.purchaseRate || selected.rate || 0;
+            const isFilter = selected.name?.toLowerCase().includes("filter") || selected.name?.toLowerCase().includes("fliter");
+            const gallonsInCtn = isFilter ? 1 : (selected.gallonsInCtn || 4);
+            const litersInCtn = isFilter ? 1 : (selected.litersInCtn || 16);
+            updated.cartons = 1;
+            updated.gallons = gallonsInCtn;
+            updated.liters = litersInCtn;
           }
         }
 
@@ -406,11 +418,7 @@ export default function NonTaxPurchaseInvoiceForm({ onClose, onSave, initialData
                       <ItemSearchInput
                         value={item.itemCode || ""}
                         availableItems={availableItems}
-                        onSelect={(selected) => {
-                          updateItem(item.id, "itemId", selected._id);
-                          updateItem(item.id, "itemCode", selected.code);
-                          updateItem(item.id, "description", selected.name);
-                        }}
+                        onSelect={(selected) => updateItem(item.id, "itemId", selected._id)}
                         onChange={(val) => updateItem(item.id, "itemCode", val)}
                         placeholder="Search item..."
                       />

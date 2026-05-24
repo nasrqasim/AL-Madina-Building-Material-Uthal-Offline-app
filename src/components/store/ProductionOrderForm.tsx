@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import ItemSearchInput from "@/components/erp/ui/ItemSearchInput";
+import ItemDetailsPanel from "@/components/erp/ui/ItemDetailsPanel";
 import { Plus, Trash2, Save, ArrowLeft, X, CheckCircle2, Package, Settings, Activity, DollarSign, Clock, Layers } from "lucide-react";
 
 interface ComponentLine {
@@ -25,9 +26,27 @@ interface ProductionOrderFormProps {
 }
 
 export default function ProductionOrderForm({ onClose, initialData }: ProductionOrderFormProps) {
-  const [components, setComponents] = useState<ComponentLine[]>([
-    { id: "1", itemId: "", uom: "", isCritical: false, estQty: 0, estCost: 0, estTotal: 0, actQty: 0, actCost: 0, actTotal: 0 }
-  ]);
+  const [components, setComponents] = useState<ComponentLine[]>(() => {
+    if (initialData?.lines?.length > 0) {
+      return initialData.lines.map((l: any, i: number) => ({
+        id: i.toString(),
+        itemId: l.itemId?._id || l.itemId || "",
+        itemCode: l.itemId?.code || "",
+        description: l.description || "",
+        uom: l.uom || "",
+        isCritical: l.isCritical || false,
+        estQty: l.estQty !== undefined ? l.estQty : (l.qty || 0),
+        estCost: l.estCost !== undefined ? l.estCost : (l.rate || 0),
+        estTotal: l.estTotal !== undefined ? l.estTotal : ((l.qty || 0) * (l.rate || 0)),
+        actQty: l.actQty !== undefined ? l.actQty : (l.qty || 0),
+        actCost: l.actCost !== undefined ? l.actCost : (l.rate || 0),
+        actTotal: l.actTotal !== undefined ? l.actTotal : ((l.qty || 0) * (l.rate || 0))
+      }));
+    }
+    return [{ id: "1", itemId: "", uom: "", isCritical: false, estQty: 0, estCost: 0, estTotal: 0, actQty: 0, actCost: 0, actTotal: 0 }];
+  });
+  
+  const [selectedLineId, setSelectedLineId] = useState<string | null>(initialData?.lines?.[0]?._id || "1");
   
   const [formData, setFormData] = useState({
     docNo: initialData?.invoiceNo || "Auto-generated",
@@ -47,6 +66,9 @@ export default function ProductionOrderForm({ onClose, initialData }: Production
   const [locations, setLocations] = useState<any[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [availableItems, setAvailableItems] = useState<any[]>([]);
+  
+  const [prevBomId, setPrevBomId] = useState(formData.bomId);
+  const [prevPlannedQty, setPrevPlannedQty] = useState(formData.plannedQty);
 
   useEffect(() => {
     fetch("/api/invoices?type=bill_of_materials")
@@ -61,6 +83,51 @@ export default function ProductionOrderForm({ onClose, initialData }: Production
       .then(r => r.json())
       .then(data => { if (data.ok) setAvailableItems(data.data); });
   }, []);
+
+  useEffect(() => {
+    if (!formData.bomId) return;
+    const selectedBOM = boms.find(b => b._id === formData.bomId);
+    if (selectedBOM && selectedBOM.lines) {
+      const isBomChanged = formData.bomId !== prevBomId;
+      const isQtyChanged = formData.plannedQty !== prevPlannedQty;
+      
+      if (isBomChanged || isQtyChanged) {
+        setPrevBomId(formData.bomId);
+        setPrevPlannedQty(formData.plannedQty);
+        
+        const mapped = selectedBOM.lines.map((l: any, idx: number) => {
+          const itemObj = availableItems.find(ai => ai._id === (l.itemId?._id || l.itemId));
+          const estQty = (l.qty || 0) * (formData.plannedQty || 0);
+          const estCost = l.rate || 0;
+          const estTotal = estQty * estCost;
+          return {
+            id: idx.toString(),
+            itemId: l.itemId?._id || l.itemId || "",
+            itemCode: itemObj?.code || "",
+            description: itemObj?.name || l.description || "",
+            uom: l.uom || itemObj?.unit?.name || itemObj?.unit || "Units",
+            isCritical: false,
+            estQty,
+            estCost,
+            estTotal,
+            actQty: estQty,
+            actCost: estCost,
+            actTotal: estTotal
+          };
+        });
+        setComponents(mapped);
+        if (mapped.length > 0) {
+          setSelectedLineId(mapped[0].id);
+        }
+      }
+    }
+  }, [formData.bomId, formData.plannedQty, boms, availableItems, prevBomId, prevPlannedQty]);
+
+  const selectedItemDetails = useMemo(() => {
+    const activeLine = components.find(c => c.id === selectedLineId);
+    if (!activeLine || !activeLine.itemId) return null;
+    return availableItems.find(ai => ai._id === activeLine.itemId) || null;
+  }, [selectedLineId, components, availableItems]);
 
   const handleSave = async (submitStatus: string) => {
     if (!formData.bomId) return window.alert("Please select BOM");
@@ -80,8 +147,21 @@ export default function ProductionOrderForm({ onClose, initialData }: Production
         actualQty: formData.actualQty,
         partyId: "000000000000000000000000",
         notes: formData.notes,
-        status: submitStatus,
-        lines: selectedBOM?.lines || []
+        status: submitStatus.toLowerCase(),
+        lines: components.map(c => ({
+          itemId: c.itemId,
+          description: c.description || "",
+          qty: c.estQty,
+          uom: c.uom,
+          rate: c.estCost,
+          netAmount: c.estTotal,
+          estQty: c.estQty,
+          estCost: c.estCost,
+          estTotal: c.estTotal,
+          actQty: c.actQty,
+          actCost: c.actCost,
+          actTotal: c.actTotal
+        }))
       };
 
       const url = initialData?._id ? `/api/invoices/${initialData._id}` : "/api/invoices";
@@ -107,11 +187,18 @@ export default function ProductionOrderForm({ onClose, initialData }: Production
     }
   };
   
-  const addComponent = () => setComponents([...components, { 
-    id: Date.now().toString(), itemId: "", uom: "", isCritical: false, estQty: 0, estCost: 0, estTotal: 0, actQty: 0, actCost: 0, actTotal: 0 
-  }]);
+  const addComponent = () => {
+    const newId = Date.now().toString();
+    setComponents([...components, { 
+      id: newId, itemId: "", uom: "", isCritical: false, estQty: 0, estCost: 0, estTotal: 0, actQty: 0, actCost: 0, actTotal: 0 
+    }]);
+    setSelectedLineId(newId);
+  };
   
-  const removeComponent = (id: string) => setComponents(components.filter(c => c.id !== id));
+  const removeComponent = (id: string) => {
+    setComponents(components.filter(c => c.id !== id));
+    if (selectedLineId === id) setSelectedLineId(null);
+  };
   
   const updateComponent = (id: string, field: keyof ComponentLine, value: any) => {
     setComponents(components.map(c => {
@@ -123,9 +210,11 @@ export default function ProductionOrderForm({ onClose, initialData }: Production
           if (selected) {
             updated.itemCode = selected.code;
             updated.description = selected.name;
-            updated.uom = "Units";
-            updated.estCost = selected.purchaseRate || 0;
-            updated.actCost = selected.purchaseRate || 0;
+            updated.uom = selected.unit?.name || selected.unit || "Units";
+            updated.estCost = selected.purchaseRate || selected.rate || 0;
+            updated.actCost = selected.purchaseRate || selected.rate || 0;
+            updated.estTotal = (updated.estQty || 0) * updated.estCost;
+            updated.actTotal = (updated.actQty || 0) * updated.actCost;
           }
         }
 
@@ -244,78 +333,87 @@ export default function ProductionOrderForm({ onClose, initialData }: Production
               <Plus size={14} className="mr-1.5" /> Add Row
             </button>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-[11px]">
-              <thead className="bg-slate-50 dark:bg-slate-800/50/50 border-b border-slate-100 dark:border-slate-800">
-                <tr>
-                  <th rowSpan={2} className="px-4 py-4 font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-8 text-center">#</th>
-                  <th rowSpan={2} className="px-4 py-4 font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest min-w-[150px]">Component</th>
-                  <th rowSpan={2} className="px-4 py-4 font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-16 text-center">UOM</th>
-                  <th rowSpan={2} className="px-2 py-4 font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-8 text-center">C</th>
-                  <th colSpan={3} className="px-4 py-2 font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center border-l border-slate-100 dark:border-slate-800">Estimated</th>
-                  <th colSpan={3} className="px-4 py-2 font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center border-l border-slate-100 dark:border-slate-800">Actual</th>
-                  <th rowSpan={2} className="px-4 py-4 w-8 text-center"></th>
-                </tr>
-                <tr className="bg-slate-50 dark:bg-slate-800/50/30 border-b border-slate-100 dark:border-slate-800">
-                  <th className="px-2 py-2 font-bold text-slate-400 dark:text-slate-500 text-center border-l border-slate-100 dark:border-slate-800">QTY</th>
-                  <th className="px-2 py-2 font-bold text-slate-400 dark:text-slate-500 text-center">COST</th>
-                  <th className="px-2 py-2 font-bold text-slate-400 dark:text-slate-500 text-center">TOTAL</th>
-                  <th className="px-2 py-2 font-bold text-slate-400 dark:text-slate-500 text-center border-l border-slate-100 dark:border-slate-800">QTY</th>
-                  <th className="px-2 py-2 font-bold text-slate-400 dark:text-slate-500 text-center">COST</th>
-                  <th className="px-2 py-2 font-bold text-slate-400 dark:text-slate-500 text-center">TOTAL</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50 font-bold">
-                {components.map((item, index) => (
-                  <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors">
-                    <td className="px-4 py-3 font-bold text-slate-400 dark:text-slate-500 text-center">{index + 1}</td>
-                    <td className="px-4 py-3">
-                      <ItemSearchInput
-                        value={availableItems.find(ai => ai._id === item.itemId)?.code || item.itemCode || ""}
-                        availableItems={availableItems}
-                        onSelect={(selected) => {
-                          updateComponent(item.id, "itemId", selected._id);
-                        }}
-                        onChange={(val) => {
-                          const matched = availableItems.find(ai => ai.code === val);
-                          if (matched) updateComponent(item.id, "itemId", matched._id);
-                        }}
-                        placeholder="Search item..."
-                      />
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <input value={item.uom} onChange={(e) => updateComponent(item.id, "uom", e.target.value)} className="w-full bg-transparent text-center focus:outline-none" placeholder="-" />
-                    </td>
-                    <td className="px-2 py-3 text-center">
-                      <input type="checkbox" checked={item.isCritical} onChange={(e) => updateComponent(item.id, "isCritical", e.target.checked)} className="rounded border-slate-300 text-maroon-800" />
-                    </td>
-                    <td className="px-2 py-3 text-center border-l border-slate-100 dark:border-slate-800">
-                      <input type="number" value={item.estQty} onChange={(e) => updateComponent(item.id, "estQty", parseFloat(e.target.value) || 0)} className="w-full bg-transparent text-center focus:outline-none" />
-                    </td>
-                    <td className="px-2 py-3 text-center">
-                      <input type="number" value={item.estCost} onChange={(e) => updateComponent(item.id, "estCost", parseFloat(e.target.value) || 0)} className="w-full bg-transparent text-center focus:outline-none" />
-                    </td>
-                    <td className="px-2 py-3 text-right bg-slate-50 dark:bg-slate-800/50/20">
-                      <span className="text-slate-900 dark:text-white">{item.estTotal.toLocaleString()}</span>
-                    </td>
-                    <td className="px-2 py-3 text-center border-l border-slate-100 dark:border-slate-800">
-                      <input type="number" value={item.actQty} onChange={(e) => updateComponent(item.id, "actQty", parseFloat(e.target.value) || 0)} className="w-full bg-transparent text-center focus:outline-none text-maroon-800 font-black" />
-                    </td>
-                    <td className="px-2 py-3 text-center">
-                      <input type="number" value={item.actCost} onChange={(e) => updateComponent(item.id, "actCost", parseFloat(e.target.value) || 0)} className="w-full bg-transparent text-center focus:outline-none" />
-                    </td>
-                    <td className="px-2 py-3 text-right bg-maroon-50/20">
-                      <span className="text-maroon-800 font-black">{item.actTotal.toLocaleString()}</span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <button onClick={() => removeComponent(item.id)} className="p-1.5 text-slate-300 hover:text-red-500 rounded-lg transition-all">
-                        <Trash2 size={14} />
-                      </button>
-                    </td>
+          <div className="grid grid-cols-12 gap-6 p-6">
+            <div className="col-span-12 lg:col-span-9 overflow-x-auto">
+              <table className="w-full text-left text-[11px]">
+                <thead className="bg-slate-50 dark:bg-slate-800/50/50 border-b border-slate-100 dark:border-slate-800">
+                  <tr>
+                    <th rowSpan={2} className="px-4 py-4 font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-8 text-center">#</th>
+                    <th rowSpan={2} className="px-4 py-4 font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest min-w-[150px]">Component</th>
+                    <th rowSpan={2} className="px-4 py-4 font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-16 text-center">UOM</th>
+                    <th rowSpan={2} className="px-2 py-4 font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-8 text-center">C</th>
+                    <th colSpan={3} className="px-4 py-2 font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center border-l border-slate-100 dark:border-slate-800">Estimated</th>
+                    <th colSpan={3} className="px-4 py-2 font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center border-l border-slate-100 dark:border-slate-800">Actual</th>
+                    <th rowSpan={2} className="px-4 py-4 w-8 text-center"></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                  <tr className="bg-slate-50 dark:bg-slate-800/50/30 border-b border-slate-100 dark:border-slate-800">
+                    <th className="px-2 py-2 font-bold text-slate-400 dark:text-slate-500 text-center border-l border-slate-100 dark:border-slate-800">QTY</th>
+                    <th className="px-2 py-2 font-bold text-slate-400 dark:text-slate-500 text-center">COST</th>
+                    <th className="px-2 py-2 font-bold text-slate-400 dark:text-slate-500 text-center">TOTAL</th>
+                    <th className="px-2 py-2 font-bold text-slate-400 dark:text-slate-500 text-center border-l border-slate-100 dark:border-slate-800">QTY</th>
+                    <th className="px-2 py-2 font-bold text-slate-400 dark:text-slate-500 text-center">COST</th>
+                    <th className="px-2 py-2 font-bold text-slate-400 dark:text-slate-500 text-center">TOTAL</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50 font-bold">
+                  {components.map((item, index) => (
+                    <tr 
+                      key={item.id} 
+                      onClick={() => setSelectedLineId(item.id)}
+                      className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors cursor-pointer ${selectedLineId === item.id ? "bg-slate-100/80 dark:bg-slate-800/80" : ""}`}
+                    >
+                      <td className="px-4 py-3 font-bold text-slate-400 dark:text-slate-500 text-center">{index + 1}</td>
+                      <td className="px-4 py-3">
+                        <ItemSearchInput
+                          value={availableItems.find(ai => ai._id === item.itemId)?.code || item.itemCode || ""}
+                          availableItems={availableItems}
+                          onSelect={(selected) => {
+                            updateComponent(item.id, "itemId", selected._id);
+                          }}
+                          onChange={(val) => {
+                            const matched = availableItems.find(ai => ai.code === val);
+                            if (matched) updateComponent(item.id, "itemId", matched._id);
+                          }}
+                          placeholder="Search item..."
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <input value={item.uom} onChange={(e) => updateComponent(item.id, "uom", e.target.value)} onFocus={() => setSelectedLineId(item.id)} className="w-full bg-transparent text-center focus:outline-none" placeholder="-" />
+                      </td>
+                      <td className="px-2 py-3 text-center">
+                        <input type="checkbox" checked={item.isCritical} onChange={(e) => updateComponent(item.id, "isCritical", e.target.checked)} className="rounded border-slate-300 text-maroon-800" />
+                      </td>
+                      <td className="px-2 py-3 text-center border-l border-slate-100 dark:border-slate-800">
+                        <input type="number" value={item.estQty} onChange={(e) => updateComponent(item.id, "estQty", parseFloat(e.target.value) || 0)} onFocus={() => setSelectedLineId(item.id)} className="w-full bg-transparent text-center focus:outline-none" />
+                      </td>
+                      <td className="px-2 py-3 text-center">
+                        <input type="number" value={item.estCost} onChange={(e) => updateComponent(item.id, "estCost", parseFloat(e.target.value) || 0)} onFocus={() => setSelectedLineId(item.id)} className="w-full bg-transparent text-center focus:outline-none" />
+                      </td>
+                      <td className="px-2 py-3 text-right bg-slate-50 dark:bg-slate-800/50/20">
+                        <span className="text-slate-900 dark:text-white">{item.estTotal.toLocaleString()}</span>
+                      </td>
+                      <td className="px-2 py-3 text-center border-l border-slate-100 dark:border-slate-800">
+                        <input type="number" value={item.actQty} onChange={(e) => updateComponent(item.id, "actQty", parseFloat(e.target.value) || 0)} onFocus={() => setSelectedLineId(item.id)} className="w-full bg-transparent text-center focus:outline-none text-maroon-800 font-black" />
+                      </td>
+                      <td className="px-2 py-3 text-center">
+                        <input type="number" value={item.actCost} onChange={(e) => updateComponent(item.id, "actCost", parseFloat(e.target.value) || 0)} onFocus={() => setSelectedLineId(item.id)} className="w-full bg-transparent text-center focus:outline-none" />
+                      </td>
+                      <td className="px-2 py-3 text-right bg-maroon-50/20">
+                        <span className="text-maroon-800 font-black">{item.actTotal.toLocaleString()}</span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <button onClick={() => removeComponent(item.id)} className="p-1.5 text-slate-300 hover:text-red-500 rounded-lg transition-all">
+                          <Trash2 size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="col-span-12 lg:col-span-3">
+              <ItemDetailsPanel item={selectedItemDetails} type="store" />
+            </div>
           </div>
           <div className="p-4 bg-slate-50 dark:bg-slate-800/50/50 flex flex-col items-end space-y-1 font-black uppercase tracking-tighter text-[10px]">
             <div className="flex justify-between w-64 text-slate-400 dark:text-slate-500">

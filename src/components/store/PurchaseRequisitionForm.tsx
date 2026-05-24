@@ -82,6 +82,14 @@ export default function PurchaseRequisitionForm({ onClose, initialData }: Purcha
     setItems(items.map(i => {
       if (i.id === id) {
         const updated = { ...i, [field]: value };
+        if (field === "itemId") {
+          const selected = availableItems.find(ai => ai._id === value);
+          if (selected) {
+            updated.description = selected.name;
+            updated.uom = selected.unit?.name || selected.unit || "Units";
+            updated.estUnitPrice = selected.purchaseRate || selected.rate || 0;
+          }
+        }
         updated.total = updated.qty * updated.estUnitPrice;
         return updated;
       }
@@ -245,12 +253,8 @@ export default function PurchaseRequisitionForm({ onClose, initialData }: Purcha
                       <ItemSearchInput
                         value={item.description || ""}
                         availableItems={availableItems}
-                        onSelect={(selected) => {
-                          updateItem(item.id, "itemId", selected._id);
-                        }}
-                        onChange={(val) => {
-                          updateItem(item.id, "description", val);
-                        }}
+                        onSelect={(selected) => updateItem(item.id, "itemId", selected._id)}
+                        onChange={(val) => updateItem(item.id, "description", val)}
                         placeholder="Search item..."
                       />
                     </td>

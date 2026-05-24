@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import ItemSearchInput from "@/components/erp/ui/ItemSearchInput";
 import { 
   Plus, 
   Trash2, 
@@ -19,6 +20,8 @@ import {
 
 interface IGPItem {
   id: string;
+  itemId?: string;
+  itemCode?: string;
   description: string;
   qty: number;
   uom: string;
@@ -34,12 +37,14 @@ export default function InwardGatePassForm({ onClose, initialData }: InwardGateP
     if (initialData?.lines?.length > 0) {
       return initialData.lines.map((l: any, i: number) => ({
         id: i.toString(),
+        itemId: l.itemId?._id || l.itemId || "",
+        itemCode: l.itemId?.code || "",
         description: l.description || "",
         qty: l.qty || 1,
         uom: l.uom || ""
       }));
     }
-    return [{ id: "1", description: "", qty: 1, uom: "" }];
+    return [{ id: "1", itemId: "", itemCode: "", description: "", qty: 1, uom: "" }];
   });
   
   const [formData, setFormData] = useState({
@@ -56,6 +61,7 @@ export default function InwardGatePassForm({ onClose, initialData }: InwardGateP
   });
 
   const [locations, setLocations] = useState<any[]>([]);
+  const [availableItems, setAvailableItems] = useState<any[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -63,6 +69,12 @@ export default function InwardGatePassForm({ onClose, initialData }: InwardGateP
       .then(r => r.json())
       .then(data => {
         if (data.ok) setLocations(data.data);
+      });
+
+    fetch("/api/items")
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok) setAvailableItems(data.data);
       });
   }, []);
 
@@ -85,7 +97,7 @@ export default function InwardGatePassForm({ onClose, initialData }: InwardGateP
         notes: formData.notes,
         status: submitStatus,
         lines: items.map(i => ({
-          itemId: "000000000000000000000000", // Dummy ID to pass cached schema validation
+          itemId: i.itemId || "000000000000000000000000",
           description: i.description,
           qty: i.qty,
           uom: i.uom
@@ -115,11 +127,25 @@ export default function InwardGatePassForm({ onClose, initialData }: InwardGateP
     }
   };
 
-  const addItem = () => setItems([...items, { id: Date.now().toString(), description: "", qty: 1, uom: "" }]);
+  const addItem = () => setItems([...items, { id: Date.now().toString(), itemId: "", itemCode: "", description: "", qty: 1, uom: "" }]);
   const removeItem = (id: string) => setItems(items.filter(i => i.id !== id));
   
   const updateItem = (id: string, field: keyof IGPItem, value: any) => {
-    setItems(items.map(i => i.id === id ? { ...i, [field]: value } : i));
+    setItems(items.map(i => {
+      if (i.id === id) {
+        let updated = { ...i, [field]: value };
+        if (field === "itemId") {
+          const selected = availableItems.find(ai => ai._id === value);
+          if (selected) {
+            updated.itemCode = selected.code;
+            updated.description = selected.name;
+            updated.uom = selected.unit || "PCS";
+          }
+        }
+        return updated;
+      }
+      return i;
+    }));
   };
 
   return (
@@ -213,7 +239,8 @@ export default function InwardGatePassForm({ onClose, initialData }: InwardGateP
               <thead className="bg-slate-50 dark:bg-slate-800/50/50 border-b border-slate-100 dark:border-slate-800">
                 <tr>
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-12 text-center">#</th>
-                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest min-w-[300px]">Item Description</th>
+                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-40">Item Code</th>
+                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest min-w-[200px]">Item Description</th>
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-32 text-center">Qty</th>
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-32 text-center">Unit</th>
                   <th className="px-8 py-4 w-12 text-center"></th>
@@ -223,6 +250,15 @@ export default function InwardGatePassForm({ onClose, initialData }: InwardGateP
                 {items.map((item, index) => (
                   <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/30 transition-colors group">
                     <td className="px-8 py-4 text-xs font-bold text-slate-300 text-center">{index + 1}</td>
+                    <td className="px-4 py-4">
+                      <ItemSearchInput
+                        value={item.itemCode || ""}
+                        availableItems={availableItems}
+                        onSelect={(selected) => updateItem(item.id, "itemId", selected._id)}
+                        onChange={(val) => updateItem(item.id, "itemCode", val)}
+                        placeholder="Search item..."
+                      />
+                    </td>
                     <td className="px-8 py-4">
                       <input placeholder="Enter goods description..." value={item.description} onChange={(e) => updateItem(item.id, "description", e.target.value)} className="w-full bg-transparent text-sm font-bold focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" />
                     </td>
