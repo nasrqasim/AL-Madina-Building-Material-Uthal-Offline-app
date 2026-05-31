@@ -513,7 +513,7 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
                   ) : (
                     <tr>
                       <td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-bold">
-                        No lines added. Click "Add Line" to record contra accounts.
+                        No lines added. Click &apos;Add Line&apos; to record contra accounts.
                       </td>
                     </tr>
                   )}
@@ -598,7 +598,7 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
                   ) : (
                     <tr>
                       <td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-bold">
-                        No lines added. Click "Add Line" to record party receipts.
+                        No lines added. Click &apos;Add Line&apos; to record party receipts.
                       </td>
                     </tr>
                   )}
