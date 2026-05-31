@@ -1,7 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import ItemSearchInput from "@/components/erp/ui/ItemSearchInput";
+import {
+  buildPersistedLines,
+  resolveRefId,
+  resolvePaymentAccountId,
+  toIdString,
+  type PurchaseLineRow,
+} from "@/lib/purchaseFormUtils";
+import {
+  hydratePurchaseForm,
+  mapRecordToLineRows,
+  resolvePartyIdWithLookup,
+} from "@/lib/purchaseFormHydrate";
 import {
   Plus, 
   Trash2, 
@@ -20,67 +32,48 @@ import {
   MapPin
 } from "lucide-react";
 
-interface NTItem {
-  id: string;
-  itemId: string;
-  itemCode?: string;
-  description: string;
-  cartons: number;
-  gallons: number;
-  liters: number;
-  unitPrice: number;
-  discPercent: number;
-  total: number;
-}
-
 interface NonTaxPurchaseInvoiceFormProps {
   onClose: () => void;
   onSave?: (data: any) => void;
   initialData?: any;
 }
 
+function buildFormState(
+  initialData?: Record<string, unknown> | null,
+  vendors: Array<{ _id: string; companyName?: string; name?: string }> = []
+) {
+  const dateVal = initialData?.date ? new Date(String(initialData.date)).toISOString().split("T")[0] : new Date().toISOString().split("T")[0];
+  const dueVal = initialData?.dueDate
+    ? new Date(String(initialData.dueDate)).toISOString().split("T")[0]
+    : "";
+  return {
+    invoiceNumber: String(initialData?.invoiceNo || "Auto-generated"),
+    invoiceDate: dateVal,
+    status: String(initialData?.status || "Draft"),
+    linkToGRN: String(initialData?.linkToGRN || initialData?.reference || ""),
+    linkToPO: String(initialData?.linkToPO || ""),
+    vendorId: resolvePartyIdWithLookup(initialData, vendors),
+    vendorInvoiceNo: String(initialData?.vendorInvNo || ""),
+    vendorInvoiceDate: initialData?.vendorInvoiceDate
+      ? new Date(String(initialData.vendorInvoiceDate)).toISOString().split("T")[0]
+      : "",
+    dueDate: dueVal,
+    paymentTerms: String(initialData?.paymentTerms || "30 days"),
+    poReference: String(initialData?.reference || ""),
+    currency: String(initialData?.currency || "PKR"),
+    employeeId: resolveRefId(initialData, "employeeId"),
+    jobId: resolveRefId(initialData, "jobId"),
+    locationId: resolveRefId(initialData, "locationId"),
+    amountPaid: Number(initialData?.amountReceived || 0),
+    paymentAccountId: resolvePaymentAccountId(initialData),
+    notes: String(initialData?.notes || ""),
+  };
+}
+
 export default function NonTaxPurchaseInvoiceForm({ onClose, onSave, initialData }: NonTaxPurchaseInvoiceFormProps) {
-  const [items, setItems] = useState<NTItem[]>(() => {
-    const src = initialData?.lines || initialData?.items || [];
-    if (src.length > 0) {
-      return src.map((l: any, i: number) => ({
-        id: i.toString(),
-        itemId: l.itemId?._id || l.itemId || "",
-        itemCode: l.itemId?.code || "",
-        description: l.description || "",
-        cartons: l.cartons || l.qty || 0,
-        gallons: l.gallons || 0,
-        liters: l.liters || 0,
-        unitPrice: l.rate || l.unitPrice || 0,
-        discPercent: l.discountPercent || 0,
-        total: l.netAmount || l.total || 0
-      }));
-    }
-    return [
-      { id: "1", itemId: "", itemCode: "", description: "", cartons: 1, gallons: 4, liters: 16, unitPrice: 0, discPercent: 0, total: 0 }
-    ];
-  });
-  
-  const [formData, setFormData] = useState({
-    invoiceNumber: initialData?.invoiceNo || "Auto-generated",
-    invoiceDate: initialData?.date ? new Date(initialData.date).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
-    status: initialData?.status || "Draft",
-    linkToGRN: initialData?.linkToGRN || "",
-    linkToPO: initialData?.linkToPO || "",
-    vendorId: initialData?.partyId?._id || initialData?.partyId || "",
-    vendorInvoiceNo: initialData?.vendorInvNo || "",
-    vendorInvoiceDate: initialData?.vendorInvoiceDate || "",
-    dueDate: initialData?.dueDate || "",
-    paymentTerms: initialData?.paymentTerms || "30 days",
-    poReference: initialData?.reference || "",
-    currency: initialData?.currency || "PKR",
-    employeeId: initialData?.employeeId?._id || initialData?.employeeId || "",
-    jobId: initialData?.jobId?._id || initialData?.jobId || "",
-    locationId: initialData?.locationId?._id || initialData?.locationId || "",
-    amountPaid: initialData?.amountReceived || 0,
-    paymentAccountId: initialData?.paymentAccountId || "",
-    notes: initialData?.notes || ""
-  });
+  const isEdit = Boolean(initialData?._id);
+  const [items, setItems] = useState<PurchaseLineRow[]>(() => mapRecordToLineRows(initialData));
+  const [formData, setFormData] = useState(() => buildFormState(initialData, []));
 
   const [availableItems, setAvailableItems] = useState<any[]>([]);
   const [vendors, setVendors] = useState<any[]>([]);
@@ -117,6 +110,13 @@ export default function NonTaxPurchaseInvoiceForm({ onClose, onSave, initialData
     fetchData();
   }, []);
 
+  const invoiceId = toIdString(initialData?._id);
+
+  useEffect(() => {
+    if (!isEdit || !invoiceId || !initialData) return;
+    hydratePurchaseForm(initialData, vendors, buildFormState, setFormData, setItems);
+  }, [isEdit, invoiceId, vendors.length]);
+
   const addItem = () => setItems([...items, { id: Date.now().toString(), itemId: "", itemCode: "", description: "", cartons: 1, gallons: 4, liters: 16, unitPrice: 0, discPercent: 0, total: 0 }]);
   const removeItem = (id: string) => setItems(items.filter(i => i.id !== id));
   
@@ -141,27 +141,11 @@ export default function NonTaxPurchaseInvoiceForm({ onClose, onSave, initialData
     }
   };
 
-  const updateItem = (id: string, field: keyof NTItem, value: any) => {
+  const updateItem = (id: string, field: keyof PurchaseLineRow, value: unknown) => {
     setItems(items.map(i => {
       if (i.id === id) {
         let updated = { ...i, [field]: value };
-        
-        if (field === "cartons" || field === "gallons" || field === "liters") {
-          const selItem = availableItems.find(ai => ai._id === i.itemId);
-          const isFltr = selItem?.name?.toLowerCase().includes("filter") || selItem?.name?.toLowerCase().includes("fliter");
-          const galsInCtn = isFltr ? 1 : (selItem?.gallonsInCtn || 4);
-          const ltrsInCtn = isFltr ? 1 : (selItem?.litersInCtn || 16);
-          if (field === "cartons") {
-            updated.gallons = value * galsInCtn;
-            updated.liters = value * ltrsInCtn;
-          } else if (field === "gallons") {
-            updated.cartons = galsInCtn > 0 ? value / galsInCtn : 0;
-            updated.liters = galsInCtn > 0 ? (value / galsInCtn) * ltrsInCtn : 0;
-          } else if (field === "liters") {
-            updated.cartons = ltrsInCtn > 0 ? value / ltrsInCtn : 0;
-            updated.gallons = ltrsInCtn > 0 ? (value / ltrsInCtn) * galsInCtn : 0;
-          }
-        }
+
 
         if (field === "itemId") {
           const selected = availableItems.find(ai => ai._id === value);
@@ -192,55 +176,72 @@ export default function NonTaxPurchaseInvoiceForm({ onClose, onSave, initialData
   const balanceAfterPayment = totalPKR - formData.amountPaid;
 
   const handleSave = async (status: "Draft" | "Posted") => {
-    const isEdit = initialData && initialData._id;
+    const lines = await buildPersistedLines(items, availableItems);
+    const computedTotal = items.reduce(
+      (sum, i) => sum + (i.total || (i.cartons || 0) * (i.unitPrice || 0)),
+      0
+    );
+    const totalPKR =
+      computedTotal > 0
+        ? computedTotal
+        : Number(isEdit ? initialData?.totalAmount : 0) || subTotal - totalDiscount;
+
+    const linkRef = formData.linkToGRN || formData.poReference;
     const payload = {
-      invoiceNo: formData.invoiceNumber === "Auto-generated" ? `NTPI-${Date.now().toString().slice(-6)}` : formData.invoiceNumber,
+      invoiceNo:
+        formData.invoiceNumber === "Auto-generated"
+          ? `NTPI-${Date.now().toString().slice(-6)}`
+          : formData.invoiceNumber,
       type: "non_tax_purchase",
       date: formData.invoiceDate,
-      partyId: formData.vendorId,
+      dueDate: formData.dueDate || undefined,
+      partyId: formData.vendorId || null,
       vendorInvNo: formData.vendorInvoiceNo,
-      reference: formData.poReference,
-      totalAmount: totalPKR,
-      balance: balanceAfterPayment,
-      status: balanceAfterPayment <= 0 && status === "Posted" ? "Paid" : status.toLowerCase(),
+      vendorInvoiceDate: formData.vendorInvoiceDate || undefined,
+      reference: linkRef,
+      linkToGRN: formData.linkToGRN,
+      linkToPO: formData.linkToPO,
+      currency: formData.currency,
+      totalAmount: totalPKR || subTotal - totalDiscount,
+      balance: (totalPKR || subTotal - totalDiscount) - formData.amountPaid,
+      amountReceived: formData.amountPaid,
+      paymentAccountId: formData.paymentAccountId || null,
+      status: balanceAfterPayment <= 0 && status === "Posted" ? "paid" : status.toLowerCase(),
       employeeId: formData.employeeId || null,
       jobId: formData.jobId || null,
       locationId: formData.locationId || null,
-      lines: items.filter(i => i.itemId).map(i => ({
-        itemId: i.itemId,
-        description: i.description,
-        cartons: i.cartons,
-        gallons: i.gallons,
-        liters: i.liters,
-        qty: i.cartons,
-        rate: i.unitPrice,
-        discountPercent: i.discPercent,
-        netAmount: i.total
-      })),
+      lines,
       subTotal,
       discountAmount: totalDiscount,
-      notes: formData.notes
+      notes: formData.notes,
     };
 
     try {
-      const url = isEdit ? `/api/invoices/${initialData._id}` : "/api/invoices";
+      const docId = toIdString(initialData?._id);
+      const url = isEdit && docId ? `/api/invoices/${docId}` : "/api/invoices";
       const res = await fetch(url, {
         method: isEdit ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
-      if (res.ok) {
+      const json = await res.json();
+      if (res.ok && json.ok) {
         alert(`Non-Tax Purchase Invoice ${isEdit ? "updated" : "saved"} successfully!`);
+        onSave?.(json.data);
         onClose();
       } else {
-        const json = await res.json();
-        alert("Error: " + json.error);
+        alert("Error: " + (json.message || json.error || "Save failed"));
       }
     } catch (e) {
       console.error(e);
       alert("Failed to save invoice");
     }
   };
+
+  const formTitle = useMemo(
+    () => (isEdit ? `Edit ${formData.invoiceNumber}` : "New Non-Tax Purchase Invoice"),
+    [isEdit, formData.invoiceNumber]
+  );
 
   return (
     <div className="bg-slate-50 dark:bg-slate-800/50 min-h-screen font-sans">
@@ -252,7 +253,7 @@ export default function NonTaxPurchaseInvoiceForm({ onClose, onSave, initialData
           </button>
           <div className="h-8 w-[1px] bg-slate-200" />
           <div>
-            <h1 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">New Non-Tax Purchase Invoice</h1>
+            <h1 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">{formTitle}</h1>
           </div>
         </div>
         <div className="flex items-center space-x-3">
@@ -282,11 +283,11 @@ export default function NonTaxPurchaseInvoiceForm({ onClose, onSave, initialData
               <input value={formData.invoiceNumber} disabled className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-2xl text-sm font-bold text-slate-400 dark:text-slate-500 cursor-not-allowed" />
             </div>
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Invoice Date *</label>
+              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Invoice Date</label>
               <input type="date" value={formData.invoiceDate} onChange={(e) => setFormData({...formData, invoiceDate: e.target.value})} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold focus:border-maroon-800 outline-none transition-all" />
             </div>
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Vendor *</label>
+              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Vendor</label>
               <select value={formData.vendorId} onChange={(e) => setFormData({...formData, vendorId: e.target.value})} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold focus:border-maroon-800 outline-none transition-all">
                 <option value="">-- Select Vendor --</option>
                 {vendors.map(v => (
@@ -295,7 +296,7 @@ export default function NonTaxPurchaseInvoiceForm({ onClose, onSave, initialData
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Vendor Inv # *</label>
+              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Vendor Inv #</label>
               <input placeholder="Enter vendor invoice #" value={formData.vendorInvoiceNo} onChange={(e) => setFormData({...formData, vendorInvoiceNo: e.target.value})} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold focus:border-maroon-800 outline-none transition-all" />
             </div>
 
@@ -304,7 +305,7 @@ export default function NonTaxPurchaseInvoiceForm({ onClose, onSave, initialData
               <input type="date" value={formData.dueDate} onChange={(e) => setFormData({...formData, dueDate: e.target.value})} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold focus:border-maroon-800 outline-none transition-all" />
             </div>
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Location *</label>
+              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Location</label>
               <select value={formData.locationId} onChange={(e) => setFormData({...formData, locationId: e.target.value})} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold focus:border-maroon-800 outline-none transition-all">
                 <option value="">-- Select Location --</option>
                 {locations.map(loc => (
@@ -334,42 +335,6 @@ export default function NonTaxPurchaseInvoiceForm({ onClose, onSave, initialData
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Job</label>
               <select value={formData.jobId} onChange={(e) => setFormData({...formData, jobId: e.target.value})} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold focus:border-maroon-800 outline-none transition-all">
-                <option value="">-- Select Job --</option>
-                {jobs.map(job => (
-                  <option key={job._id} value={job._id}>{job.title || job.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Employee</label>
-              <select value={formData.employeeId} onChange={(e) => setFormData({...formData, employeeId: e.target.value})} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold focus:border-maroon-800 outline-none transition-all">
-                <option value="">-- Select Employee --</option>
-                {employees.map(emp => (
-                  <option key={emp._id} value={emp._id}>{emp.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Job</label>
-              <select value={formData.jobId} onChange={(e) => setFormData({...formData, jobId: e.target.value})} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold focus:border-maroon-800 outline-none transition-all">
-                <option value="">-- Select Job --</option>
-                {jobs.map(job => (
-                  <option key={job._id} value={job._id}>{job.title || job.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Employee</label>
-              <select value={formData.employeeId} onChange={(e) => setFormData({...formData, employeeId: e.target.value})} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold focus:border-maroon-800 outline-none">
-                <option value="">-- Select Employee --</option>
-                {employees.map(emp => (
-                  <option key={emp._id} value={emp._id}>{emp.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Job</label>
-              <select value={formData.jobId} onChange={(e) => setFormData({...formData, jobId: e.target.value})} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold focus:border-maroon-800 outline-none">
                 <option value="">-- Select Job --</option>
                 {jobs.map(job => (
                   <option key={job._id} value={job._id}>{job.title || job.name}</option>

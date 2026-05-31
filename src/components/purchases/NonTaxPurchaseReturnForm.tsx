@@ -1,7 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import ItemSearchInput from "@/components/erp/ui/ItemSearchInput";
+import {
+  buildPersistedLines,
+  resolveRefId,
+  toIdString,
+  type PurchaseLineRow,
+} from "@/lib/purchaseFormUtils";
+import {
+  hydratePurchaseForm,
+  mapRecordToLineRows,
+  resolvePartyIdWithLookup,
+} from "@/lib/purchaseFormHydrate";
 import {
   Plus, 
   Trash2, 
@@ -20,60 +31,42 @@ import {
   MapPin
 } from "lucide-react";
 
-interface NTRItem {
-  id: string;
-  itemId: string;
-  itemCode?: string;
-  description: string;
-  cartons: number;
-  gallons: number;
-  liters: number;
-  unitPrice: number;
-  total: number;
-}
-
 interface NonTaxPurchaseReturnFormProps {
   onClose: () => void;
   onSave?: (data: any) => void;
   initialData?: any;
 }
 
+function buildReturnFormState(
+  initialData?: Record<string, unknown> | null,
+  vendors: Array<{ _id: string; companyName?: string; name?: string }> = []
+) {
+  const linkedId =
+    toIdString(initialData?.linkedInvoiceId) || String(initialData?.reference || "");
+
+  return {
+    returnNumber: String(initialData?.invoiceNo || "Auto-generated"),
+    returnDate: initialData?.date
+      ? new Date(String(initialData.date)).toISOString().split("T")[0]
+      : new Date().toISOString().split("T")[0],
+    status: String(initialData?.status || "Draft"),
+    vendorId: resolvePartyIdWithLookup(initialData, vendors),
+    nonTaxPurchaseInvoiceId: linkedId,
+    reason: String(initialData?.reason || initialData?.notes || ""),
+    whtRate: Number(initialData?.whtRate || 0),
+    employeeId: resolveRefId(initialData, "employeeId"),
+    jobId: resolveRefId(initialData, "jobId"),
+    locationId: resolveRefId(initialData, "locationId"),
+    refundAmount: Number(initialData?.amountReceived || 0),
+    refundAccountId: String(initialData?.refundAccountId || ""),
+    notes: String(initialData?.notes || ""),
+  };
+}
+
 export default function NonTaxPurchaseReturnForm({ onClose, onSave, initialData }: NonTaxPurchaseReturnFormProps) {
-  const [items, setItems] = useState<NTRItem[]>(() => {
-    const src = initialData?.lines || initialData?.items || [];
-    if (src.length > 0) {
-      return src.map((l: any, i: number) => ({
-        id: i.toString(),
-        itemId: l.itemId?._id || l.itemId || "",
-        itemCode: l.itemId?.code || "",
-        description: l.description || "",
-        cartons: l.cartons || l.qty || 0,
-        gallons: l.gallons || 0,
-        liters: l.liters || 0,
-        unitPrice: l.rate || l.unitPrice || 0,
-        total: l.netAmount || l.total || 0
-      }));
-    }
-    return [
-      { id: "1", itemId: "", itemCode: "", description: "", cartons: 0, gallons: 0, liters: 0, unitPrice: 0, total: 0 }
-    ];
-  });
-  
-  const [formData, setFormData] = useState({
-    returnNumber: initialData?.invoiceNo || "Auto-generated",
-    returnDate: initialData?.date ? new Date(initialData.date).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
-    status: initialData?.status || "Draft",
-    vendorId: initialData?.partyId?._id || initialData?.partyId || "",
-    nonTaxPurchaseInvoiceId: initialData?.reference || "",
-    reason: initialData?.reason || initialData?.notes || "",
-    whtRate: initialData?.whtRate || 0,
-    employeeId: initialData?.employeeId?._id || initialData?.employeeId || "",
-    jobId: initialData?.jobId?._id || initialData?.jobId || "",
-    locationId: initialData?.locationId?._id || initialData?.locationId || "",
-    refundAmount: initialData?.amountReceived || 0,
-    refundAccountId: initialData?.refundAccountId || "",
-    notes: initialData?.notes || ""
-  });
+  const isEdit = Boolean(initialData?._id);
+  const [items, setItems] = useState<PurchaseLineRow[]>(() => mapRecordToLineRows(initialData));
+  const [formData, setFormData] = useState(() => buildReturnFormState(initialData, []));
 
   const [availableItems, setAvailableItems] = useState<any[]>([]);
   const [vendors, setVendors] = useState<any[]>([]);
@@ -110,7 +103,14 @@ export default function NonTaxPurchaseReturnForm({ onClose, onSave, initialData 
     fetchData();
   }, []);
 
-  const addItem = () => setItems([...items, { id: Date.now().toString(), itemId: "", itemCode: "", description: "", cartons: 0, gallons: 0, liters: 0, unitPrice: 0, total: 0 }]);
+  const invoiceId = toIdString(initialData?._id);
+
+  useEffect(() => {
+    if (!isEdit || !invoiceId || !initialData) return;
+    hydratePurchaseForm(initialData, vendors, buildReturnFormState, setFormData, setItems);
+  }, [isEdit, invoiceId, vendors.length]);
+
+  const addItem = () => setItems([...items, { id: Date.now().toString(), itemId: "", itemCode: "", description: "", cartons: 0, gallons: 0, liters: 0, unitPrice: 0, discPercent: 0, total: 0 }]);
   const removeItem = (id: string) => setItems(items.filter(i => i.id !== id));
   
   const [showItemSearch, setShowItemSearch] = useState<string | null>(null);
@@ -134,27 +134,11 @@ export default function NonTaxPurchaseReturnForm({ onClose, onSave, initialData 
     }
   };
 
-  const updateItem = (id: string, field: keyof NTRItem, value: any) => {
+  const updateItem = (id: string, field: keyof PurchaseLineRow, value: unknown) => {
     setItems(items.map(i => {
       if (i.id === id) {
         let updated = { ...i, [field]: value };
-        
-        if (field === "cartons" || field === "gallons" || field === "liters") {
-          const selItem = availableItems.find(ai => ai._id === i.itemId);
-          const isFltr = selItem?.name?.toLowerCase().includes("filter") || selItem?.name?.toLowerCase().includes("fliter");
-          const galsInCtn = isFltr ? 1 : (selItem?.gallonsInCtn || 4);
-          const ltrsInCtn = isFltr ? 1 : (selItem?.litersInCtn || 16);
-          if (field === "cartons") {
-            updated.gallons = value * galsInCtn;
-            updated.liters = value * ltrsInCtn;
-          } else if (field === "gallons") {
-            updated.cartons = galsInCtn > 0 ? value / galsInCtn : 0;
-            updated.liters = galsInCtn > 0 ? (value / galsInCtn) * ltrsInCtn : 0;
-          } else if (field === "liters") {
-            updated.cartons = ltrsInCtn > 0 ? value / ltrsInCtn : 0;
-            updated.gallons = ltrsInCtn > 0 ? (value / ltrsInCtn) * galsInCtn : 0;
-          }
-        }
+
 
         if (field === "itemId") {
           const selected = availableItems.find(ai => ai._id === value);
@@ -181,44 +165,45 @@ export default function NonTaxPurchaseReturnForm({ onClose, onSave, initialData 
   const subTotal = items.reduce((sum, i) => sum + ((i.cartons || 0) * (i.unitPrice || 0)), 0);
 
   const handleSave = async (status: "Draft" | "Posted") => {
-    const isEdit = initialData && initialData._id;
+    const lines = await buildPersistedLines(items, availableItems);
+    const totalAmount =
+      subTotal > 0 ? subTotal : Number(isEdit ? initialData?.totalAmount : 0);
+
     const payload = {
-      invoiceNo: formData.returnNumber === "Auto-generated" ? `NTPR-${Date.now().toString().slice(-6)}` : formData.returnNumber,
+      invoiceNo:
+        formData.returnNumber === "Auto-generated"
+          ? `NTPR-${Date.now().toString().slice(-6)}`
+          : formData.returnNumber,
       type: "non_tax_purchase_return",
       date: formData.returnDate,
-      partyId: formData.vendorId,
+      partyId: formData.vendorId || null,
       reference: formData.nonTaxPurchaseInvoiceId,
-      totalAmount: subTotal,
+      linkedInvoiceId: formData.nonTaxPurchaseInvoiceId || null,
+      totalAmount,
+      amountReceived: formData.refundAmount,
       status: status.toLowerCase(),
       employeeId: formData.employeeId || null,
       jobId: formData.jobId || null,
       locationId: formData.locationId || null,
-      lines: items.filter(i => i.itemId).map(i => ({
-        itemId: i.itemId,
-        description: i.description,
-        cartons: i.cartons,
-        gallons: i.gallons,
-        liters: i.liters,
-        qty: i.cartons,
-        rate: i.unitPrice,
-        netAmount: i.total
-      })),
-      notes: formData.notes
+      lines,
+      notes: formData.reason || formData.notes,
     };
 
     try {
-      const url = isEdit ? `/api/invoices/${initialData._id}` : "/api/invoices";
+      const docId = toIdString(initialData?._id);
+      const url = isEdit && docId ? `/api/invoices/${docId}` : "/api/invoices";
       const res = await fetch(url, {
         method: isEdit ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
-      if (res.ok) {
+      const json = await res.json();
+      if (res.ok && json.ok) {
         alert(`Non-Tax Purchase Return ${isEdit ? "updated" : "saved"} successfully!`);
+        onSave?.(json.data);
         onClose();
       } else {
-        const json = await res.json();
-        alert("Error: " + json.error);
+        alert("Error: " + (json.message || json.error || "Save failed"));
       }
     } catch (e) {
       console.error(e);

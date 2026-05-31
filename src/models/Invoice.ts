@@ -21,6 +21,7 @@ const InvoiceLineSchema = new Schema(
     discountPercent: { type: Number, default: 0 },
     taxPercent: { type: Number, default: 0 },
     netAmount: { type: Number, default: 0 },
+    foreignNetAmount: { type: Number, default: 0 },
   },
   { _id: false }
 );
@@ -39,6 +40,14 @@ const InvoiceSchema = new Schema(
     locationId: { type: Schema.Types.ObjectId, ref: "Location", default: null },
     toLocationId: { type: Schema.Types.ObjectId, ref: "Location", default: null },
     reference: { type: String, default: "" },
+    vendorInvNo: { type: String, default: "" },
+    vendorInvoiceDate: { type: Date },
+    linkToGRN: { type: String, default: "" },
+    linkToPO: { type: String, default: "" },
+    exchangeRate: { type: Number, default: 0 },
+    gdNo: { type: String, default: "" },
+    blAwbNo: { type: String, default: "" },
+    balance: { type: Number, default: 0 },
     currency: { type: String, default: "PKR" },
     
     // Specific to Oil Shop

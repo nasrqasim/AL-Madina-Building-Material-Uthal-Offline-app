@@ -16,6 +16,8 @@ import {
   AlertTriangle
 } from "lucide-react";
 import { printPage } from "@/lib/excel";
+import { formatDate, formatMoney } from "@/lib/format";
+import { getInvoiceLinesFromRecord } from "@/lib/purchaseFormHydrate";
 
 interface NonTaxPurchaseReturnDetailsProps {
   record: any;
@@ -24,7 +26,21 @@ interface NonTaxPurchaseReturnDetailsProps {
 }
 
 export default function NonTaxPurchaseReturnDetails({ record, onClose, onEdit }: NonTaxPurchaseReturnDetailsProps) {
-  const lines = (record.lines && record.lines.length > 0) ? record.lines : [];
+  const rawLines = getInvoiceLinesFromRecord(record);
+  const lines =
+    rawLines.length > 0
+      ? rawLines
+      : Number(record.totalAmount || 0) > 0
+        ? [
+            {
+              description: record.notes || "Return total",
+              cartons: 1,
+              qty: 1,
+              rate: Number(record.totalAmount),
+              netAmount: Number(record.totalAmount),
+            },
+          ]
+        : [];
   const vendorName = record.partyId?.name || record.partyId?.companyName || record.vendor || "—";
   const locationName = record.locationId?.name || "—";
 
@@ -37,7 +53,7 @@ export default function NonTaxPurchaseReturnDetails({ record, onClose, onEdit }:
             <ArrowLeft size={16} /> Back to List
           </button>
           <div className="flex items-center gap-3">
-            <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">{record.returnNo}</h1>
+            <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">{record.invoiceNo || record.returnNo}</h1>
             <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
               record.status === "Posted" ? "bg-emerald-100 text-emerald-700" : 
               record.status === "Cancelled" ? "bg-rose-100 text-rose-700" :
@@ -68,11 +84,11 @@ export default function NonTaxPurchaseReturnDetails({ record, onClose, onEdit }:
           <div className="grid grid-cols-1 md:grid-cols-4 gap-y-8 gap-x-12">
             <div className="space-y-1">
               <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Return Number</p>
-              <p className="text-sm font-bold text-slate-900 dark:text-white">{record.returnNo}</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white">{record.invoiceNo || record.returnNo}</p>
             </div>
             <div className="space-y-1">
               <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Date</p>
-              <p className="text-sm font-bold text-slate-900 dark:text-white">{record.date}</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white">{formatDate(record.date)}</p>
             </div>
             <div className="space-y-1">
               <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Vendor</p>
@@ -80,7 +96,7 @@ export default function NonTaxPurchaseReturnDetails({ record, onClose, onEdit }:
             </div>
             <div className="space-y-1">
               <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Total Return Value</p>
-              <p className="text-sm font-black text-maroon-800">Rs. {(record.totalAmount || record.amount || 0).toLocaleString()}</p>
+              <p className="text-sm font-black text-maroon-800">{formatMoney(record.totalAmount || record.amount)}</p>
             </div>
 
             <div className="space-y-1 md:col-span-2">

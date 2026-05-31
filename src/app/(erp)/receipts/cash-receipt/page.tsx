@@ -11,6 +11,7 @@ import WhatsAppShareModal from "@/components/erp/whatsapp/WhatsAppShareModal";
 export default function CashReceiptPage() {
   const [showForm, setShowForm] = useState(false);
   const [receipts, setReceipts] = useState<any[]>([]);
+  const [editReceipt, setEditReceipt] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [printReceipt, setPrintReceipt] = useState<any>(null);
@@ -57,17 +58,48 @@ export default function CashReceiptPage() {
   }, [showForm]);
 
   const deleteReceipt = async (id: string) => {
-    try {
-      await fetch(`/api/cash-receipts/${id}`, { method: "DELETE" });
-      fetchReceipts();
-    } catch (e) { console.error(e); }
+    if (confirm("Are you sure you want to delete this cash receipt?")) {
+      try {
+        const res = await fetch(`/api/cash-receipts/${id}`, { method: "DELETE" });
+        if (res.ok) {
+          alert("Cash Receipt deleted successfully.");
+          fetchReceipts();
+        } else {
+          alert("Failed to delete cash receipt.");
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
   };
 
   if (showForm) {
-    return <CashReceiptForm onClose={() => setShowForm(false)} />;
+    return (
+      <CashReceiptForm
+        initialData={editReceipt}
+        onClose={() => {
+          setShowForm(false);
+          setEditReceipt(null);
+        }}
+      />
+    );
   }
 
-  const filteredReceipts = receipts.filter(p => p.receiptNumber?.toLowerCase().includes(searchQuery.toLowerCase()) || p.party?.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredReceipts = receipts.filter(p => {
+    const num = p.receiptNumber || "";
+    const partyName = p.receiptType === "party"
+      ? (p.partyId?.companyName || p.partyId?.name || p.party || "")
+      : p.receiptType === "multi"
+        ? "Multi-Party"
+        : "Petty Contra";
+    const ref = p.reference || "";
+    const narr = p.narration || "";
+    
+    return num.toLowerCase().includes(searchQuery.toLowerCase()) ||
+           partyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+           ref.toLowerCase().includes(searchQuery.toLowerCase()) ||
+           narr.toLowerCase().includes(searchQuery.toLowerCase());
+  });
 
   return (
     <div className={`space-y-6 ${printReceipt ? 'print:hidden' : ''}`}>
@@ -95,7 +127,7 @@ export default function CashReceiptPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input
               type="text"
-              placeholder="Search..."
+              placeholder="Search receipts..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-maroon-800/10 transition-all font-medium"
@@ -109,76 +141,113 @@ export default function CashReceiptPage() {
               <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Receipt No</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Party / Account</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Receipt Category</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Party / Account / Contra</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Cash Account</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Amount</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center w-20">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
+            <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
               {isLoading ? (
-                <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400 font-bold">Loading...</td></tr>
+                <tr><td colSpan={8} className="px-6 py-12 text-center text-slate-400 font-bold">Loading...</td></tr>
               ) : filteredReceipts.length > 0 ? (
-                filteredReceipts.map((p) => (
-                  <tr key={p._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
-                    <td className="px-6 py-4"><span className="text-sm font-bold text-slate-900 dark:text-white">{p.receiptNumber}</span></td>
-                    <td className="px-6 py-4"><span className="text-sm font-bold text-slate-600 dark:text-slate-300">{p.date}</span></td>
-                    <td className="px-6 py-4"><span className="text-sm font-bold text-slate-700 dark:text-slate-200">{p.party}</span></td>
-                    <td className="px-6 py-4"><span className="text-sm font-medium text-slate-600 dark:text-slate-300">{p.cashAccount}</span></td>
-                    <td className="px-6 py-4 text-right"><span className="text-sm font-black text-emerald-600">PKR {(p.amount||0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></td>
-                    <td className="px-6 py-4 text-center">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${p.status === "Posted" ? "bg-emerald-100 text-emerald-700" : "bg-orange-100 text-orange-700"}`}>
-                        {p.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-center gap-2 transition-opacity">
-                        <button onClick={() => setPrintReceipt(p)} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-all" title="Print">
-                          <Printer size={16} />
-                        </button>
-                        <button 
-                          onClick={() => {
-                            setWaParty({ name: p.party });
-                            setWaDocData({
-                              type: "Cash Receipt",
-                              amount: p.amount,
-                              date: p.date,
-                              receiptNumber: p.receiptNumber
-                            });
-                            setIsWhatsAppModalOpen(true);
-                          }}
-                          className="p-1.5 text-slate-400 hover:text-[#25D366] hover:bg-[#25D366]/10 rounded-lg transition-all" title="WhatsApp"
-                        >
-                          <MessageCircle size={16} />
-                        </button>
-                        <button onClick={() => deleteReceipt(p._id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all" title="Delete">
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                filteredReceipts.map((p) => {
+                  const displayParty = p.receiptType === "party"
+                    ? (p.partyId?.companyName || p.partyId?.name || p.party || "N/A")
+                    : p.receiptType === "multi"
+                      ? `Multi-Party (${p.partyLines?.length || 0} line(s))`
+                      : `Petty Contra (${p.contraLines?.length || 0} line(s))`;
+
+                  const displayCashAcc = p.cashAccountId?.title || p.cashAccountTitle || p.cashAccount || "N/A";
+
+                  return (
+                    <tr key={p._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+                      <td className="px-6 py-4"><span className="text-sm font-bold text-slate-900 dark:text-white">{p.receiptNumber}</span></td>
+                      <td className="px-6 py-4"><span className="text-sm font-bold text-slate-600 dark:text-slate-300">{p.date}</span></td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                          p.receiptType === "party" ? "bg-blue-100 text-blue-800" :
+                          p.receiptType === "petty" ? "bg-purple-100 text-purple-800" : "bg-teal-100 text-teal-800"
+                        }`}>
+                          {p.receiptType === "party" ? "Party Receipt" : p.receiptType === "petty" ? "Petty Receipt" : "Multi-Party"}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4"><span className="text-sm font-bold text-slate-700 dark:text-slate-200">{displayParty}</span></td>
+                      <td className="px-6 py-4"><span className="text-sm font-medium text-slate-600 dark:text-slate-300">{displayCashAcc}</span></td>
+                      <td className="px-6 py-4 text-right"><span className="text-sm font-black text-emerald-600">PKR {(p.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></td>
+                      <td className="px-6 py-4 text-center">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${p.status === "Posted" ? "bg-emerald-100 text-emerald-700" : "bg-orange-100 text-orange-700"}`}>
+                          {p.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-center gap-2">
+                          <button onClick={() => setPrintReceipt(p)} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-all" title="Print">
+                            <Printer size={16} />
+                          </button>
+                          <button 
+                            onClick={() => {
+                              const pName = p.receiptType === "party" ? (p.partyId?.name || p.party) : "Multiple";
+                              setWaParty({ name: pName });
+                              setWaDocData({
+                                type: "Cash Receipt",
+                                amount: p.amount,
+                                date: p.date,
+                                receiptNumber: p.receiptNumber
+                              });
+                              setIsWhatsAppModalOpen(true);
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-[#25D366] hover:bg-[#25D366]/10 rounded-lg transition-all" title="WhatsApp"
+                          >
+                            <MessageCircle size={16} />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditReceipt(p);
+                              setShowForm(true);
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-lg transition-all"
+                            title="Edit"
+                          >
+                            <Edit size={16} />
+                          </button>
+                          <button onClick={() => deleteReceipt(p._id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 rounded-lg transition-all" title="Delete">
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
-                <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-500 font-medium">No cash receipts found.</td></tr>
+                <tr><td colSpan={8} className="px-6 py-12 text-center text-slate-500 font-medium">No cash receipts found.</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
+
       {printReceipt && (
         <PrintTemplate
           formatName="Cash Receipt"
           data={{
             receiptNo: printReceipt.receiptNumber,
             date: printReceipt.date,
-            paidTo: printReceipt.party,
+            paidTo: printReceipt.receiptType === "party" ? (printReceipt.partyId?.companyName || printReceipt.partyId?.name || printReceipt.party || "Customer") : "Multiple",
             total: printReceipt.amount,
             subtotal: printReceipt.amount,
             taxAmount: 0,
             discountAmount: 0
           }}
-          items={[{ description: printReceipt.particulars || 'Cash Received', qty: 1, unitPrice: printReceipt.amount, total: printReceipt.amount }]}
+          items={
+            printReceipt.receiptType === "party"
+              ? [{ description: printReceipt.narration || "Cash Received", qty: 1, unitPrice: printReceipt.amount, total: printReceipt.amount }]
+              : printReceipt.receiptType === "petty"
+                ? (printReceipt.contraLines || []).map((l: any) => ({ description: `${l.accountTitle}: ${l.description || 'Contra'}`, qty: 1, unitPrice: l.amount, total: l.amount }))
+                : (printReceipt.partyLines || []).map((l: any) => ({ description: `${l.partyName} (Ref: ${l.invoiceRef || 'N/A'})`, qty: 1, unitPrice: l.amount, total: l.amount }))
+          }
         />
       )}
 

@@ -4,6 +4,14 @@ import { useState, useEffect, useMemo } from "react";
 import ItemSearchInput from "@/components/erp/ui/ItemSearchInput";
 import ItemDetailsPanel from "@/components/erp/ui/ItemDetailsPanel";
 import {
+  buildPersistedLines,
+  mapImportLinesToRows,
+  resolveRefId,
+  toIdString,
+  type ImportLineRow,
+} from "@/lib/purchaseFormUtils";
+import { mapRecordToLineRows, resolvePartyIdWithLookup } from "@/lib/purchaseFormHydrate";
+import {
   Plus, 
   Trash2, 
   Save, 
@@ -22,19 +30,6 @@ import {
   Currency
 } from "lucide-react";
 
-interface ItemUSD {
-  id: string;
-  itemId: string;
-  itemCode?: string;
-  description: string;
-  cartons: number;
-  gallons: number;
-  liters: number;
-  unitPriceUSD: number;
-  foreignTotal: number;
-  pkrTotal: number;
-}
-
 interface ImportCharge {
   id: string;
   name: string;
@@ -48,49 +43,64 @@ interface ImportPurchaseInvoiceFormProps {
   initialData?: any;
 }
 
+function buildImportFormState(
+  initialData?: Record<string, unknown> | null,
+  vendors: Array<{ _id: string; companyName?: string; name?: string }> = []
+) {
+  return {
+    docDate: initialData?.date
+      ? new Date(String(initialData.date)).toISOString().split("T")[0]
+      : new Date().toISOString().split("T")[0],
+    vendorId: resolvePartyIdWithLookup(initialData, vendors),
+    vendorInvoiceNo: String(initialData?.vendorInvNo || initialData?.vendorInvoiceNo || ""),
+    vendorInvoiceDate: initialData?.vendorInvoiceDate
+      ? new Date(String(initialData.vendorInvoiceDate)).toISOString().split("T")[0]
+      : "",
+    currency: String(initialData?.currency || "USD"),
+    exchangeRate: Number(initialData?.exchangeRate || 278.5),
+    gdNumber: String(initialData?.gdNo || ""),
+    gdDate: initialData?.gdDate ? new Date(String(initialData.gdDate)).toISOString().split("T")[0] : "",
+    blAwbNo: String(initialData?.blAwbNo || ""),
+    containerNo: String(initialData?.containerNo || ""),
+    shipmentMode: String(initialData?.shipmentMode || "Sea"),
+    incoterms: String(initialData?.incoterms || "CIF"),
+    countryOfOrigin: String(initialData?.countryOfOrigin || ""),
+    portOfLoading: String(initialData?.portOfLoading || ""),
+    portOfDischarge: String(initialData?.portOfDischarge || ""),
+    estimatedArrival: initialData?.estimatedArrival
+      ? new Date(String(initialData.estimatedArrival)).toISOString().split("T")[0]
+      : "",
+    actualArrival: initialData?.actualArrival
+      ? new Date(String(initialData.actualArrival)).toISOString().split("T")[0]
+      : "",
+    locationId: resolveRefId(initialData, "locationId"),
+    employeeId: resolveRefId(initialData, "employeeId"),
+    jobId: resolveRefId(initialData, "jobId"),
+    notes: String(initialData?.notes || ""),
+    internalNotes: String(initialData?.internalNotes || ""),
+  };
+}
+
 export default function ImportPurchaseInvoiceForm({ onClose, onSave, initialData }: ImportPurchaseInvoiceFormProps) {
-  const [items, setItems] = useState<ItemUSD[]>(initialData?.items?.map((l: any, i: number) => ({
-    id: i.toString(),
-    itemId: l.itemId?._id || l.itemId || "",
-    itemCode: l.itemId?.code || "",
-    description: l.description || "",
-    cartons: l.cartons || l.qty || 0,
-    gallons: l.gallons || 0,
-    liters: l.liters || 0,
-    unitPriceUSD: l.rate || 0,
-    foreignTotal: l.foreignNetAmount || 0,
-    pkrTotal: l.netAmount || 0
-  })) || [
-    { id: "1", itemId: "", itemCode: "", description: "", cartons: 1, gallons: 4, liters: 16, unitPriceUSD: 0, foreignTotal: 0, pkrTotal: 0 }
-  ]);
-  
+  const isEdit = Boolean(initialData?._id);
+  const mapToImportRows = (data?: Record<string, unknown> | null): ImportLineRow[] => {
+    const fromApi = mapImportLinesToRows(data);
+    const src = data?.lines ?? data?.items;
+    if (Array.isArray(src) && src.length > 0) return fromApi;
+    const legacy = mapRecordToLineRows(data);
+    const rate = Number(data?.exchangeRate || 278.5);
+    return legacy.map((r) => ({
+      ...r,
+      unitPriceUSD: r.unitPrice,
+      foreignTotal: r.total,
+      pkrTotal: r.total * rate,
+    })) as ImportLineRow[];
+  };
+
+  const [items, setItems] = useState<ImportLineRow[]>(() => mapToImportRows(initialData));
   const [charges, setCharges] = useState<ImportCharge[]>(initialData?.charges || []);
-  const [selectedLineId, setSelectedLineId] = useState<string | null>(initialData?.items?.[0]?._id || "1");
-  
-  const [formData, setFormData] = useState({
-    docDate: initialData?.date || new Date().toISOString().split("T")[0],
-    vendorId: initialData?.vendor || "",
-    vendorInvoiceNo: initialData?.vendorInvoiceNo || "",
-    vendorInvoiceDate: initialData?.vendorInvoiceDate || "",
-    currency: initialData?.currency || "USD",
-    exchangeRate: initialData?.exchangeRate || 278.50,
-    gdNumber: initialData?.gdNo || "",
-    gdDate: initialData?.gdDate || "",
-    blAwbNo: initialData?.blAwbNo || "",
-    containerNo: initialData?.containerNo || "",
-    shipmentMode: initialData?.shipmentMode || "Sea",
-    incoterms: initialData?.incoterms || "CIF",
-    countryOfOrigin: initialData?.countryOfOrigin || "",
-    portOfLoading: initialData?.portOfLoading || "",
-    portOfDischarge: initialData?.portOfDischarge || "",
-    estimatedArrival: initialData?.estimatedArrival || "",
-    actualArrival: initialData?.actualArrival || "",
-    locationId: initialData?.locationId || "",
-    employeeId: initialData?.employeeId || "",
-    jobId: initialData?.jobId || "",
-    notes: initialData?.notes || "",
-    internalNotes: initialData?.internalNotes || ""
-  });
+  const [selectedLineId, setSelectedLineId] = useState<string | null>(items[0]?.id || "1");
+  const [formData, setFormData] = useState(() => buildImportFormState(initialData, []));
 
   const [availableItems, setAvailableItems] = useState<any[]>([]);
   const [vendors, setVendors] = useState<any[]>([]);
@@ -127,6 +137,14 @@ export default function ImportPurchaseInvoiceForm({ onClose, onSave, initialData
     fetchData();
   }, []);
 
+  const invoiceId = toIdString(initialData?._id);
+
+  useEffect(() => {
+    if (!isEdit || !invoiceId || !initialData) return;
+    setFormData(buildImportFormState(initialData, vendors));
+    setItems(mapToImportRows(initialData));
+  }, [isEdit, invoiceId, vendors.length]);
+
   useEffect(() => {
     setItems(prev => prev.map(i => ({
       ...i,
@@ -142,7 +160,7 @@ export default function ImportPurchaseInvoiceForm({ onClose, onSave, initialData
 
   const addItem = () => {
     const newId = Date.now().toString();
-    setItems([...items, { id: newId, itemId: "", itemCode: "", description: "", cartons: 1, gallons: 4, liters: 16, unitPriceUSD: 0, foreignTotal: 0, pkrTotal: 0 }]);
+    setItems([...items, { id: newId, itemId: "", itemCode: "", description: "", cartons: 1, gallons: 4, liters: 16, unitPrice: 0, discPercent: 0, total: 0, unitPriceUSD: 0, foreignTotal: 0, pkrTotal: 0 }]);
     setSelectedLineId(newId);
   };
   const removeItem = (id: string) => {
@@ -171,25 +189,26 @@ export default function ImportPurchaseInvoiceForm({ onClose, onSave, initialData
     }
   };
 
-  const updateItem = (id: string, field: keyof ItemUSD, value: any) => {
+  const updateItem = (id: string, field: keyof ImportLineRow, value: unknown) => {
     setItems(items.map(i => {
       if (i.id === id) {
         let updated = { ...i, [field]: value };
         
         if (field === "cartons" || field === "gallons" || field === "liters") {
+          const num = Number(value);
           const selItem = availableItems.find(ai => ai._id === i.itemId);
           const isFltr = selItem?.name?.toLowerCase().includes("filter") || selItem?.name?.toLowerCase().includes("fliter");
           const galsInCtn = isFltr ? 1 : (selItem?.gallonsInCtn || 4);
           const ltrsInCtn = isFltr ? 1 : (selItem?.litersInCtn || 16);
           if (field === "cartons") {
-            updated.gallons = value * galsInCtn;
-            updated.liters = value * ltrsInCtn;
+            updated.gallons = num * galsInCtn;
+            updated.liters = num * ltrsInCtn;
           } else if (field === "gallons") {
-            updated.cartons = galsInCtn > 0 ? value / galsInCtn : 0;
-            updated.liters = galsInCtn > 0 ? (value / galsInCtn) * ltrsInCtn : 0;
+            updated.cartons = galsInCtn > 0 ? num / galsInCtn : 0;
+            updated.liters = galsInCtn > 0 ? (num / galsInCtn) * ltrsInCtn : 0;
           } else if (field === "liters") {
-            updated.cartons = ltrsInCtn > 0 ? value / ltrsInCtn : 0;
-            updated.gallons = ltrsInCtn > 0 ? (value / ltrsInCtn) * galsInCtn : 0;
+            updated.cartons = ltrsInCtn > 0 ? num / ltrsInCtn : 0;
+            updated.gallons = ltrsInCtn > 0 ? (num / ltrsInCtn) * galsInCtn : 0;
           }
         }
 
@@ -222,49 +241,55 @@ export default function ImportPurchaseInvoiceForm({ onClose, onSave, initialData
   const grandTotalOwed = pkrSubtotal + capitalizedCharges + nonCapitalizedCharges;
 
   const handleSave = async (status: "Draft" | "Posted") => {
-    const isEdit = initialData && initialData._id;
+    const lines: Record<string, unknown>[] = [];
+    for (const row of items) {
+      const rowsForPersist = [{ ...row, unitPrice: row.unitPriceUSD, total: row.pkrTotal }];
+      const persisted = await buildPersistedLines(rowsForPersist, availableItems);
+      if (!persisted.length) continue;
+      lines.push({
+        ...persisted[0],
+        rate: row.unitPriceUSD,
+        ratePerCarton: row.unitPriceUSD,
+        foreignNetAmount: row.foreignTotal,
+        netAmount: row.pkrTotal,
+      });
+    }
+
     const payload = {
       invoiceNo: formData.vendorInvoiceNo || `IMP-${Date.now().toString().slice(-6)}`,
       type: "import_purchase",
       date: formData.docDate,
-      partyId: formData.vendorId,
+      partyId: formData.vendorId || null,
       vendorInvNo: formData.vendorInvoiceNo,
+      vendorInvoiceDate: formData.vendorInvoiceDate || undefined,
       currency: formData.currency,
       exchangeRate: formData.exchangeRate,
       gdNo: formData.gdNumber,
       blAwbNo: formData.blAwbNo,
-      totalAmount: grandTotalOwed,
+      totalAmount: grandTotalOwed || Number(isEdit ? initialData?.totalAmount : 0),
       status: status.toLowerCase(),
       employeeId: formData.employeeId || null,
       jobId: formData.jobId || null,
       locationId: formData.locationId || null,
-      items: items.map(i => ({
-        itemId: i.itemId,
-        description: i.description,
-        cartons: i.cartons,
-        gallons: i.gallons,
-        liters: i.liters,
-        qty: i.cartons,
-        rate: i.unitPriceUSD,
-        foreignNetAmount: i.foreignTotal,
-        netAmount: i.pkrTotal
-      })),
-      notes: formData.notes
+      lines,
+      notes: formData.notes,
     };
 
     try {
-      const url = isEdit ? `/api/invoices/${initialData._id}` : "/api/invoices";
+      const docId = toIdString(initialData?._id);
+      const url = isEdit && docId ? `/api/invoices/${docId}` : "/api/invoices";
       const res = await fetch(url, {
         method: isEdit ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
-      if (res.ok) {
+      const json = await res.json();
+      if (res.ok && json.ok) {
         alert(`Import Purchase Invoice ${isEdit ? "updated" : "saved"} successfully!`);
+        onSave?.(json.data);
         onClose();
       } else {
-        const json = await res.json();
-        alert("Error: " + json.error);
+        alert("Error: " + (json.message || json.error || "Save failed"));
       }
     } catch (e) {
       console.error(e);

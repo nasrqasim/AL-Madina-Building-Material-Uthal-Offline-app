@@ -4,8 +4,10 @@ import { useState, useEffect } from "react";
 import NonTaxPurchaseReturnForm from "@/components/purchases/NonTaxPurchaseReturnForm";
 import NonTaxPurchaseReturnDetails from "@/components/purchases/NonTaxPurchaseReturnDetails";
 import ERPPageHeader from "@/components/erp/ui/ERPPageHeader";
-import { Plus, Search, Filter, Eye, Edit, Trash2, RotateCcw, AlertCircle, CheckCircle2, Link2, Printer, FileSpreadsheet, Wallet } from "lucide-react";
+import { Plus, Search, Filter, Eye, Edit, Trash2, RotateCcw, AlertCircle, CheckCircle2, Link2, Printer, FileSpreadsheet, Wallet, MessageCircle } from "lucide-react";
 import { exportToExcel, printPage } from "@/lib/excel";
+import { loadInvoiceById } from "@/lib/loadInvoice";
+import WhatsAppShareModal from "@/components/erp/whatsapp/WhatsAppShareModal";
 
 interface NonTaxReturn {
   id: string;
@@ -19,11 +21,16 @@ interface NonTaxReturn {
 
 export default function NonTaxPurchaseReturnPage() {
   const [showForm, setShowForm] = useState(false);
-  const [viewReturn, setViewReturn] = useState<NonTaxReturn | null>(null);
-  const [editOrder, setEditOrder] = useState<NonTaxReturn | null>(null);
+  const [viewReturn, setViewReturn] = useState<any | null>(null);
+  const [editOrder, setEditOrder] = useState<any | null>(null);
   const [returns, setReturns] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [loadingRecord, setLoadingRecord] = useState(false);
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+  const [waParty, setWaParty] = useState<any>(null);
+  const [waDocData, setWaDocData] = useState<any>(null);
+  const [shopProfile, setShopProfile] = useState<any>(null);
 
   const fetchReturns = async () => {
     setIsLoading(true);
@@ -35,18 +42,52 @@ export default function NonTaxPurchaseReturnPage() {
     finally { setIsLoading(false); }
   };
 
+  const fetchShopProfile = async () => {
+    try {
+      const res = await fetch("/api/shop-profile");
+      const json = await res.json();
+      if (json.ok) setShopProfile(json.data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const openView = async (ret: { _id: string }) => {
+    setLoadingRecord(true);
+    const full = await loadInvoiceById(ret._id);
+    if (!full) {
+      alert("Could not load return details.");
+      setLoadingRecord(false);
+      return;
+    }
+    setViewReturn(full);
+    setLoadingRecord(false);
+  };
+
+  const openEdit = async (ret: { _id: string }) => {
+    setLoadingRecord(true);
+    setViewReturn(null);
+    const full = await loadInvoiceById(ret._id);
+    if (!full) {
+      alert("Could not load return for editing. Please try again.");
+      setLoadingRecord(false);
+      return;
+    }
+    setEditOrder(full);
+    setShowForm(true);
+    setLoadingRecord(false);
+  };
+
   useEffect(() => {
     fetchReturns();
+    fetchShopProfile();
   }, [showForm]);
 
-  const handleSaveReturn = (data: any) => {
-    if (data.id) {
-      setReturns(returns.map(r => r.id === data.id ? { ...r, ...data } : r));
-    } else {
-      setReturns([...returns, { ...data, id: Date.now().toString() }]);
-    }
+  const handleSaveReturn = () => {
     setShowForm(false);
     setEditOrder(null);
+    setViewReturn(null);
+    fetchReturns();
   };
 
   const deleteReturn = async (id: string) => {
@@ -62,14 +103,17 @@ export default function NonTaxPurchaseReturnPage() {
   };
 
   if (showForm) {
-    return <NonTaxPurchaseReturnForm 
-      onClose={() => {
-        setShowForm(false);
-        setEditOrder(null);
-      }} 
-      onSave={handleSaveReturn}
-      initialData={editOrder}
-    />;
+    return (
+      <NonTaxPurchaseReturnForm
+        key={editOrder?._id ? `edit-${editOrder._id}` : "new"}
+        onClose={() => {
+          setShowForm(false);
+          setEditOrder(null);
+        }}
+        onSave={handleSaveReturn}
+        initialData={editOrder}
+      />
+    );
   }
 
   if (viewReturn) {
@@ -78,9 +122,7 @@ export default function NonTaxPurchaseReturnPage() {
         record={viewReturn} 
         onClose={() => setViewReturn(null)} 
         onEdit={() => {
-          setEditOrder(viewReturn);
-          setShowForm(true);
-          setViewReturn(null);
+          if (viewReturn?._id) openEdit(viewReturn);
         }} 
       />
     );
@@ -194,11 +236,12 @@ export default function NonTaxPurchaseReturnPage() {
                     </td>
                     <td className="px-8 py-5 text-center">
                       <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => setViewReturn(ret)} className="p-1.5 text-slate-300 hover:text-maroon-800 hover:bg-maroon-50 rounded-lg transition-all" title="View">
+                        <button onClick={() => openView(ret)} disabled={loadingRecord} className="p-1.5 text-slate-300 hover:text-maroon-800 hover:bg-maroon-50 rounded-lg transition-all" title="View">
                           <Eye size={16} />
                         </button>
                         <button 
-                          onClick={() => { setEditOrder(ret); setShowForm(true); }}
+                          onClick={() => openEdit(ret)}
+                          disabled={loadingRecord}
                           className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Edit"
                         >
                           <Edit size={16} />
@@ -208,6 +251,17 @@ export default function NonTaxPurchaseReturnPage() {
                           className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg transition-all" title="Print"
                         >
                           <Printer size={16} />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setWaParty(ret.partyId || { name: ret.vendor });
+                            setWaDocData({ ...ret, rows: ret.lines });
+                            setIsWhatsAppModalOpen(true);
+                          }}
+                          className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-[#25D366] hover:bg-[#25D366]/10 rounded-lg transition-all"
+                          title="WhatsApp"
+                        >
+                          <MessageCircle size={16} />
                         </button>
                         <button 
                           onClick={() => deleteReturn(ret._id)}
@@ -229,6 +283,15 @@ export default function NonTaxPurchaseReturnPage() {
           </table>
         </div>
       </div>
+
+      <WhatsAppShareModal
+        isOpen={isWhatsAppModalOpen}
+        onClose={() => setIsWhatsAppModalOpen(false)}
+        party={waParty}
+        type="Invoice"
+        documentData={waDocData}
+        shopProfile={shopProfile}
+      />
     </div>
   );
 }

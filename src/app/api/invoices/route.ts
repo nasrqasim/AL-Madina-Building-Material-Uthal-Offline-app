@@ -6,6 +6,8 @@ import Employee from "@/models/Employee";
 import Job from "@/models/Job";
 import Location from "@/models/Location";
 import { generateInvoiceJournalEntries } from "@/services/posting/invoicePostingHelper";
+import { normalizeInvoicePayload } from "@/lib/invoicePayload";
+import { getPopulatedInvoice } from "@/lib/invoiceQueries";
 
 export const dynamic = 'force-dynamic';
 
@@ -39,13 +41,14 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     await dbConnect();
-    
-    const row = await Invoice.create(body);
-    
-    // Automatically generate ledgers/journals
+
+    const payload = normalizeInvoicePayload(body);
+    const row = await Invoice.create(payload);
+
     await generateInvoiceJournalEntries(row);
 
-    return ok(row, 201);
+    const populated = await getPopulatedInvoice(String(row._id));
+    return ok(populated ?? row, 201);
   } catch (e) {
     return fail((e as Error).message);
   }

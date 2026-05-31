@@ -3,11 +3,13 @@ import dbConnect from "@/lib/db";
 import Invoice from "@/models/Invoice";
 import JournalEntry from "@/models/JournalEntry";
 import { generateInvoiceJournalEntries, recalculatePartyBalance } from "@/services/posting/invoicePostingHelper";
+import { normalizeInvoicePayload } from "@/lib/invoicePayload";
+import { getPopulatedInvoice } from "@/lib/invoiceQueries";
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
   try {
     await dbConnect();
-    const row = await Invoice.findById(params.id).populate("partyId").populate("lines.itemId");
+    const row = await getPopulatedInvoice(params.id);
     if (!row) return fail("Invoice not found", 404);
     return ok(row);
   } catch (e) {
@@ -19,13 +21,19 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   try {
     const body = await req.json();
     await dbConnect();
-    const row = await Invoice.findByIdAndUpdate(params.id, body, { new: true });
-    
+    const payload = normalizeInvoicePayload(body);
+    const row = await Invoice.findByIdAndUpdate(
+      params.id,
+      { $set: payload },
+      { new: true, runValidators: true }
+    );
+
     if (row) {
       await generateInvoiceJournalEntries(row);
     }
-    
-    return ok(row);
+
+    const populated = row ? await getPopulatedInvoice(params.id) : null;
+    return ok(populated ?? row);
   } catch (e) {
     return fail((e as Error).message);
   }

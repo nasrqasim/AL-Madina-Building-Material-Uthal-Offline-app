@@ -15,6 +15,8 @@ import {
   CreditCard
 } from "lucide-react";
 import { printPage } from "@/lib/excel";
+import { formatDate, formatMoney } from "@/lib/format";
+import { getInvoiceLinesFromRecord } from "@/lib/purchaseFormHydrate";
 
 interface NonTaxPurchaseInvoiceDetailsProps {
   record: any;
@@ -23,9 +25,26 @@ interface NonTaxPurchaseInvoiceDetailsProps {
 }
 
 export default function NonTaxPurchaseInvoiceDetails({ record, onClose, onEdit }: NonTaxPurchaseInvoiceDetailsProps) {
-  const lines = (record.lines && record.lines.length > 0) ? record.lines : [];
-  const vendorName = record.partyId?.name || record.partyId?.companyName || record.vendor || "—";
+  const rawLines = getInvoiceLinesFromRecord(record);
+  const lines =
+    rawLines.length > 0
+      ? rawLines
+      : Number(record.totalAmount || record.amount || 0) > 0
+        ? [
+            {
+              description: record.notes || "Invoice total",
+              cartons: 1,
+              qty: 1,
+              rate: Number(record.totalAmount || record.amount),
+              netAmount: Number(record.totalAmount || record.amount),
+            },
+          ]
+        : [];
+  const vendorName = record.partyId?.companyName || record.partyId?.name || record.vendor || "—";
   const locationName = record.locationId?.name || "—";
+  const total = Number(record.totalAmount || record.amount || 0);
+  const paid = Number(record.amountReceived || 0);
+  const balance = Number(record.balance ?? total - paid);
 
   return (
     <div className="bg-slate-50 dark:bg-slate-800/50 min-h-screen">
@@ -71,17 +90,36 @@ export default function NonTaxPurchaseInvoiceDetails({ record, onClose, onEdit }
             </div>
             <div className="space-y-1">
               <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Date</p>
-              <p className="text-sm font-bold text-slate-900 dark:text-white">{record.date}</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white">{formatDate(record.date)}</p>
             </div>
             <div className="space-y-1">
               <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Vendor</p>
               <p className="text-sm font-bold text-slate-900 dark:text-white">{vendorName}</p>
             </div>
             <div className="space-y-1">
-              <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Total Amount</p>
-              <p className="text-sm font-black text-slate-900 dark:text-white">Rs. {(record.totalAmount || record.amount || 0).toLocaleString()}</p>
+              <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Vendor Inv #</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white">{record.vendorInvNo || "—"}</p>
             </div>
-
+            <div className="space-y-1">
+              <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Due Date</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white">{formatDate(record.dueDate)}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Currency</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white">{record.currency || "PKR"}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Total Amount</p>
+              <p className="text-sm font-black text-slate-900 dark:text-white">{formatMoney(total)}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Amount Paid</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white">{formatMoney(paid)}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Balance</p>
+              <p className="text-sm font-bold text-maroon-800">{formatMoney(balance)}</p>
+            </div>
             <div className="space-y-1">
               <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Location</p>
               <p className="text-sm font-bold text-slate-900 dark:text-white">{locationName}</p>
@@ -89,7 +127,7 @@ export default function NonTaxPurchaseInvoiceDetails({ record, onClose, onEdit }
             <div className="space-y-1">
               <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Linked Document</p>
               <div className="flex items-center gap-1 text-sm font-bold text-maroon-800">
-                {record.reference || "None"} <Link2 size={14} />
+                {record.reference || record.linkToGRN || "None"} <Link2 size={14} />
               </div>
             </div>
           </div>
@@ -106,22 +144,28 @@ export default function NonTaxPurchaseInvoiceDetails({ record, onClose, onEdit }
                 <tr>
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-12 text-center">#</th>
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest min-w-[200px]">Description</th>
-                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Qty</th>
+                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Ctns</th>
+                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Gals</th>
+                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Ltrs</th>
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Unit Price</th>
+                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Disc %</th>
                   <th className="px-8 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-right">Total</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50 font-bold">
                 {lines.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-8 py-8 text-center text-sm text-slate-400 italic">No line items saved</td>
+                    <td colSpan={8} className="px-8 py-8 text-center text-sm text-slate-400 italic">No line items saved</td>
                   </tr>
                 ) : lines.map((line: any, index: number) => (
                   <tr key={index} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors">
                     <td className="px-8 py-6 text-xs font-bold text-slate-400 dark:text-slate-500 text-center">{index + 1}</td>
                     <td className="px-8 py-6 text-sm text-slate-600 dark:text-slate-300 font-bold">{line.description || line.itemId?.name || "—"}</td>
                     <td className="px-8 py-6 text-sm text-slate-900 dark:text-white text-center">{line.cartons ?? line.qty ?? 0}</td>
-                    <td className="px-8 py-6 text-sm text-slate-900 dark:text-white text-center">{(line.rate || 0).toLocaleString()}</td>
+                    <td className="px-8 py-6 text-sm text-slate-900 dark:text-white text-center">{line.gallons ?? 0}</td>
+                    <td className="px-8 py-6 text-sm text-slate-900 dark:text-white text-center">{line.liters ?? 0}</td>
+                    <td className="px-8 py-6 text-sm text-slate-900 dark:text-white text-center">{(line.rate || line.ratePerCarton || 0).toLocaleString()}</td>
+                    <td className="px-8 py-6 text-sm text-slate-900 dark:text-white text-center">{line.discountPercent ?? 0}</td>
                     <td className="px-8 py-6 text-sm font-black text-slate-900 dark:text-white text-right">{(line.netAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                   </tr>
                 ))}
@@ -133,7 +177,7 @@ export default function NonTaxPurchaseInvoiceDetails({ record, onClose, onEdit }
             <div className="w-full md:w-80 space-y-4">
               <div className="pt-6 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center">
                 <span className="text-xs font-black text-maroon-800 uppercase tracking-[0.2em]">Grand Total (PKR)</span>
-                <span className="text-2xl font-black text-maroon-800 tracking-tighter">Rs. {(record.totalAmount || record.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                <span className="text-2xl font-black text-maroon-800 tracking-tighter">{formatMoney(total)}</span>
               </div>
             </div>
           </div>
