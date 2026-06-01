@@ -154,24 +154,43 @@ export default function CashReceiptPage() {
                 <tr><td colSpan={8} className="px-6 py-12 text-center text-slate-400 font-bold">Loading...</td></tr>
               ) : filteredReceipts.length > 0 ? (
                 filteredReceipts.map((p) => {
-                  const displayParty = p.receiptType === "party"
+                  const rType = p.receiptType || "party";
+                  const displayParty = rType === "party"
                     ? (p.partyId?.companyName || p.partyId?.name || p.party || "N/A")
-                    : p.receiptType === "multi"
-                      ? `Multi-Party (${p.partyLines?.length || 0} line(s))`
-                      : `Petty Contra (${p.contraLines?.length || 0} line(s))`;
+                    : rType === "petty"
+                      ? (p.partyId ? (p.partyId?.companyName || p.partyId?.name || "N/A") : `Petty Contra (${p.contraLines?.length || 0} line(s))`)
+                      : `Multi-Party (${p.partyLines?.length || 0} line(s))`;
 
                   const displayCashAcc = p.cashAccountId?.title || p.cashAccountTitle || p.cashAccount || "N/A";
+
+                  // Category badge text
+                  let categoryLabel = "Party Receipt";
+                  let categoryClass = "bg-blue-100 text-blue-800";
+                  if (rType === "party") {
+                    const type = p.partyId?.type || "Customer";
+                    categoryLabel = type === "Vendor" ? "Vendor Receipt" : "Customer Receipt";
+                    categoryClass = type === "Vendor" ? "bg-amber-100 text-amber-800" : "bg-blue-100 text-blue-800";
+                  } else if (rType === "petty") {
+                    if (p.partyId) {
+                      const type = p.partyId?.type || "Customer";
+                      categoryLabel = type === "Vendor" ? "Petty Vendor" : "Petty Customer";
+                      categoryClass = type === "Vendor" ? "bg-rose-100 text-rose-800" : "bg-indigo-100 text-indigo-800";
+                    } else {
+                      categoryLabel = "Petty Contra";
+                      categoryClass = "bg-purple-100 text-purple-800";
+                    }
+                  } else if (rType === "multi") {
+                    categoryLabel = "Multi-Party";
+                    categoryClass = "bg-teal-100 text-teal-800";
+                  }
 
                   return (
                     <tr key={p._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
                       <td className="px-6 py-4"><span className="text-sm font-bold text-slate-900 dark:text-white">{p.receiptNumber}</span></td>
                       <td className="px-6 py-4"><span className="text-sm font-bold text-slate-600 dark:text-slate-300">{p.date}</span></td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                          p.receiptType === "party" ? "bg-blue-100 text-blue-800" :
-                          p.receiptType === "petty" ? "bg-purple-100 text-purple-800" : "bg-teal-100 text-teal-800"
-                        }`}>
-                          {p.receiptType === "party" ? "Party Receipt" : p.receiptType === "petty" ? "Petty Receipt" : "Multi-Party"}
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${categoryClass}`}>
+                          {categoryLabel}
                         </span>
                       </td>
                       <td className="px-6 py-4"><span className="text-sm font-bold text-slate-700 dark:text-slate-200">{displayParty}</span></td>
@@ -235,17 +254,22 @@ export default function CashReceiptPage() {
           data={{
             receiptNo: printReceipt.receiptNumber,
             date: printReceipt.date,
-            paidTo: printReceipt.receiptType === "party" ? (printReceipt.partyId?.companyName || printReceipt.partyId?.name || printReceipt.party || "Customer") : "Multiple",
+            paidTo: (printReceipt.receiptType || "party") === "party" || ((printReceipt.receiptType || "party") === "petty" && printReceipt.partyId)
+              ? (printReceipt.partyId?.companyName || printReceipt.partyId?.name || printReceipt.party || "Party")
+              : (printReceipt.receiptType === "multi" ? "Multi-Party" : "Petty Contra"),
             total: printReceipt.amount,
             subtotal: printReceipt.amount,
             taxAmount: 0,
             discountAmount: 0
           }}
           items={
-            printReceipt.receiptType === "party"
+            (printReceipt.receiptType || "party") === "party"
               ? [{ description: printReceipt.narration || "Cash Received", qty: 1, unitPrice: printReceipt.amount, total: printReceipt.amount }]
               : printReceipt.receiptType === "petty"
-                ? (printReceipt.contraLines || []).map((l: any) => ({ description: `${l.accountTitle}: ${l.description || 'Contra'}`, qty: 1, unitPrice: l.amount, total: l.amount }))
+                ? (printReceipt.partyId
+                    ? [{ description: printReceipt.narration || "Petty Cash Received", qty: 1, unitPrice: printReceipt.amount, total: printReceipt.amount }]
+                    : (printReceipt.contraLines || []).map((l: any) => ({ description: `${l.accountTitle}: ${l.description || 'Contra'}`, qty: 1, unitPrice: l.amount, total: l.amount }))
+                  )
                 : (printReceipt.partyLines || []).map((l: any) => ({ description: `${l.partyName} (Ref: ${l.invoiceRef || 'N/A'})`, qty: 1, unitPrice: l.amount, total: l.amount }))
           }
         />

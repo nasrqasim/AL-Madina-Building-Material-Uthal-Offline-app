@@ -13,6 +13,8 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
   const [activeTab, setActiveTab] = useState<"party" | "petty" | "multi">(
     initialData?.receiptType || "party"
   );
+  const [partyType, setPartyType] = useState<"Customer" | "Vendor">("Customer");
+  const [pettySubTab, setPettySubTab] = useState<"general" | "customer" | "vendor">("general");
 
   const [formData, setFormData] = useState({
     voucherNo: initialData?.receiptNumber || "Auto-generated",
@@ -40,6 +42,23 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
   const [employees, setEmployees] = useState<any[]>([]);
   const [jobs, setJobs] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (initialData && availableParties.length > 0) {
+      if (initialData.partyId) {
+        const pId = initialData.partyId._id || initialData.partyId;
+        const found = availableParties.find(p => p._id === pId);
+        if (found) {
+          setPartyType(found.type);
+          if (initialData.receiptType === "petty") {
+            setPettySubTab(found.type === "Vendor" ? "vendor" : "customer");
+          }
+        }
+      } else if (initialData.receiptType === "petty" && (!initialData.contraLines || initialData.contraLines.length > 0)) {
+        setPettySubTab("general");
+      }
+    }
+  }, [initialData, availableParties]);
 
   // Fetch lookups
   useEffect(() => {
@@ -78,19 +97,32 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
     return availableParties.filter(p => p.type === "Customer");
   }, [availableParties]);
 
+  // Filter vendors
+  const vendors = useMemo(() => {
+    return availableParties.filter(p => p.type === "Vendor");
+  }, [availableParties]);
+
+  const filteredPartiesForTab = useMemo(() => {
+    return availableParties.filter(p => p.type === partyType);
+  }, [availableParties, partyType]);
+
   // Auto-calculated totals
   const totalAmount = useMemo(() => {
     if (activeTab === "party") {
       return formData.amount;
     }
     if (activeTab === "petty") {
-      return contraLines.reduce((sum, line) => sum + (Number(line.amount) || 0), 0);
+      if (pettySubTab === "general") {
+        return contraLines.reduce((sum, line) => sum + (Number(line.amount) || 0), 0);
+      } else {
+        return formData.amount;
+      }
     }
     if (activeTab === "multi") {
       return partyLines.reduce((sum, line) => sum + (Number(line.amount) || 0), 0);
     }
     return 0;
-  }, [activeTab, formData.amount, contraLines, partyLines]);
+  }, [activeTab, pettySubTab, formData.amount, contraLines, partyLines]);
 
   // Handlers for petty contra lines
   const addContraLine = () => {
@@ -159,7 +191,7 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
     }
 
     if (activeTab === "party" && !formData.partyId) {
-      alert("Please select a Customer for Party Receipt.");
+      alert(`Please select a ${partyType} for Party Receipt.`);
       return;
     }
 
@@ -168,14 +200,26 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
       return;
     }
 
-    if (activeTab === "petty" && contraLines.length === 0) {
-      alert("Please add at least one Contra Account line.");
-      return;
-    }
-
-    if (activeTab === "petty" && contraLines.some(l => !l.accountId || l.amount <= 0)) {
-      alert("Please fill all Contra Account lines with a valid account and amount.");
-      return;
+    if (activeTab === "petty") {
+      if (pettySubTab === "general") {
+        if (contraLines.length === 0) {
+          alert("Please add at least one Contra Account line.");
+          return;
+        }
+        if (contraLines.some(l => !l.accountId || l.amount <= 0)) {
+          alert("Please fill all Contra Account lines with a valid account and amount.");
+          return;
+        }
+      } else {
+        if (!formData.partyId) {
+          alert(`Please select a ${pettySubTab === "customer" ? "Customer" : "Vendor"} for Petty Receipt.`);
+          return;
+        }
+        if (totalAmount <= 0) {
+          alert("Please enter a valid amount.");
+          return;
+        }
+      }
     }
 
     if (activeTab === "multi" && partyLines.length === 0) {
@@ -214,13 +258,18 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
         payload.contraLines = [];
         payload.partyLines = [];
       } else if (activeTab === "petty") {
-        payload.partyId = null;
-        payload.contraLines = contraLines.map(l => ({
-          accountId: l.accountId,
-          accountTitle: l.accountTitle,
-          description: l.description,
-          amount: Number(l.amount) || 0
-        }));
+        if (pettySubTab === "general") {
+          payload.partyId = null;
+          payload.contraLines = contraLines.map(l => ({
+            accountId: l.accountId,
+            accountTitle: l.accountTitle,
+            description: l.description,
+            amount: Number(l.amount) || 0
+          }));
+        } else {
+          payload.partyId = formData.partyId;
+          payload.contraLines = [];
+        }
         payload.partyLines = [];
       } else if (activeTab === "multi") {
         payload.partyId = null;
@@ -360,18 +409,33 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
             </div>
 
             {activeTab === "party" && (
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Customer *</label>
-                <select
-                  value={formData.partyId}
-                  onChange={(e) => setFormData({ ...formData, partyId: e.target.value })}
-                  className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold focus:ring-4 focus:ring-maroon-800/10 transition-all outline-none"
-                >
-                  <option value="">-- Select Customer --</option>
-                  {customers.map(c => (
-                    <option key={c._id} value={c._id}>{c.companyName || c.name}</option>
-                  ))}
-                </select>
+              <div className="space-y-1.5 col-span-1">
+                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Party (Customer/Vendor) *</label>
+                <div className="flex gap-2">
+                  <select
+                    value={partyType}
+                    onChange={(e) => {
+                      setPartyType(e.target.value as "Customer" | "Vendor");
+                      setFormData(prev => ({ ...prev, partyId: "" }));
+                    }}
+                    className="w-1/3 px-2 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold outline-none"
+                  >
+                    <option value="Customer">Customer</option>
+                    <option value="Vendor">Vendor</option>
+                  </select>
+                  <select
+                    value={formData.partyId}
+                    onChange={(e) => setFormData({ ...formData, partyId: e.target.value })}
+                    className="w-2/3 px-3 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold outline-none"
+                  >
+                    <option value="">Select {partyType}</option>
+                    {filteredPartiesForTab.map(c => (
+                      <option key={c._id} value={c._id}>
+                        {c.name} {c.companyName && c.companyName !== c.name ? `(${c.companyName})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             )}
 
@@ -438,89 +502,174 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
           </div>
         </section>
 
-        {/* Section 2: Petty Receipt Contra Lines Table */}
+        {/* Section 2: Petty Receipt Forms */}
         {activeTab === "petty" && (
-          <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800/50">
-              <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                <Landmark size={18} className="text-maroon-800" /> Contra Accounts
-              </h3>
+          <div className="space-y-6">
+            {/* Petty Sub-Tabs */}
+            <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl w-fit">
               <button
                 type="button"
-                onClick={addContraLine}
-                className="px-4 py-2 text-[10px] font-black bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl uppercase tracking-widest flex items-center hover:bg-slate-50 dark:hover:bg-slate-700 shadow-sm transition-all"
+                onClick={() => setPettySubTab("general")}
+                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  pettySubTab === "general"
+                    ? "bg-maroon-800 text-white shadow-sm"
+                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400"
+                }`}
               >
-                <Plus size={14} className="mr-1.5 text-maroon-800" /> Add Line
+                General (Contra Account)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPettySubTab("customer");
+                  const found = availableParties.find(p => p._id === formData.partyId);
+                  if (!found || found.type !== "Customer") {
+                    setFormData(prev => ({ ...prev, partyId: "" }));
+                  }
+                }}
+                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  pettySubTab === "customer"
+                    ? "bg-maroon-800 text-white shadow-sm"
+                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400"
+                }`}
+              >
+                Customer Petty Receipt
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPettySubTab("vendor");
+                  const found = availableParties.find(p => p._id === formData.partyId);
+                  if (!found || found.type !== "Vendor") {
+                    setFormData(prev => ({ ...prev, partyId: "" }));
+                  }
+                }}
+                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  pettySubTab === "vendor"
+                    ? "bg-maroon-800 text-white shadow-sm"
+                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400"
+                }`}
+              >
+                Vendor Petty Receipt
               </button>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="bg-slate-50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">
-                  <tr>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest w-12 text-center">#</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest w-72">Account *</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Description</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest w-48 text-right">Amount (PKR) *</th>
-                    <th className="px-6 py-4 w-16 text-center"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
-                  {contraLines.length > 0 ? (
-                    contraLines.map((line, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
-                        <td className="px-6 py-4 text-xs font-bold text-slate-400 text-center">{idx + 1}</td>
-                        <td className="px-4 py-3">
-                          <select
-                            value={line.accountId}
-                            onChange={(e) => updateContraLine(idx, "accountId", e.target.value)}
-                            className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-bold outline-none focus:border-maroon-800"
-                          >
-                            <option value="">-- Select Account --</option>
-                            {availableAccounts.map(a => (
-                              <option key={a._id} value={a._id}>{a.title} ({a.code})</option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="px-4 py-3">
-                          <input
-                            type="text"
-                            placeholder="Description / Narration"
-                            value={line.description}
-                            onChange={(e) => updateContraLine(idx, "description", e.target.value)}
-                            className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-bold outline-none"
-                          />
-                        </td>
-                        <td className="px-4 py-3">
-                          <input
-                            type="number"
-                            placeholder="0.00"
-                            value={line.amount || ""}
-                            onChange={(e) => updateContraLine(idx, "amount", parseFloat(e.target.value) || 0)}
-                            className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-black text-right outline-none"
-                          />
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <button
-                            type="button"
-                            onClick={() => removeContraLine(idx)}
-                            className="p-1.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-all"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </td>
+
+            {pettySubTab === "general" ? (
+              <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+                <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800/50">
+                  <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                    <Landmark size={18} className="text-maroon-800" /> Contra Accounts
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={addContraLine}
+                    className="px-4 py-2 text-[10px] font-black bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl uppercase tracking-widest flex items-center hover:bg-slate-50 dark:hover:bg-slate-700 shadow-sm transition-all"
+                  >
+                    <Plus size={14} className="mr-1.5 text-maroon-800" /> Add Line
+                  </button>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="bg-slate-50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">
+                      <tr>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest w-12 text-center">#</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest w-72">Account *</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Description</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest w-48 text-right">Amount (PKR) *</th>
+                        <th className="px-6 py-4 w-16 text-center"></th>
                       </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-bold">
-                        No lines added. Click &apos;Add Line&apos; to record contra accounts.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                      {contraLines.length > 0 ? (
+                        contraLines.map((line, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+                            <td className="px-6 py-4 text-xs font-bold text-slate-400 text-center">{idx + 1}</td>
+                            <td className="px-4 py-3">
+                              <select
+                                value={line.accountId}
+                                onChange={(e) => updateContraLine(idx, "accountId", e.target.value)}
+                                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-bold outline-none focus:border-maroon-800"
+                              >
+                                <option value="">-- Select Account --</option>
+                                {availableAccounts.map(a => (
+                                  <option key={a._id} value={a._id}>{a.title} ({a.code})</option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="px-4 py-3">
+                              <input
+                                type="text"
+                                placeholder="Description / Narration"
+                                value={line.description}
+                                onChange={(e) => updateContraLine(idx, "description", e.target.value)}
+                                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-bold outline-none"
+                              />
+                            </td>
+                            <td className="px-4 py-3">
+                              <input
+                                type="number"
+                                placeholder="0.00"
+                                value={line.amount || ""}
+                                onChange={(e) => updateContraLine(idx, "amount", parseFloat(e.target.value) || 0)}
+                                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-black text-right outline-none"
+                              />
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <button
+                                type="button"
+                                onClick={() => removeContraLine(idx)}
+                                className="p-1.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-all"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-bold">
+                            No lines added. Click &apos;Add Line&apos; to record contra accounts.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            ) : (
+              <section className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                      {pettySubTab === "customer" ? "Customer *" : "Vendor *"}
+                    </label>
+                    <select
+                      value={formData.partyId}
+                      onChange={(e) => setFormData({ ...formData, partyId: e.target.value })}
+                      className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold focus:ring-4 focus:ring-maroon-800/10 transition-all outline-none"
+                    >
+                      <option value="">-- Select {pettySubTab === "customer" ? "Customer" : "Vendor"} --</option>
+                      {(pettySubTab === "customer" ? customers : vendors).map(p => (
+                        <option key={p._id} value={p._id}>
+                          {p.name} {p.companyName && p.companyName !== p.name ? `(${p.companyName})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Amount (PKR) *</label>
+                    <input
+                      type="number"
+                      placeholder="0.00"
+                      value={formData.amount || ""}
+                      onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold focus:ring-4 focus:ring-maroon-800/10 transition-all outline-none"
+                    />
+                  </div>
+                </div>
+              </section>
+            )}
+          </div>
         )}
 
         {/* Section 2: Multi-Party Lines Table */}
@@ -618,7 +767,7 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
           </div>
 
           <div className="max-w-md space-y-4">
-            {activeTab === "party" ? (
+            {(activeTab === "party" || (activeTab === "petty" && pettySubTab !== "general")) ? (
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Total Amount (PKR) *</label>
                 <input

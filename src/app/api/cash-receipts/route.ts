@@ -1,11 +1,15 @@
 import { fail, ok } from "@/lib/api";
 import dbConnect from "@/lib/db";
 import CashReceipt from "@/models/CashReceipt";
+import Party from "@/models/Party";
+import Account from "@/models/Account";
+import Employee from "@/models/Employee";
+import Job from "@/models/Job";
 
 export async function GET() {
   await dbConnect();
   const rows = await CashReceipt.find()
-    .populate("partyId", "name companyName")
+    .populate("partyId", "name companyName type")
     .populate("cashAccountId", "title code")
     .populate("employeeId", "name")
     .populate("jobId", "title name")
