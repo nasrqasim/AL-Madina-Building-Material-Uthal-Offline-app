@@ -1,15 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { 
-  Save, 
-  ArrowLeft, 
-  X, 
-  CheckCircle2, 
+import { useState, useEffect, useMemo } from "react";
+import {
+  Save,
+  ArrowLeft,
+  X,
+  CheckCircle2,
   Landmark,
   FileText,
-  AlertCircle
 } from "lucide-react";
+import PartyLookupSelect from "@/components/erp/ui/PartyLookupSelect";
+import PartyDetailsCard, { type PartyLike } from "@/components/erp/ui/PartyDetailsCard";
 
 interface BankPaymentFormProps {
   onClose: () => void;
@@ -20,7 +21,7 @@ export default function BankPaymentForm({ onClose }: BankPaymentFormProps) {
     paymentType: "Party Payment",
     voucherNo: "Auto-generated",
     date: new Date().toISOString().split("T")[0],
-    vendorId: "",
+    partyId: "",
     bankAccountId: "",
     paymentMode: "Cheque",
     chequeNo: "",
@@ -36,19 +37,33 @@ export default function BankPaymentForm({ onClose }: BankPaymentFormProps) {
   });
 
   const [banks, setBanks] = useState<any[]>([]);
-  const [vendors, setVendors] = useState<any[]>([]);
+  const [parties, setParties] = useState<PartyLike[]>([]);
+  const [partyType, setPartyType] = useState<"Customer" | "Vendor">("Vendor");
+  const [previewParty, setPreviewParty] = useState<PartyLike | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    // Fetch banks
-    fetch("/api/banks").then(res => res.json()).then(json => {
-      if (json.ok) setBanks(json.data);
-    });
-    // Fetch vendors
-    fetch("/api/parties?type=Vendor").then(res => res.json()).then(json => {
-      if (json.ok) setVendors(json.data);
-    });
+    fetch("/api/banks")
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.ok) setBanks(json.data);
+      });
+    fetch("/api/parties")
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.ok) setParties(json.data);
+      });
   }, []);
+
+  const selectedParty = useMemo(
+    () => parties.find((p) => p._id === formData.partyId) || previewParty,
+    [parties, formData.partyId, previewParty]
+  );
+
+  const selectedBank = useMemo(
+    () => banks.find((b: { _id: string }) => b._id === formData.bankAccountId) || null,
+    [banks, formData.bankAccountId]
+  );
 
   const handleWhtRateChange = (rate: number) => {
     const whtAmount = (formData.totalAmount * rate) / 100;
@@ -64,7 +79,7 @@ export default function BankPaymentForm({ onClose }: BankPaymentFormProps) {
 
   const handleSubmit = async (e?: any) => {
     if (e) e.preventDefault();
-    if (!formData.vendorId || !formData.bankAccountId || formData.totalAmount <= 0) {
+    if (!formData.partyId || !formData.bankAccountId || formData.totalAmount <= 0) {
       return alert("Please fill all required fields (*) and enter a valid amount.");
     }
 
@@ -73,7 +88,7 @@ export default function BankPaymentForm({ onClose }: BankPaymentFormProps) {
       const res = await fetch("/api/bank-payments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ ...formData, vendorId: formData.partyId }),
       });
       const json = await res.json();
       if (json.ok) {
@@ -118,21 +133,26 @@ export default function BankPaymentForm({ onClose }: BankPaymentFormProps) {
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto p-6 space-y-8 pb-24">
-        {/* Payment Type Tabs */}
-        <div className="flex space-x-2 border-b border-slate-200 dark:border-slate-800 pb-4">
-          {["Party Payment", "Petty Payment", "Multi-Party"].map(type => (
-            <button 
+      <div className="max-w-6xl mx-auto p-6 pb-24">
+        <div className="flex space-x-2 border-b border-slate-200 dark:border-slate-800 pb-4 mb-8">
+          {["Party Payment", "Petty Payment"].map((type) => (
+            <button
               key={type}
+              type="button"
               onClick={() => setFormData({ ...formData, paymentType: type })}
-              className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors ${formData.paymentType === type ? "bg-maroon-800 text-white" : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50"}`}
+              className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors ${
+                formData.paymentType === type
+                  ? "bg-maroon-800 text-white"
+                  : "bg-white dark:bg-slate-900 text-slate-600 border border-slate-200"
+              }`}
             >
               {type}
             </button>
           ))}
         </div>
 
-        {/* Section 1: Payment Details */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="md:col-span-2 space-y-8 order-2 md:order-1">
         <section className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm">
           <div className="flex items-center space-x-2 mb-6">
             <h2 className="text-lg font-black text-slate-800 dark:text-slate-100 uppercase tracking-tighter">Payment Details</h2>
@@ -148,13 +168,27 @@ export default function BankPaymentForm({ onClose }: BankPaymentFormProps) {
               <input type="date" value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold focus:ring-4 focus:ring-maroon-800/5 transition-all outline-none" />
             </div>
 
-            <div className="space-y-1.5 col-span-2">
-              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Vendor *</label>
-              <select value={formData.vendorId} onChange={(e) => setFormData({...formData, vendorId: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold focus:ring-4 focus:ring-maroon-800/5 transition-all outline-none">
-                <option value="">-- Select Vendor --</option>
-                {vendors.map(v => <option key={v._id} value={v._id}>{v.name} ({v.companyName})</option>)}
-              </select>
-            </div>
+            {formData.paymentType === "Party Payment" && (
+              <div className="md:col-span-2">
+                <PartyLookupSelect
+                  parties={parties}
+                  value={formData.partyId}
+                  partyType={partyType}
+                  onPartyTypeChange={(t) => {
+                    setPartyType(t);
+                    setFormData((prev) => ({ ...prev, partyId: "" }));
+                    setPreviewParty(null);
+                  }}
+                  onChange={(id, party) => {
+                    setFormData((prev) => ({ ...prev, partyId: id }));
+                    setPreviewParty(party);
+                  }}
+                  onPreview={setPreviewParty}
+                  label="Pay To (Customer / Vendor)"
+                  required
+                />
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Bank Account *</label>
@@ -240,16 +274,40 @@ export default function BankPaymentForm({ onClose }: BankPaymentFormProps) {
           </div>
         </section>
 
-        {/* Section 3: Notes */}
         <section className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm">
           <div className="flex items-center gap-2 mb-6">
             <FileText size={20} className="text-slate-600 dark:text-slate-300" />
             <h2 className="text-lg font-black text-slate-800 dark:text-slate-100 uppercase tracking-tighter">Internal Notes</h2>
           </div>
-          <div className="space-y-1.5">
-            <textarea rows={4} value={formData.internalNotes} onChange={(e) => setFormData({...formData, internalNotes: e.target.value})} placeholder="Internal notes (not printed)..." className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium focus:ring-4 focus:ring-maroon-800/5 transition-all resize-none outline-none" />
-          </div>
+          <textarea
+            rows={4}
+            value={formData.internalNotes}
+            onChange={(e) => setFormData({ ...formData, internalNotes: e.target.value })}
+            placeholder="Internal notes (not printed)..."
+            className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 rounded-xl text-sm font-medium resize-none outline-none"
+          />
         </section>
+          </div>
+
+          <div className="md:col-span-1 order-1 md:order-2">
+            <PartyDetailsCard
+              party={selectedParty}
+              account={
+                selectedBank
+                  ? {
+                      _id: selectedBank._id,
+                      title: selectedBank.name,
+                      code: selectedBank.accountNo,
+                      openingBalance: selectedBank.balance,
+                    }
+                  : null
+              }
+              title="Party Details"
+              emptyMessage="Select or search a customer/vendor — scroll the list to preview balance, or pick one to load live ledger balance."
+              refreshLive={!!formData.partyId}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { Save, User, Calendar, Hash, DollarSign, FileText, ArrowLeft, X, CheckCircle2, Plus, Trash2, Briefcase, Landmark } from "lucide-react";
+import PartyLookupSelect from "@/components/erp/ui/PartyLookupSelect";
+import PartyDetailsCard, { type PartyLike, type AccountLike } from "@/components/erp/ui/PartyDetailsCard";
 
 interface CashReceiptFormProps {
   onClose: () => void;
@@ -10,8 +12,8 @@ interface CashReceiptFormProps {
 
 export default function CashReceiptForm({ onClose, initialData }: CashReceiptFormProps) {
   const isEdit = !!(initialData && initialData._id);
-  const [activeTab, setActiveTab] = useState<"party" | "petty" | "multi">(
-    initialData?.receiptType || "party"
+  const [activeTab, setActiveTab] = useState<"party" | "petty">(
+    initialData?.receiptType === "petty" ? "petty" : "party"
   );
   const [partyType, setPartyType] = useState<"Customer" | "Vendor">("Customer");
   const [pettySubTab, setPettySubTab] = useState<"general" | "customer" | "vendor">("general");
@@ -37,10 +39,11 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
     initialData?.partyLines || []
   );
 
-  const [availableAccounts, setAvailableAccounts] = useState<any[]>([]);
-  const [availableParties, setAvailableParties] = useState<any[]>([]);
+  const [availableAccounts, setAvailableAccounts] = useState<AccountLike[]>([]);
+  const [availableParties, setAvailableParties] = useState<PartyLike[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
   const [jobs, setJobs] = useState<any[]>([]);
+  const [previewParty, setPreviewParty] = useState<PartyLike | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -49,7 +52,8 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
         const pId = initialData.partyId._id || initialData.partyId;
         const found = availableParties.find(p => p._id === pId);
         if (found) {
-          setPartyType(found.type);
+          setPartyType(found.type === "Vendor" ? "Vendor" : "Customer");
+          setPreviewParty(found);
           if (initialData.receiptType === "petty") {
             setPettySubTab(found.type === "Vendor" ? "vendor" : "customer");
           }
@@ -102,9 +106,15 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
     return availableParties.filter(p => p.type === "Vendor");
   }, [availableParties]);
 
-  const filteredPartiesForTab = useMemo(() => {
-    return availableParties.filter(p => p.type === partyType);
-  }, [availableParties, partyType]);
+  const selectedParty = useMemo(
+    () => availableParties.find((p) => p._id === formData.partyId) || previewParty,
+    [availableParties, formData.partyId, previewParty]
+  );
+
+  const selectedCashAccount = useMemo(
+    () => cashAccounts.find((a) => a._id === formData.cashAccountId) || null,
+    [cashAccounts, formData.cashAccountId]
+  );
 
   // Auto-calculated totals
   const totalAmount = useMemo(() => {
@@ -118,11 +128,8 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
         return formData.amount;
       }
     }
-    if (activeTab === "multi") {
-      return partyLines.reduce((sum, line) => sum + (Number(line.amount) || 0), 0);
-    }
     return 0;
-  }, [activeTab, pettySubTab, formData.amount, contraLines, partyLines]);
+  }, [activeTab, pettySubTab, formData.amount, contraLines]);
 
   // Handlers for petty contra lines
   const addContraLine = () => {
@@ -222,16 +229,6 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
       }
     }
 
-    if (activeTab === "multi" && partyLines.length === 0) {
-      alert("Please add at least one Party line.");
-      return;
-    }
-
-    if (activeTab === "multi" && partyLines.some(l => !l.partyId || l.amount <= 0)) {
-      alert("Please fill all Party lines with a valid party and amount.");
-      return;
-    }
-
     setSaving(true);
     try {
       const selectedCashAcc = cashAccounts.find(a => a._id === formData.cashAccountId);
@@ -271,15 +268,6 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
           payload.contraLines = [];
         }
         payload.partyLines = [];
-      } else if (activeTab === "multi") {
-        payload.partyId = null;
-        payload.contraLines = [];
-        payload.partyLines = partyLines.map(l => ({
-          partyId: l.partyId,
-          partyName: l.partyName,
-          amount: Number(l.amount) || 0,
-          invoiceRef: l.invoiceRef
-        }));
       }
 
       const url = isEdit ? `/api/cash-receipts/${initialData._id}` : "/api/cash-receipts";
@@ -344,9 +332,9 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto p-6 space-y-8 pb-24">
+      <div className="max-w-6xl mx-auto p-6 pb-24">
         {/* Tabs */}
-        <div className="flex p-1.5 bg-slate-100 dark:bg-slate-800 rounded-2xl w-fit">
+        <div className="flex p-1.5 bg-slate-100 dark:bg-slate-800 rounded-2xl w-fit mb-8">
           <button
             onClick={() => !isEdit && setActiveTab("party")}
             disabled={isEdit && activeTab !== "party"}
@@ -369,19 +357,10 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
           >
             Petty Receipt
           </button>
-          <button
-            onClick={() => !isEdit && setActiveTab("multi")}
-            disabled={isEdit && activeTab !== "multi"}
-            className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${
-              activeTab === "multi"
-                ? "bg-maroon-800 text-white shadow-md"
-                : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-            } disabled:opacity-50`}
-          >
-            Multi-Party
-          </button>
         </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="md:col-span-2 space-y-8 order-2 md:order-1">
         {/* Section 1: Receipt Details */}
         <section className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-8 border border-slate-200 dark:border-slate-800 shadow-sm">
           <div className="flex items-center space-x-2 mb-8">
@@ -389,7 +368,7 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
               <FileText size={18} className="text-maroon-800 dark:text-maroon-400" />
             </div>
             <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
-              {activeTab === "party" ? "Party Receipt Details" : activeTab === "petty" ? "Petty Receipt Details" : "Multi-Party Receipt Details"}
+              {activeTab === "party" ? "Party Receipt Details" : "Petty Receipt Details"}
             </h2>
           </div>
 
@@ -409,33 +388,24 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
             </div>
 
             {activeTab === "party" && (
-              <div className="space-y-1.5 col-span-1">
-                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Party (Customer/Vendor) *</label>
-                <div className="flex gap-2">
-                  <select
-                    value={partyType}
-                    onChange={(e) => {
-                      setPartyType(e.target.value as "Customer" | "Vendor");
-                      setFormData(prev => ({ ...prev, partyId: "" }));
-                    }}
-                    className="w-1/3 px-2 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold outline-none"
-                  >
-                    <option value="Customer">Customer</option>
-                    <option value="Vendor">Vendor</option>
-                  </select>
-                  <select
-                    value={formData.partyId}
-                    onChange={(e) => setFormData({ ...formData, partyId: e.target.value })}
-                    className="w-2/3 px-3 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold outline-none"
-                  >
-                    <option value="">Select {partyType}</option>
-                    {filteredPartiesForTab.map(c => (
-                      <option key={c._id} value={c._id}>
-                        {c.name} {c.companyName && c.companyName !== c.name ? `(${c.companyName})` : ""}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div className="md:col-span-2">
+                <PartyLookupSelect
+                  parties={availableParties}
+                  value={formData.partyId}
+                  partyType={partyType}
+                  onPartyTypeChange={(t) => {
+                    setPartyType(t);
+                    setFormData((prev) => ({ ...prev, partyId: "" }));
+                    setPreviewParty(null);
+                  }}
+                  onChange={(id, party) => {
+                    setFormData((prev) => ({ ...prev, partyId: id }));
+                    setPreviewParty(party);
+                  }}
+                  onPreview={setPreviewParty}
+                  label="Receive From (Customer / Vendor)"
+                  required
+                />
               </div>
             )}
 
@@ -443,7 +413,10 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
               <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Cash Account * (with Balance)</label>
               <select
                 value={formData.cashAccountId}
-                onChange={(e) => setFormData({ ...formData, cashAccountId: e.target.value })}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setFormData({ ...formData, cashAccountId: id });
+                }}
                 className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold focus:ring-4 focus:ring-maroon-800/10 transition-all outline-none"
               >
                 <option value="">Search cash accounts...</option>
@@ -472,19 +445,6 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
                 onChange={(e) => setFormData({ ...formData, narration: e.target.value })}
                 className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold focus:ring-4 focus:ring-maroon-800/10 transition-all outline-none"
               />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Employee</label>
-              <select
-                value={formData.employeeId}
-                onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
-                className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold outline-none"
-              >
-                <option value="">-- Select Employee --</option>
-                {employees.map(emp => (
-                  <option key={emp._id} value={emp._id}>{emp.name}</option>
-                ))}
-              </select>
             </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Job</label>
@@ -639,22 +599,21 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
             ) : (
               <section className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                      {pettySubTab === "customer" ? "Customer *" : "Vendor *"}
-                    </label>
-                    <select
+                  <div className="md:col-span-2">
+                    <PartyLookupSelect
+                      parties={pettySubTab === "customer" ? customers : vendors}
                       value={formData.partyId}
-                      onChange={(e) => setFormData({ ...formData, partyId: e.target.value })}
-                      className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold focus:ring-4 focus:ring-maroon-800/10 transition-all outline-none"
-                    >
-                      <option value="">-- Select {pettySubTab === "customer" ? "Customer" : "Vendor"} --</option>
-                      {(pettySubTab === "customer" ? customers : vendors).map(p => (
-                        <option key={p._id} value={p._id}>
-                          {p.name} {p.companyName && p.companyName !== p.name ? `(${p.companyName})` : ""}
-                        </option>
-                      ))}
-                    </select>
+                      partyType={pettySubTab === "customer" ? "Customer" : "Vendor"}
+                      showTypeToggle={false}
+                      onPartyTypeChange={() => {}}
+                      onChange={(id, party) => {
+                        setFormData((prev) => ({ ...prev, partyId: id }));
+                        setPreviewParty(party);
+                      }}
+                      onPreview={setPreviewParty}
+                      label={pettySubTab === "customer" ? "Customer *" : "Vendor *"}
+                      required
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Amount (PKR) *</label>
@@ -672,8 +631,7 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
           </div>
         )}
 
-        {/* Section 2: Multi-Party Lines Table */}
-        {activeTab === "multi" && (
+        {false && (
           <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
             <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800/50">
               <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
@@ -815,6 +773,18 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
             />
           </div>
         </section>
+          </div>
+
+          <div className="md:col-span-1 order-1 md:order-2">
+            <PartyDetailsCard
+              party={selectedParty}
+              account={selectedCashAccount}
+              title="Party Details"
+              emptyMessage="Select or search a customer/vendor — scroll the list to preview balance, or pick one to load live ledger balance."
+              refreshLive={!!formData.partyId}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );

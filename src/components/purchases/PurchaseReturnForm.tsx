@@ -3,6 +3,11 @@
 import { useState, useEffect } from "react";
 import ItemSearchInput from "@/components/erp/ui/ItemSearchInput";
 import {
+  applyPurchaseUnitFieldUpdate,
+  defaultPurchaseUnitsForItem,
+  resolveCatalogItem,
+} from "@/lib/itemUnits";
+import {
   Plus, 
   Trash2, 
   Save, 
@@ -22,9 +27,9 @@ interface PRItem {
   itemId: string;
   itemCode?: string;
   description: string;
-  cartons: number;
-  gallons: number;
-  liters: number;
+  cartons: number | string;
+  gallons: number | string;
+  liters: number | string;
   unitCost: number;
   reason: string;
   total: number;
@@ -53,43 +58,40 @@ export default function PurchaseReturnForm({ onClose, onSave, initialData }: Pur
   ]);
   
   const [formData, setFormData] = useState({
-    returnNumber: initialData?.docNo || "Auto-generated",
-    returnDate: initialData?.date || new Date().toISOString().split("T")[0],
+    returnNumber: initialData?.invoiceNo || initialData?.docNo || "Auto-generated",
+    returnDate: initialData?.date ? new Date(initialData.date).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
     status: initialData?.status || "Draft",
-    vendorId: initialData?.vendor || "",
-    invoiceRef: initialData?.invoiceRef || "",
-    locationId: initialData?.locationId || "",
-    employeeId: initialData?.employeeId || "",
-    jobId: initialData?.jobId || "",
+    vendorId: initialData?.partyId?._id || initialData?.partyId || initialData?.vendor || "",
+    vendorBalance: initialData?.partyId?.balance || 0,
+    invoiceRef: initialData?.reference || initialData?.invoiceRef || "",
+    locationId: initialData?.locationId?._id || initialData?.locationId || "",
+    jobId: initialData?.jobId?._id || initialData?.jobId || "",
+    amountReceived: initialData?.amountReceived || 0,
     notes: initialData?.notes || ""
   });
 
   const [availableItems, setAvailableItems] = useState<any[]>([]);
   const [vendors, setVendors] = useState<any[]>([]);
-  const [employees, setEmployees] = useState<any[]>([]);
   const [jobs, setJobs] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
 
   const fetchData = async () => {
     try {
-      const [itemsRes, partiesRes, employeesRes, jobsRes, locationsRes] = await Promise.all([
+      const [itemsRes, partiesRes, jobsRes, locationsRes] = await Promise.all([
         fetch("/api/items"),
         fetch("/api/parties"),
-        fetch("/api/employees"),
         fetch("/api/jobs"),
         fetch("/api/locations")
       ]);
-      const [itemsJson, partiesJson, employeesJson, jobsJson, locationsJson] = await Promise.all([
+      const [itemsJson, partiesJson, jobsJson, locationsJson] = await Promise.all([
         itemsRes.json(),
         partiesRes.json(),
-        employeesRes.json(),
         jobsRes.json(),
         locationsRes.json()
       ]);
       
       if (itemsJson.ok) setAvailableItems(itemsJson.data);
       if (partiesJson.ok) setVendors(partiesJson.data.filter((p: any) => p.type === "Vendor"));
-      if (employeesJson.ok) setEmployees(employeesJson.data);
       if (jobsJson.ok) setJobs(jobsJson.data);
       if (locationsJson.ok) setLocations(locationsJson.data);
     } catch (e) { console.error(e); }
@@ -124,7 +126,7 @@ export default function PurchaseReturnForm({ onClose, onSave, initialData }: Pur
   };
 
   const updateItem = (id: string, field: keyof PRItem, value: any) => {
-    setItems(items.map(i => {
+    setItems((prev) => prev.map((i) => {
       if (i.id === id) {
         let updated = { ...i, [field]: value };
 
@@ -135,9 +137,16 @@ export default function PurchaseReturnForm({ onClose, onSave, initialData }: Pur
           if (selected) {
             updated.itemCode = selected.code;
             updated.description = selected.name;
-            updated.unitCost = selected.purchaseRate || 0;
+            updated.unitCost = selected.purchaseRate || selected.rate || 0;
+            updated = defaultPurchaseUnitsForItem(updated, selected);
           }
         }
+
+        if (field === "cartons" || field === "gallons" || field === "liters") {
+          const selected = resolveCatalogItem(availableItems, updated);
+          updated = applyPurchaseUnitFieldUpdate(updated, field, value, selected);
+        }
+
         updated.total = (Number(updated.cartons) || 0) * (updated.unitCost || 0);
         return updated;
       }
@@ -148,6 +157,16 @@ export default function PurchaseReturnForm({ onClose, onSave, initialData }: Pur
   const totalAmount = items.reduce((sum, i) => sum + i.total, 0);
 
   const handleSave = async (status: "Draft" | "Posted") => {
+    if (!formData.vendorId) {
+      alert("Please select a vendor.");
+      return;
+    }
+    const validLines = items.filter(i => i.itemId);
+    if (validLines.length === 0) {
+      alert("Please add at least one item.");
+      return;
+    }
+
     const isEdit = initialData && initialData._id;
     const payload = {
       invoiceNo: formData.returnNumber === "Auto-generated" ? `PR-${Date.now().toString().slice(-6)}` : formData.returnNumber,
@@ -155,19 +174,21 @@ export default function PurchaseReturnForm({ onClose, onSave, initialData }: Pur
       date: formData.returnDate,
       partyId: formData.vendorId,
       reference: formData.invoiceRef,
-      lines: items.map(i => ({
+      lines: validLines.map(i => ({
         itemId: i.itemId,
         description: i.description,
-        cartons: i.cartons,
-        gallons: i.gallons,
-        liters: i.liters,
-        qty: i.cartons,
-        rate: i.unitCost,
+        cartons: Number(i.cartons) || 0,
+        gallons: Number(i.gallons) || 0,
+        liters: Number(i.liters) || 0,
+        qty: Number(i.cartons) || 0,
+        rate: Number(i.unitCost) || 0,
+        grossAmount: i.total,
         netAmount: i.total
       })),
-      totalAmount: totalAmount,
-      status: status.toLowerCase(),
-      employeeId: formData.employeeId || null,
+      subTotal: totalAmount,
+      totalAmount,
+      amountReceived: Number(formData.amountReceived) || 0,
+      status: status === "Posted" ? "posted" : "draft",
       jobId: formData.jobId || null,
       locationId: formData.locationId || null,
       notes: formData.notes
@@ -180,12 +201,13 @@ export default function PurchaseReturnForm({ onClose, onSave, initialData }: Pur
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
-      if (res.ok) {
+      const json = await res.json();
+      if (res.ok && json.ok) {
         alert(`Purchase Return ${isEdit ? "updated" : "saved"} successfully!`);
+        if (onSave) onSave(json.data);
         onClose();
       } else {
-        const json = await res.json();
-        alert("Error: " + json.error);
+        alert("Error: " + (json.message || json.error || "Save failed"));
       }
     } catch (e) {
       console.error(e);
@@ -247,12 +269,26 @@ export default function PurchaseReturnForm({ onClose, onSave, initialData }: Pur
 
             <div className="space-y-1.5 md:col-span-2">
               <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Vendor *</label>
-              <select value={formData.vendorId} onChange={(e) => setFormData({...formData, vendorId: e.target.value})} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold focus:border-maroon-800 outline-none transition-all">
+              <select
+                value={formData.vendorId}
+                onChange={(e) => {
+                  const v = vendors.find(x => x._id === e.target.value);
+                  setFormData({
+                    ...formData,
+                    vendorId: e.target.value,
+                    vendorBalance: v?.balance || 0
+                  });
+                }}
+                className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold focus:border-maroon-800 outline-none transition-all"
+              >
                 <option value="">-- Select Vendor --</option>
                 {vendors.map(v => (
                   <option key={v._id} value={v._id}>{v.companyName || v.name}</option>
                 ))}
               </select>
+              {formData.vendorId ? (
+                <p className="text-xs font-bold text-rose-600">Vendor Balance: Rs. {Number(formData.vendorBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+              ) : null}
             </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Location *</label>
@@ -260,15 +296,6 @@ export default function PurchaseReturnForm({ onClose, onSave, initialData }: Pur
                 <option value="">-- Select Location --</option>
                 {locations.map(loc => (
                   <option key={loc._id} value={loc._id}>{loc.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Employee</label>
-              <select value={formData.employeeId} onChange={(e) => setFormData({...formData, employeeId: e.target.value})} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold focus:border-maroon-800 outline-none">
-                <option value="">-- Select Employee --</option>
-                {employees.map(emp => (
-                  <option key={emp._id} value={emp._id}>{emp.name}</option>
                 ))}
               </select>
             </div>
@@ -338,13 +365,37 @@ export default function PurchaseReturnForm({ onClose, onSave, initialData }: Pur
                       <input placeholder="Description" value={item.description} onChange={(e) => updateItem(item.id, "description", e.target.value)} className="w-full bg-transparent text-sm font-medium focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" />
                     </td>
                     <td className="px-2 py-4 text-center">
-                      <input type="number" value={item.cartons} onChange={(e) => updateItem(item.id, "cartons", parseFloat(e.target.value) || 0)} className="w-full bg-transparent text-sm font-black focus:outline-none text-center border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" />
+                      <input
+                        type="number"
+                        min={0}
+                        step="any"
+                        value={item.cartons}
+                        onChange={(e) => updateItem(item.id, "cartons", e.target.value === "" ? "" : Number(e.target.value))}
+                        onBlur={(e) => updateItem(item.id, "cartons", Number(e.target.value) || 0)}
+                        className="w-full bg-transparent text-sm font-black focus:outline-none text-center border-b border-transparent focus:border-maroon-800/30 py-2 transition-all"
+                      />
                     </td>
                     <td className="px-2 py-4 text-center">
-                      <input type="number" value={item.gallons} onChange={(e) => updateItem(item.id, "gallons", parseFloat(e.target.value) || 0)} className="w-full bg-transparent text-sm font-black focus:outline-none text-center border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" />
+                      <input
+                        type="number"
+                        min={0}
+                        step="any"
+                        value={item.gallons}
+                        onChange={(e) => updateItem(item.id, "gallons", e.target.value === "" ? "" : Number(e.target.value))}
+                        onBlur={(e) => updateItem(item.id, "gallons", Number(e.target.value) || 0)}
+                        className="w-full bg-transparent text-sm font-black focus:outline-none text-center border-b border-transparent focus:border-maroon-800/30 py-2 transition-all"
+                      />
                     </td>
                     <td className="px-2 py-4 text-center">
-                      <input type="number" value={item.liters} onChange={(e) => updateItem(item.id, "liters", parseFloat(e.target.value) || 0)} className="w-full bg-transparent text-sm font-black focus:outline-none text-center border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" />
+                      <input
+                        type="number"
+                        min={0}
+                        step="any"
+                        value={item.liters}
+                        onChange={(e) => updateItem(item.id, "liters", e.target.value === "" ? "" : Number(e.target.value))}
+                        onBlur={(e) => updateItem(item.id, "liters", Number(e.target.value) || 0)}
+                        className="w-full bg-transparent text-sm font-black focus:outline-none text-center border-b border-transparent focus:border-maroon-800/30 py-2 transition-all"
+                      />
                     </td>
                     <td className="px-8 py-4 text-center">
                       <input type="number" value={item.unitCost} onChange={(e) => updateItem(item.id, "unitCost", parseFloat(e.target.value) || 0)} className="w-full bg-transparent text-sm font-black focus:outline-none text-center border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" />
@@ -369,10 +420,20 @@ export default function PurchaseReturnForm({ onClose, onSave, initialData }: Pur
           
           <div className="p-8 bg-white dark:bg-slate-900 flex flex-col items-end space-y-3">
             <div className="w-full md:w-80 space-y-4">
-              <div className="pt-6 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center">
-                <span className="text-xs font-black text-maroon-800 uppercase tracking-[0.2em]">Total Return (PKR)</span>
-                <span className="text-3xl font-black text-maroon-800 tracking-tighter">{totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-black text-slate-500 uppercase">Total Return (PKR)</span>
+                <span className="text-2xl font-black text-maroon-800">{totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
               </div>
+              <div className="flex justify-between items-center pt-2 border-t border-slate-200 dark:border-slate-800">
+                <span className="text-xs font-black text-slate-500 uppercase">Refund Received</span>
+                <input
+                  type="number"
+                  value={formData.amountReceived}
+                  onChange={(e) => setFormData({ ...formData, amountReceived: Number(e.target.value) || 0 })}
+                  className="w-40 px-3 py-2 text-right text-lg font-black border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-maroon-800"
+                />
+              </div>
+              <p className="text-[10px] text-slate-400">Refund amount updates vendor balance when posted (same as sale return).</p>
             </div>
           </div>
         </section>

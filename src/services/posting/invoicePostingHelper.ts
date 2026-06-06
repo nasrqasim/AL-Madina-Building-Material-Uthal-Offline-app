@@ -37,12 +37,18 @@ export async function recalculatePartyBalance(partyId: string) {
 
   // 2. Sum up all receipts / payments for this party
   if (isCustomer) {
-    const cashReceipts = await CashReceipt.find({ party: partyId, status: { $ne: "Cancelled" } }).lean();
-    const bankReceipts = await BankReceipt.find({ party: partyId, status: { $ne: "Cancelled" } }).lean();
+    const cashReceipts = await CashReceipt.find({ partyId, status: { $ne: "Cancelled" } }).lean();
+    const bankReceipts = await BankReceipt.find({
+      $or: [{ party: partyId }, { party: String(partyId) }],
+      status: { $ne: "Cancelled" },
+    }).lean();
     totalReceiptsPayments += cashReceipts.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
     totalReceiptsPayments += bankReceipts.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
   } else {
-    const cashPayments = await CashPayment.find({ vendor: partyId, status: { $ne: "Cancelled" } }).lean();
+    const cashPayments = await CashPayment.find({
+      $or: [{ partyId }, { vendor: partyId }],
+      status: { $ne: "Cancelled" },
+    }).lean();
     const bankPayments = await BankPayment.find({ vendor: partyId, status: { $ne: "Cancelled" } }).lean();
     totalReceiptsPayments += cashPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
     totalReceiptsPayments += bankPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);

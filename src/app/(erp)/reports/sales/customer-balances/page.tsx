@@ -8,6 +8,8 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
 
 export default function CustomerBalancesReportPage() {
   const [data, setData] = useState<any[]>([]);
+  const [filteredData, setFilteredData] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(true);
 
@@ -80,6 +82,7 @@ export default function CustomerBalancesReportPage() {
         }).filter((c: any) => c.closing !== 0 || c.debit !== 0 || c.credit !== 0);
 
         setData(result);
+        setFilteredData(result);
       } catch (error) {
         console.error("Error fetching customer balances:", error);
       } finally {
@@ -89,12 +92,27 @@ export default function CustomerBalancesReportPage() {
     fetchData();
   }, []);
 
-  const totalDebit = data.reduce((s, r) => s + r.debit, 0);
-  const totalCredit = data.reduce((s, r) => s + r.credit, 0);
-  const totalClosing = data.reduce((s, r) => s + r.closing, 0);
+  useEffect(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) {
+      setFilteredData(data);
+      return;
+    }
+    setFilteredData(
+      data.filter((r) =>
+        String(r.customer || "").toLowerCase().includes(q) ||
+        String(r.region || "").toLowerCase().includes(q) ||
+        String(r.area || "").toLowerCase().includes(q)
+      )
+    );
+  }, [searchQuery, data]);
+
+  const totalDebit = filteredData.reduce((s, r) => s + r.debit, 0);
+  const totalCredit = filteredData.reduce((s, r) => s + r.credit, 0);
+  const totalClosing = filteredData.reduce((s, r) => s + r.closing, 0);
 
   const stats = [
-    { title: "Customers with Balance", value: data.length.toString(), icon: Users, iconColor: "text-rose-600", iconBg: "bg-rose-50" },
+    { title: "Customers with Balance", value: filteredData.length.toString(), icon: Users, iconColor: "text-rose-600", iconBg: "bg-rose-50" },
     { title: "Total Receivable", value: `Rs. ${totalClosing.toLocaleString()}`, icon: DollarSign, iconColor: "text-blue-600", iconBg: "bg-blue-50", valueColor: "text-blue-600" },
     { title: "Total Debit", value: `Rs. ${totalDebit.toLocaleString()}`, icon: ArrowUpRight, iconColor: "text-emerald-600", iconBg: "bg-emerald-50", iconLabel: "Dr" },
     { title: "Total Credit", value: `Rs. ${totalCredit.toLocaleString()}`, icon: ArrowDownRight, iconColor: "text-rose-600", iconBg: "bg-rose-50", iconLabel: "Cr" },
@@ -143,7 +161,7 @@ export default function CustomerBalancesReportPage() {
           <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">&nbsp;</label>
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500" size={12} />
-            <input type="text" placeholder="Search customer name..." className="w-full pl-7 pr-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-maroon-800/10 font-medium transition-all" />
+            <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search customer name..." className="w-full pl-7 pr-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-maroon-800/10 font-medium transition-all" />
           </div>
         </div>
       </div>
@@ -166,7 +184,7 @@ export default function CustomerBalancesReportPage() {
   );
 
 
-  const barData = data.slice(0, 10).map(r => ({ name: r.customer, balance: r.closing }));
+  const barData = filteredData.slice(0, 10).map(r => ({ name: r.customer, balance: r.closing }));
 
   return (
     <ERPReportLayout
@@ -176,7 +194,7 @@ export default function CustomerBalancesReportPage() {
       filters={Filters}
       actions={[
         { label: "Print Balances", onClick: printPage, icon: Printer },
-        { label: "Export Excel", onClick: () => exportToExcel(data, "CustomerBalances.xlsx"), icon: FileSpreadsheet },
+        { label: "Export Excel", onClick: () => exportToExcel(filteredData, "CustomerBalances.xlsx"), icon: FileSpreadsheet },
       ]}
     >
       <div className="space-y-6">
@@ -208,7 +226,7 @@ export default function CustomerBalancesReportPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {data.map((row: any, i: number) => (
+                    {filteredData.map((row: any, i: number) => (
                       <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors">
                         <td className="px-4 py-3 text-[11px] font-medium text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500">{i + 1}</td>
                         <td className="px-4 py-3 text-[11px] font-bold text-blue-600 cursor-pointer hover:underline uppercase">{row.customer}</td>
@@ -222,7 +240,7 @@ export default function CustomerBalancesReportPage() {
                     ))}
                     <tr className="bg-slate-50 dark:bg-slate-800/50 font-black">
                       <td colSpan={4} className="px-4 py-3 text-right text-[10px] uppercase tracking-widest text-slate-800 dark:text-slate-100">Grand Total</td>
-                      <td className="px-4 py-3 text-[11px] text-right text-slate-800 dark:text-slate-100">{data.reduce((s, r) => s + r.opening, 0).toLocaleString()}</td>
+                      <td className="px-4 py-3 text-[11px] text-right text-slate-800 dark:text-slate-100">{filteredData.reduce((s, r) => s + r.opening, 0).toLocaleString()}</td>
                       <td className="px-4 py-3 text-[11px] text-right text-emerald-700">{totalDebit.toLocaleString()}</td>
                       <td className="px-4 py-3 text-[11px] text-right text-rose-700">{totalCredit.toLocaleString()}</td>
                       <td className="px-4 py-3 text-[11px] text-right text-blue-700">{totalClosing.toLocaleString()}</td>

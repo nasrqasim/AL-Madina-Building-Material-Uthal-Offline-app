@@ -1,238 +1,557 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { 
-  Save, 
-  ArrowLeft, 
-  X, 
-  CheckCircle2, 
+import { useState, useEffect, useMemo } from "react";
+import {
+  Save,
+  ArrowLeft,
+  X,
+  CheckCircle2,
   Wallet,
-  FileText
+  FileText,
+  Plus,
+  Trash2,
+  Landmark,
+  DollarSign,
 } from "lucide-react";
+import PartyLookupSelect from "@/components/erp/ui/PartyLookupSelect";
+import PartyDetailsCard, { type PartyLike, type AccountLike } from "@/components/erp/ui/PartyDetailsCard";
 
 interface CashPaymentFormProps {
   onClose: () => void;
+  initialData?: Record<string, unknown>;
 }
 
-export default function CashPaymentForm({ onClose }: CashPaymentFormProps) {
+export default function CashPaymentForm({ onClose, initialData }: CashPaymentFormProps) {
+  const isEdit = !!(initialData && initialData._id);
+  const [activeTab, setActiveTab] = useState<"party" | "petty">(
+    initialData?.paymentType === "petty" ? "petty" : "party"
+  );
+  const [partyType, setPartyType] = useState<"Customer" | "Vendor">("Vendor");
+  const [pettySubTab, setPettySubTab] = useState<"general" | "customer" | "vendor">("general");
+  const [previewParty, setPreviewParty] = useState<PartyLike | null>(null);
+  const [saving, setSaving] = useState(false);
+
   const [formData, setFormData] = useState({
-    paymentType: "Party Payment",
-    voucherNo: "Auto-generated",
-    date: new Date().toISOString().split("T")[0],
-    vendorId: "",
-    cashAccountId: "",
-    reference: "",
-    narration: "",
-    employeeId: "",
-    jobId: "",
-    totalAmount: 0,
-    whtRate: 0,
-    whtAmount: 0,
-    internalNotes: ""
+    voucherNo: String(initialData?.voucherNo || "Auto-generated"),
+    date: initialData?.date
+      ? String(initialData.date).slice(0, 10)
+      : new Date().toISOString().split("T")[0],
+    partyId: (initialData?.partyId as { _id?: string })?._id || String(initialData?.partyId || initialData?.vendor || ""),
+    cashAccountId: (initialData?.cashAccountId as { _id?: string })?._id || String(initialData?.cashAccountId || ""),
+    reference: String(initialData?.reference || ""),
+    narration: String(initialData?.narration || ""),
+    jobId: (initialData?.jobId as { _id?: string })?._id || String(initialData?.jobId || ""),
+    amount: Number(initialData?.amount ?? initialData?.totalAmount) || 0,
+    whtRate: Number(initialData?.whtRate) || 0,
+    whtAmount: Number(initialData?.whtAmount ?? initialData?.wht) || 0,
+    notes: String(initialData?.notes || initialData?.internalNotes || ""),
   });
 
-  const [vendors, setVendors] = useState<any[]>([]);
-  const [cashAccounts, setCashAccounts] = useState<any[]>([]);
+  const [contraLines, setContraLines] = useState<Record<string, unknown>[]>(
+    (initialData?.contraLines as Record<string, unknown>[]) || []
+  );
+
+  const [availableAccounts, setAvailableAccounts] = useState<AccountLike[]>([]);
+  const [availableParties, setAvailableParties] = useState<PartyLike[]>([]);
+  const [jobs, setJobs] = useState<{ _id: string; title?: string; name?: string }[]>([]);
 
   useEffect(() => {
-    fetch("/api/parties").then(res => res.json()).then(json => {
-      if (json.ok) setVendors(json.data.filter((p: any) => p.type === "Vendor"));
-    });
-    fetch("/api/accounts").then(res => res.json()).then(json => {
-      if (json.ok) setCashAccounts(json.data.filter((a: any) => a.type === "cash"));
-    });
+    const fetchAll = async () => {
+      try {
+        const [acctRes, partyRes, jobRes] = await Promise.all([
+          fetch("/api/accounts"),
+          fetch("/api/parties"),
+          fetch("/api/jobs"),
+        ]);
+        const [acctJson, partyJson, jobJson] = await Promise.all([
+          acctRes.json(),
+          partyRes.json(),
+          jobRes.json(),
+        ]);
+        if (acctJson.ok) setAvailableAccounts(acctJson.data);
+        if (partyJson.ok) setAvailableParties(partyJson.data);
+        if (jobJson.ok) setJobs(jobJson.data);
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    fetchAll();
   }, []);
 
-  const handlePost = async () => {
-    if (!formData.vendorId || !formData.cashAccountId || formData.totalAmount <= 0) {
-      alert("Please fill all required fields");
-      return;
+  useEffect(() => {
+    if (initialData?.partyId && availableParties.length) {
+      const p = initialData.partyId as PartyLike;
+      const id = p._id || String(initialData.partyId);
+      const found = availableParties.find((x) => x._id === id);
+      if (found) {
+        setPartyType(found.type === "Customer" ? "Customer" : "Vendor");
+        setPreviewParty(found);
+      }
+    }
+  }, [initialData, availableParties]);
+
+  const cashAccounts = useMemo(
+    () => availableAccounts.filter((a) => a.type === "cash" || a.type === "bank"),
+    [availableAccounts]
+  );
+
+  const customers = useMemo(() => availableParties.filter((p) => p.type === "Customer"), [availableParties]);
+  const vendors = useMemo(() => availableParties.filter((p) => p.type === "Vendor"), [availableParties]);
+
+  const selectedParty = useMemo(
+    () => availableParties.find((p) => p._id === formData.partyId) || previewParty,
+    [availableParties, formData.partyId, previewParty]
+  );
+
+  const selectedCashAccount = useMemo(
+    () => cashAccounts.find((a) => a._id === formData.cashAccountId) || null,
+    [cashAccounts, formData.cashAccountId]
+  );
+
+  const totalAmount = useMemo(() => {
+    if (activeTab === "party") return formData.amount;
+    if (activeTab === "petty") {
+      if (pettySubTab === "general") {
+        return contraLines.reduce((s, l) => s + (Number(l.amount) || 0), 0);
+      }
+      return formData.amount;
+    }
+    return 0;
+  }, [activeTab, pettySubTab, formData.amount, contraLines]);
+
+  const whtAmount = useMemo(() => {
+    if (formData.whtAmount && activeTab === "party") return formData.whtAmount;
+    return (totalAmount * formData.whtRate) / 100;
+  }, [totalAmount, formData.whtRate, formData.whtAmount, activeTab]);
+
+  const netPaid = totalAmount - whtAmount;
+
+  const handleWhtRateChange = (rate: number) => {
+    setFormData({
+      ...formData,
+      whtRate: rate,
+      whtAmount: (formData.amount * rate) / 100,
+    });
+  };
+
+  const handleAmountChange = (amount: number) => {
+    setFormData({
+      ...formData,
+      amount,
+      whtAmount: (amount * formData.whtRate) / 100,
+    });
+  };
+
+  const addContraLine = () =>
+    setContraLines([...contraLines, { accountId: "", accountTitle: "", description: "", amount: 0 }]);
+
+  const removeContraLine = (index: number) => setContraLines(contraLines.filter((_, i) => i !== index));
+
+  const updateContraLine = (index: number, field: string, value: unknown) => {
+    setContraLines(
+      contraLines.map((line, idx) => {
+        if (idx !== index) return line;
+        const updated = { ...line, [field]: value };
+        if (field === "accountId") {
+          const acc = availableAccounts.find((a) => a._id === value);
+          updated.accountTitle = acc?.title || "";
+        }
+        return updated;
+      })
+    );
+  };
+
+  const handleSave = async (status: "Draft" | "Posted") => {
+    if (!formData.date) return alert("Please select a date.");
+    if (!formData.cashAccountId) return alert("Please select a cash account.");
+    if (!formData.narration.trim()) return alert("Please enter narration.");
+
+    if (activeTab === "party") {
+      if (!formData.partyId) return alert(`Please select a ${partyType}.`);
+      if (formData.amount <= 0) return alert("Please enter a valid amount.");
     }
 
+    if (activeTab === "petty") {
+      if (pettySubTab === "general") {
+        if (!contraLines.length) return alert("Add at least one contra account line.");
+        if (contraLines.some((l) => !l.accountId || Number(l.amount) <= 0)) {
+          return alert("Fill all contra lines with account and amount.");
+        }
+      } else {
+        if (!formData.partyId) return alert(`Please select a ${pettySubTab === "customer" ? "customer" : "vendor"}.`);
+        if (formData.amount <= 0) return alert("Please enter a valid amount.");
+      }
+    }
+
+    setSaving(true);
     try {
-      const res = await fetch("/api/cash-payments", {
-        method: "POST",
+      const selectedCash = cashAccounts.find((a) => a._id === formData.cashAccountId);
+      const payload: Record<string, unknown> = {
+        voucherNo: formData.voucherNo,
+        paymentType: activeTab,
+        date: formData.date,
+        cashAccountId: formData.cashAccountId,
+        cashAccountTitle: selectedCash?.title || "",
+        reference: formData.reference,
+        narration: formData.narration,
+        jobId: formData.jobId || null,
+        amount: totalAmount,
+        whtRate: formData.whtRate,
+        whtAmount: activeTab === "party" ? whtAmount : (totalAmount * formData.whtRate) / 100,
+        notes: formData.notes,
+        status,
+        contraLines: [],
+        partyId: null,
+      };
+
+      if (activeTab === "party") {
+        payload.partyId = formData.partyId;
+      } else if (pettySubTab === "general") {
+        payload.contraLines = contraLines.map((l) => ({
+          accountId: l.accountId,
+          accountTitle: l.accountTitle,
+          description: l.description,
+          amount: Number(l.amount) || 0,
+        }));
+      } else {
+        payload.partyId = formData.partyId;
+      }
+
+      const url = isEdit ? `/api/cash-payments/${initialData!._id}` : "/api/cash-payments";
+      const res = await fetch(url, {
+        method: isEdit ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (json.ok) {
-        alert("Payment posted successfully!");
+        alert(`Cash Payment ${isEdit ? "updated" : "saved"} successfully!`);
         onClose();
       } else {
-        alert("Error: " + json.error);
+        alert("Error: " + (json.message || json.error || "Save failed"));
       }
     } catch (e) {
       console.error(e);
-      alert("Failed to post payment");
+      alert("Failed to save payment");
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleWhtRateChange = (rate: number) => {
-    const whtAmount = (formData.totalAmount * rate) / 100;
-    setFormData({ ...formData, whtRate: rate, whtAmount });
-  };
-
-  const handleTotalAmountChange = (amount: number) => {
-    const whtAmount = (amount * formData.whtRate) / 100;
-    setFormData({ ...formData, totalAmount: amount, whtAmount });
-  };
-
-  const netAmount = formData.totalAmount - formData.whtAmount;
-
   return (
-    <div className="bg-white dark:bg-slate-900 min-h-screen font-sans">
-      {/* Header Actions */}
+    <div className="bg-white dark:bg-slate-900 min-h-screen">
       <div className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <button onClick={onClose} className="flex items-center gap-2 px-3 py-1.5 text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 rounded-lg transition-all border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-            <ArrowLeft size={16} /> Back to List
+          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full">
+            <ArrowLeft size={20} />
           </button>
           <div>
-            <h1 className="text-xl font-bold text-slate-900 dark:text-white leading-none">New Cash Payment</h1>
-            <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-1">Payments / Cash Payment</p>
+            <h1 className="text-xl font-bold text-slate-900 dark:text-white">
+              {isEdit ? `Edit Cash Payment: ${formData.voucherNo}` : "New Cash Payment"}
+            </h1>
+            <p className="text-xs text-slate-500 uppercase tracking-wider">Payments / Cash Payment</p>
           </div>
         </div>
-        <div className="flex items-center space-x-3">
-          <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 rounded-lg flex items-center transition-all border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-bold border rounded-lg flex items-center">
             <X size={16} className="mr-2" /> Cancel
           </button>
-          <button 
-            type="button" 
-            onClick={handlePost}
-            className="px-4 py-2 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg flex items-center shadow-lg shadow-emerald-600/10 transition-all"
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => handleSave("Draft")}
+            className="px-4 py-2 text-sm font-bold text-white bg-maroon-800 rounded-lg flex items-center disabled:opacity-50"
+          >
+            <Save size={16} className="mr-2" /> Save Draft
+          </button>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => handleSave("Posted")}
+            className="px-4 py-2 text-sm font-bold text-white bg-emerald-600 rounded-lg flex items-center disabled:opacity-50"
           >
             <CheckCircle2 size={16} className="mr-2" /> Save & Post
           </button>
         </div>
       </div>
 
-
-      <div className="max-w-4xl mx-auto p-6 space-y-8 pb-24">
-        {/* Payment Type Tabs */}
-        <div className="flex space-x-2 border-b border-slate-200 dark:border-slate-800 pb-4">
-          {["Party Payment", "Petty Payment", "Multi-Party"].map(type => (
-            <button 
-              key={type}
-              onClick={() => setFormData({ ...formData, paymentType: type })}
-              className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors ${formData.paymentType === type ? "bg-maroon-800 text-white" : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50"}`}
+      <div className="max-w-6xl mx-auto p-6 space-y-8 pb-24">
+        <div className="flex p-1.5 bg-slate-100 dark:bg-slate-800 rounded-2xl w-fit">
+          {(["party", "petty"] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => !isEdit && setActiveTab(tab)}
+              className={`px-6 py-2 rounded-xl text-sm font-bold ${
+                activeTab === tab ? "bg-maroon-800 text-white shadow-md" : "text-slate-500"
+              }`}
             >
-              {type}
+              {tab === "party" ? "Party Payment" : "Petty Payment"}
             </button>
           ))}
         </div>
 
-        {/* Section 1: Payment Details */}
-        <section className="bg-slate-50 dark:bg-slate-800/50/50 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm">
-          <div className="flex items-center space-x-2 mb-6">
-            <h2 className="text-lg font-black text-slate-800 dark:text-slate-100 uppercase tracking-tighter">Payment Details</h2>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Voucher No</label>
-              <input value={formData.voucherNo} disabled className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Date *</label>
-              <input type="date" value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold focus:ring-4 focus:ring-maroon-800/5 transition-all" />
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="md:col-span-2 space-y-8 order-2 md:order-1">
+            <section className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-8 border border-slate-200 dark:border-slate-800">
+              <h2 className="text-lg font-bold mb-6 flex items-center gap-2">
+                <FileText size={18} /> Payment Details
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase">Voucher No</label>
+                  <input value={formData.voucherNo} disabled className="w-full px-4 py-3 bg-slate-100 rounded-xl text-sm font-bold" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase">Date *</label>
+                  <input
+                    type="date"
+                    value={formData.date}
+                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                    className="w-full px-4 py-3 border rounded-xl text-sm font-bold"
+                  />
+                </div>
+                <div className="space-y-1.5 md:col-span-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase">Cash Account *</label>
+                  <select
+                    value={formData.cashAccountId}
+                    onChange={(e) => setFormData({ ...formData, cashAccountId: e.target.value })}
+                    className="w-full px-4 py-3 border rounded-xl text-sm font-bold"
+                  >
+                    <option value="">Select cash account...</option>
+                    {cashAccounts.map((a) => (
+                      <option key={a._id} value={a._id}>
+                        {a.code} - {a.title} (Rs. {(a.openingBalance || 0).toLocaleString()})
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Cash Account * (with Balance)</label>
-              <select value={formData.cashAccountId} onChange={(e) => setFormData({...formData, cashAccountId: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold focus:ring-4 focus:ring-maroon-800/5 transition-all">
-                <option value="">Search cash accounts...</option>
-                {cashAccounts.map(a => <option key={a._id} value={a._id}>{a.code} - {a.title}</option>)}
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Vendor *</label>
-              <select value={formData.vendorId} onChange={(e) => setFormData({...formData, vendorId: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold focus:ring-4 focus:ring-maroon-800/5 transition-all">
-                <option value="">-- Select Vendor --</option>
-                {vendors.map(v => <option key={v._id} value={v._id}>{v.companyName}</option>)}
-              </select>
-            </div>
+                {activeTab === "party" && (
+                  <div className="md:col-span-2">
+                    <PartyLookupSelect
+                      parties={availableParties}
+                      value={formData.partyId}
+                      partyType={partyType}
+                      onPartyTypeChange={(t) => {
+                        setPartyType(t);
+                        setFormData((prev) => ({ ...prev, partyId: "" }));
+                        setPreviewParty(null);
+                      }}
+                      onChange={(id, party) => {
+                        setFormData((prev) => ({ ...prev, partyId: id }));
+                        setPreviewParty(party);
+                      }}
+                      onPreview={setPreviewParty}
+                      label="Pay To (Customer / Vendor)"
+                      required
+                    />
+                  </div>
+                )}
 
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Narration *</label>
-              <input placeholder="Payment description (required)" value={formData.narration} onChange={(e) => setFormData({...formData, narration: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold focus:ring-4 focus:ring-maroon-800/5 transition-all" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Reference</label>
-              <input placeholder="Reference number" value={formData.reference} onChange={(e) => setFormData({...formData, reference: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold" />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Employee</label>
-              <select value={formData.employeeId} onChange={(e) => setFormData({...formData, employeeId: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold">
-                <option value="">-- Select Employee --</option>
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Job</label>
-              <select value={formData.jobId} onChange={(e) => setFormData({...formData, jobId: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold">
-                <option value="">-- Select Job --</option>
-              </select>
-            </div>
-          </div>
-        </section>
-
-        {/* Section 2: Amount Details */}
-        <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-emerald-50/30">
-            <div className="flex items-center gap-2">
-              <Wallet size={20} className="text-emerald-600" />
-              <h3 className="text-lg font-black text-slate-800 dark:text-slate-100 uppercase tracking-tighter">Amount Details</h3>
-            </div>
-          </div>
-          
-          <div className="p-6 grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Total Amount *</label>
-              <input type="number" value={formData.totalAmount} onChange={(e) => handleTotalAmountChange(parseFloat(e.target.value) || 0)} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-black focus:ring-4 focus:ring-emerald-600/5 transition-all" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">WHT Rate %</label>
-              <input type="number" value={formData.whtRate} onChange={(e) => handleWhtRateChange(parseFloat(e.target.value) || 0)} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-black focus:ring-4 focus:ring-emerald-600/5 transition-all" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">WHT Amount</label>
-              <input type="number" value={formData.whtAmount} disabled className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-black text-slate-500 dark:text-slate-400 dark:text-slate-500" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Net Amount to Pay</label>
-              <input type="number" value={netAmount} disabled className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-black text-slate-500 dark:text-slate-400 dark:text-slate-500" />
-            </div>
-          </div>
-          
-          <div className="p-6 bg-slate-50 dark:bg-slate-800/50/50 flex flex-col items-end space-y-3">
-            <div className="w-full md:w-80 space-y-3">
-              <div className="flex justify-between text-sm">
-                <span className="font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-tighter">Total Amount (PKR)</span>
-                <span className="font-black text-slate-900 dark:text-white">{formData.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                <div className="space-y-1.5 md:col-span-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase">Narration *</label>
+                  <input
+                    value={formData.narration}
+                    onChange={(e) => setFormData({ ...formData, narration: e.target.value })}
+                    placeholder="Payment description"
+                    className="w-full px-4 py-3 border rounded-xl text-sm font-bold"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase">Reference</label>
+                  <input
+                    value={formData.reference}
+                    onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
+                    className="w-full px-4 py-3 border rounded-xl text-sm font-bold"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase">Job</label>
+                  <select
+                    value={formData.jobId}
+                    onChange={(e) => setFormData({ ...formData, jobId: e.target.value })}
+                    className="w-full px-4 py-3 border rounded-xl text-sm font-bold"
+                  >
+                    <option value="">-- Select Job --</option>
+                    {jobs.map((j) => (
+                      <option key={j._id} value={j._id}>{j.title || j.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-tighter">WHT @ {formData.whtRate}% (PKR)</span>
-                <span className="font-black text-slate-900 dark:text-white">{formData.whtAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-              </div>
-              <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center">
-                <span className="text-base font-black text-maroon-800 uppercase tracking-tighter">Net Amount to Pay (PKR)</span>
-                <span className="text-xl font-black text-maroon-800 tracking-tighter">{netAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-              </div>
-            </div>
-          </div>
-        </section>
+            </section>
 
-        {/* Section 3: Notes */}
-        <section className="bg-slate-50 dark:bg-slate-800/50/50 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm">
-          <div className="flex items-center gap-2 mb-6">
-            <FileText size={20} className="text-slate-600 dark:text-slate-300" />
-            <h2 className="text-lg font-black text-slate-800 dark:text-slate-100 uppercase tracking-tighter">Internal Notes</h2>
+            {activeTab === "petty" && (
+              <div className="space-y-6">
+                <div className="flex p-1 bg-slate-100 rounded-xl w-fit">
+                  {(["general", "customer", "vendor"] as const).map((sub) => (
+                    <button
+                      key={sub}
+                      type="button"
+                      onClick={() => {
+                        setPettySubTab(sub);
+                        if (sub === "general") setFormData((p) => ({ ...p, partyId: "" }));
+                      }}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-bold ${
+                        pettySubTab === sub ? "bg-maroon-800 text-white" : "text-slate-500"
+                      }`}
+                    >
+                      {sub === "general" ? "General (Contra)" : sub === "customer" ? "Customer" : "Vendor"}
+                    </button>
+                  ))}
+                </div>
+
+                {pettySubTab === "general" ? (
+                  <section className="bg-white border rounded-2xl overflow-hidden">
+                    <div className="p-4 border-b flex justify-between items-center bg-slate-50">
+                      <h3 className="text-sm font-black uppercase text-slate-400 flex items-center gap-2">
+                        <Landmark size={16} /> Contra Accounts
+                      </h3>
+                      <button type="button" onClick={addContraLine} className="text-xs font-bold text-maroon-800 flex items-center gap-1">
+                        <Plus size={14} /> Add Line
+                      </button>
+                    </div>
+                    <table className="w-full text-left">
+                      <thead className="bg-slate-50 border-b">
+                        <tr>
+                          <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase">Account</th>
+                          <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase">Description</th>
+                          <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase text-right">Amount</th>
+                          <th className="w-12" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {contraLines.map((line, idx) => (
+                          <tr key={idx} className="border-b">
+                            <td className="p-2">
+                              <select
+                                value={String(line.accountId || "")}
+                                onChange={(e) => updateContraLine(idx, "accountId", e.target.value)}
+                                className="w-full px-2 py-2 border rounded-lg text-sm font-bold"
+                              >
+                                <option value="">Select account</option>
+                                {availableAccounts.map((a) => (
+                                  <option key={a._id} value={a._id}>{a.title} ({a.code})</option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="p-2">
+                              <input
+                                value={String(line.description || "")}
+                                onChange={(e) => updateContraLine(idx, "description", e.target.value)}
+                                className="w-full px-2 py-2 border rounded-lg text-sm"
+                              />
+                            </td>
+                            <td className="p-2">
+                              <input
+                                type="number"
+                                value={Number(line.amount) || ""}
+                                onChange={(e) => updateContraLine(idx, "amount", parseFloat(e.target.value) || 0)}
+                                className="w-full px-2 py-2 border rounded-lg text-sm font-black text-right"
+                              />
+                            </td>
+                            <td className="p-2">
+                              <button type="button" onClick={() => removeContraLine(idx)} className="text-rose-500">
+                                <Trash2 size={16} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </section>
+                ) : (
+                  <section className="bg-white border rounded-2xl p-6 space-y-4">
+                    <PartyLookupSelect
+                      parties={pettySubTab === "customer" ? customers : vendors}
+                      value={formData.partyId}
+                      partyType={pettySubTab === "customer" ? "Customer" : "Vendor"}
+                      onPartyTypeChange={() => {}}
+                      showTypeToggle={false}
+                      onChange={(id, party) => {
+                        setFormData((p) => ({ ...p, partyId: id }));
+                        setPreviewParty(party);
+                      }}
+                      onPreview={setPreviewParty}
+                      label={pettySubTab === "customer" ? "Customer" : "Vendor"}
+                      required
+                    />
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-400 uppercase">Amount (PKR) *</label>
+                      <input
+                        type="number"
+                        value={formData.amount || ""}
+                        onChange={(e) => handleAmountChange(parseFloat(e.target.value) || 0)}
+                        className="w-full px-4 py-3 border rounded-xl text-sm font-black text-right"
+                      />
+                    </div>
+                  </section>
+                )}
+              </div>
+            )}
+
+            <section className="bg-white border rounded-2xl p-8">
+              <h2 className="text-lg font-bold mb-6 flex items-center gap-2">
+                <Wallet size={18} className="text-emerald-600" /> Amount Details
+              </h2>
+              {(activeTab === "party" || (activeTab === "petty" && pettySubTab !== "general")) && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase">Total Amount *</label>
+                    <input
+                      type="number"
+                      value={formData.amount || ""}
+                      onChange={(e) => handleAmountChange(parseFloat(e.target.value) || 0)}
+                      className="w-full px-4 py-2 border rounded-xl text-sm font-black"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase">WHT Rate %</label>
+                    <input
+                      type="number"
+                      value={formData.whtRate}
+                      onChange={(e) => handleWhtRateChange(parseFloat(e.target.value) || 0)}
+                      className="w-full px-4 py-2 border rounded-xl text-sm font-black"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase">WHT Amount</label>
+                    <input type="number" value={whtAmount} disabled className="w-full px-4 py-2 bg-slate-100 rounded-xl text-sm font-black" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase">Net Paid</label>
+                    <input type="number" value={netPaid} disabled className="w-full px-4 py-2 bg-slate-100 rounded-xl text-sm font-black" />
+                  </div>
+                </div>
+              )}
+              <div className="pt-4 border-t flex justify-between items-center">
+                <span className="text-sm font-black text-maroon-800 uppercase">Net Amount to Pay (PKR)</span>
+                <span className="text-2xl font-black text-maroon-800">{netPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              </div>
+            </section>
+
+            <section className="bg-slate-50 rounded-2xl p-6 border">
+              <label className="text-[10px] font-black text-slate-400 uppercase">Internal Notes</label>
+              <textarea
+                rows={3}
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                className="w-full mt-2 px-4 py-3 border rounded-xl text-sm"
+              />
+            </section>
           </div>
-          <div className="space-y-1.5">
-            <textarea rows={4} value={formData.internalNotes} onChange={(e) => setFormData({...formData, internalNotes: e.target.value})} placeholder="Internal notes (not printed)..." className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium focus:ring-4 focus:ring-maroon-800/5 transition-all resize-none" />
+
+          <div className="md:col-span-1 order-1 md:order-2">
+            <PartyDetailsCard
+              party={selectedParty}
+              account={selectedCashAccount}
+              title="Party Details"
+              emptyMessage="Select or search a customer/vendor — scroll the list to preview balance, or pick one to load live ledger balance."
+              refreshLive={!!formData.partyId}
+            />
           </div>
-        </section>
+        </div>
       </div>
     </div>
   );

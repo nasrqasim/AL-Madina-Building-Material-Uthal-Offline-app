@@ -3,6 +3,11 @@
 import { useState, useEffect, useCallback } from "react";
 import ItemSearchInput from "@/components/erp/ui/ItemSearchInput";
 import {
+  applyPurchaseUnitFieldUpdate,
+  defaultPurchaseUnitsForItem,
+  resolveCatalogItem,
+} from "@/lib/itemUnits";
+import {
   Plus, Trash2, Save, ArrowLeft, X, CheckCircle2, Wallet
 } from "lucide-react";
 
@@ -28,9 +33,6 @@ interface PurchaseInvoiceFormProps {
   onSave?: (data: any) => void;
   initialData?: any;
 }
-
-const CTN_LITERS = 16;
-const CTN_GALLONS = 4;
 
 function calcItem(item: PIItem): PIItem {
   const ctns = Number(item.cartons) || 0;
@@ -137,19 +139,17 @@ export default function PurchaseInvoiceForm({ onClose, onSave, initialData }: Pu
       if (field === "itemId") {
         const sel = availableItems.find(a => a._id === value);
         if (sel) {
-          const isFilter = /filter|fliter/i.test(sel.name || "");
           updated.itemCode = sel.code || "";
           updated.description = sel.name || "";
           updated.unitPrice = sel.purchaseRate || sel.rate || 0;
-          const gpc = isFilter ? 1 : (sel.gallonsInCtn || CTN_GALLONS);
-          const lpc = isFilter ? 1 : (sel.litersInCtn || CTN_LITERS);
-          updated.cartons = 1;
-          updated.gallons = gpc;
-          updated.liters = lpc;
+          updated = defaultPurchaseUnitsForItem(updated, sel);
         }
       }
 
-
+      if (field === "cartons" || field === "gallons" || field === "liters") {
+        const sel = resolveCatalogItem(availableItems, updated);
+        updated = applyPurchaseUnitFieldUpdate(updated, field, value, sel);
+      }
 
       return calcItem(updated);
     }));
@@ -304,13 +304,6 @@ export default function PurchaseInvoiceForm({ onClose, onSave, initialData }: Pu
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Payment Terms</label>
               <input placeholder="e.g. 30 days" value={formData.paymentTerms} onChange={e => setFormData({ ...formData, paymentTerms: e.target.value })} className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:border-maroon-800 outline-none" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Employee</label>
-              <select value={formData.employeeId} onChange={e => setFormData({ ...formData, employeeId: e.target.value })} className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:border-maroon-800 outline-none">
-                <option value="">-- Select Employee --</option>
-                {employees.map(emp => <option key={emp._id} value={emp._id}>{emp.name}</option>)}
-              </select>
             </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Job</label>

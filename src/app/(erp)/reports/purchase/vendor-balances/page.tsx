@@ -7,6 +7,8 @@ import { exportToExcel, printPage } from "@/lib/excel";
 
 export default function VendorBalancesReportPage() {
   const [data, setData] = useState<any[]>([]);
+  const [filteredData, setFilteredData] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -57,10 +59,12 @@ export default function VendorBalancesReportPage() {
           vendorMap.get(vId).debit += pay.amount || 0;
         });
 
-        setData(Array.from(vendorMap.values()).map(v => ({
+        const result = Array.from(vendorMap.values()).map(v => ({
           ...v,
           closing: (v.opening + v.credit - v.debit)
-        })));
+        }));
+        setData(result);
+        setFilteredData(result);
 
       } catch (error) {
         console.error("Error fetching vendor balances:", error);
@@ -71,12 +75,27 @@ export default function VendorBalancesReportPage() {
     fetchData();
   }, []);
 
-  const totalDebit = data.reduce((s, r) => s + r.debit, 0);
-  const totalCredit = data.reduce((s, r) => s + r.credit, 0);
-  const totalClosing = data.reduce((s, r) => s + r.closing, 0);
+  useEffect(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) {
+      setFilteredData(data);
+      return;
+    }
+    setFilteredData(
+      data.filter((r) =>
+        String(r.vendor || "").toLowerCase().includes(q) ||
+        String(r.city || "").toLowerCase().includes(q) ||
+        String(r.type || "").toLowerCase().includes(q)
+      )
+    );
+  }, [searchQuery, data]);
+
+  const totalDebit = filteredData.reduce((s, r) => s + r.debit, 0);
+  const totalCredit = filteredData.reduce((s, r) => s + r.credit, 0);
+  const totalClosing = filteredData.reduce((s, r) => s + r.closing, 0);
 
   const stats = [
-    { title: "Vendors with Balance", value: data.filter(v => v.closing !== 0).length.toString(), icon: Users, iconColor: "text-rose-600", iconBg: "bg-rose-50" },
+    { title: "Vendors with Balance", value: filteredData.filter(v => v.closing !== 0).length.toString(), icon: Users, iconColor: "text-rose-600", iconBg: "bg-rose-50" },
     { title: "Total Payable", value: `Rs. ${totalClosing.toLocaleString()}`, icon: DollarSign, iconColor: "text-rose-600", iconBg: "bg-rose-50", valueColor: "text-rose-600" },
     { title: "Total Debit", value: `Rs. ${totalDebit.toLocaleString()}`, icon: ArrowDownLeft, iconColor: "text-emerald-600", iconBg: "bg-emerald-50", valueColor: "text-emerald-600" },
     { title: "Total Credit", value: `Rs. ${totalCredit.toLocaleString()}`, icon: ArrowUpRight, iconColor: "text-blue-600", iconBg: "bg-blue-50", valueColor: "text-blue-600" },
@@ -126,7 +145,7 @@ export default function VendorBalancesReportPage() {
         <div className="space-y-1 lg:col-span-3 flex flex-col justify-end">
           <div className="relative w-full">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500" size={14} />
-            <input type="text" placeholder="Search vendor name..." className="w-full pl-9 pr-4 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-maroon-800/10 font-medium transition-all" />
+            <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search vendor name..." className="w-full pl-9 pr-4 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-maroon-800/10 font-medium transition-all" />
           </div>
         </div>
       </div>
@@ -148,7 +167,7 @@ export default function VendorBalancesReportPage() {
       filters={Filters}
       actions={[
         { label: "Print Balances", onClick: printPage, icon: Printer },
-        { label: "Export Excel", onClick: () => exportToExcel(data, "VendorBalances.xlsx"), icon: FileSpreadsheet },
+        { label: "Export Excel", onClick: () => exportToExcel(filteredData, "VendorBalances.xlsx"), icon: FileSpreadsheet },
       ]}
     >
       <div className="space-y-6">
@@ -167,7 +186,7 @@ export default function VendorBalancesReportPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {data.map((row, i) => (
+              {filteredData.map((row, i) => (
                 <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors">
                   <td className="px-4 py-3 text-[11px] font-medium text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500">{i + 1}</td>
                   <td className="px-4 py-3 text-[11px] font-bold text-blue-600 cursor-pointer hover:underline">{row.vendor}</td>

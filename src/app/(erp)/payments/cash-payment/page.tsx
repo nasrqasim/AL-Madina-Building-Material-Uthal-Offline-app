@@ -10,6 +10,7 @@ import WhatsAppShareModal from "@/components/erp/whatsapp/WhatsAppShareModal";
 
 export default function CashPaymentPage() {
   const [showForm, setShowForm] = useState(false);
+  const [editPayment, setEditPayment] = useState<any>(null);
   const [payments, setPayments] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -64,10 +65,33 @@ export default function CashPaymentPage() {
   };
 
   if (showForm) {
-    return <CashPaymentForm onClose={() => setShowForm(false)} />;
+    return (
+      <CashPaymentForm
+        initialData={editPayment}
+        onClose={() => {
+          setShowForm(false);
+          setEditPayment(null);
+        }}
+      />
+    );
   }
 
-  const filteredPayments = payments.filter(p => p.voucherNo?.toLowerCase().includes(searchQuery.toLowerCase()) || p.vendor?.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredPayments = payments.filter((p) => {
+    const partyName =
+      p.partyId?.companyName ||
+      p.partyId?.name ||
+      (typeof p.vendor === "string" && !/^[a-f0-9]{24}$/i.test(p.vendor) ? p.vendor : "") ||
+      "";
+    const cashAcc = p.cashAccountId?.title || p.cashAccountTitle || p.cashAccount || "";
+    const q = searchQuery.toLowerCase();
+    return (
+      (p.voucherNo || "").toLowerCase().includes(q) ||
+      partyName.toLowerCase().includes(q) ||
+      cashAcc.toLowerCase().includes(q) ||
+      (p.narration || "").toLowerCase().includes(q) ||
+      (p.reference || "").toLowerCase().includes(q)
+    );
+  });
 
   return (
     <div className={`space-y-6 ${printPayment ? 'print:hidden' : ''}`}>
@@ -111,8 +135,8 @@ export default function CashPaymentPage() {
               <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Voucher No</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Mode</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Vendor / Account</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Category</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Party / Contra</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Cash Account</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Amount</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">WHT</th>
@@ -125,16 +149,43 @@ export default function CashPaymentPage() {
               {isLoading ? (
                 <tr><td colSpan={10} className="px-6 py-12 text-center text-slate-400 font-bold">Loading...</td></tr>
               ) : filteredPayments.length > 0 ? (
-                filteredPayments.map((p) => (
+                filteredPayments.map((p) => {
+                  const pType = p.paymentType || (p.mode === "Petty" ? "petty" : "party");
+                  const displayParty =
+                    pType === "party"
+                      ? p.partyId?.companyName || p.partyId?.name || p.vendor || "N/A"
+                      : pType === "petty"
+                        ? p.partyId
+                          ? p.partyId?.companyName || p.partyId?.name || "N/A"
+                          : `Petty Contra (${p.contraLines?.length || 0} line(s))`
+                        : p.vendor || "N/A";
+                  const displayCash =
+                    p.cashAccountId?.title || p.cashAccountTitle || p.cashAccount || "N/A";
+                  const wht = Number(p.whtAmount ?? p.wht) || 0;
+                  const net = Number(p.netPaid) || Number(p.amount) - wht;
+
+                  let categoryLabel = "Party Payment";
+                  let categoryClass = "bg-blue-100 text-blue-800";
+                  if (pType === "party" && p.partyId?.type === "Customer") {
+                    categoryLabel = "Customer Payment";
+                    categoryClass = "bg-indigo-100 text-indigo-800";
+                  } else if (pType === "petty") {
+                    categoryLabel = p.partyId ? "Petty Party" : "Petty Contra";
+                    categoryClass = "bg-purple-100 text-purple-800";
+                  }
+
+                  return (
                   <tr key={p._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
                     <td className="px-6 py-4"><span className="text-sm font-bold text-slate-900 dark:text-white">{p.voucherNo}</span></td>
                     <td className="px-6 py-4"><span className="text-sm font-bold text-slate-600 dark:text-slate-300">{p.date}</span></td>
-                    <td className="px-6 py-4"><span className="text-xs font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded">{p.mode}</span></td>
-                    <td className="px-6 py-4"><span className="text-sm font-bold text-slate-700 dark:text-slate-200">{p.vendor}</span></td>
-                    <td className="px-6 py-4"><span className="text-sm font-medium text-slate-600 dark:text-slate-300">{p.cashAccount}</span></td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase ${categoryClass}`}>{categoryLabel}</span>
+                    </td>
+                    <td className="px-6 py-4"><span className="text-sm font-bold text-slate-700 dark:text-slate-200">{displayParty}</span></td>
+                    <td className="px-6 py-4"><span className="text-sm font-medium text-slate-600 dark:text-slate-300">{displayCash}</span></td>
                     <td className="px-6 py-4 text-right"><span className="text-sm font-black text-slate-900 dark:text-white">PKR {(p.amount||0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></td>
-                    <td className="px-6 py-4 text-right"><span className="text-sm font-medium text-slate-500">{(p.wht||0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></td>
-                    <td className="px-6 py-4 text-right"><span className="text-sm font-black text-maroon-800">PKR {(p.netPaid||0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></td>
+                    <td className="px-6 py-4 text-right"><span className="text-sm font-medium text-slate-500">{wht.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></td>
+                    <td className="px-6 py-4 text-right"><span className="text-sm font-black text-maroon-800">PKR {net.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></td>
                     <td className="px-6 py-4 text-center">
                       <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${p.status === "Posted" ? "bg-emerald-100 text-emerald-700" : "bg-orange-100 text-orange-700"}`}>
                         {p.status}
@@ -142,12 +193,28 @@ export default function CashPaymentPage() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-center gap-2 transition-opacity">
+                        <button
+                          onClick={() => {
+                            setEditPayment(p);
+                            setShowForm(true);
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                          title="Edit"
+                        >
+                          <Edit size={16} />
+                        </button>
                         <button onClick={() => setPrintPayment(p)} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-all" title="Print">
                           <Printer size={16} />
                         </button>
                         <button 
                           onClick={() => {
-                            setWaParty({ name: p.vendor });
+                            setWaParty({
+                              name:
+                                p.partyId?.companyName ||
+                                p.partyId?.name ||
+                                p.vendor ||
+                                "Party",
+                            });
                             setWaDocData({
                               type: "Cash Payment",
                               amount: p.amount,
@@ -166,7 +233,8 @@ export default function CashPaymentPage() {
                       </div>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               ) : (
                 <tr><td colSpan={10} className="px-6 py-12 text-center text-slate-500 font-medium">No cash payments found.</td></tr>
               )}

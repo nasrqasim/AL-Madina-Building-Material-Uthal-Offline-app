@@ -10,6 +10,8 @@ const JournalEntrySchema = new Schema(
     debit: { type: Number, default: 0 },
     credit: { type: Number, default: 0 },
     remarks: { type: String, default: "" },
+    partyId: { type: Schema.Types.ObjectId, ref: "Party", default: null },
+    partyType: { type: String, default: "" },
   },
   { timestamps: true }
 );

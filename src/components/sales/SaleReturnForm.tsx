@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import PrintTemplate from "@/components/print/PrintTemplate";
+import { filterAndSortItems } from "@/lib/itemUnits";
 import CustomerModal from "@/components/erp/maintain/CustomerModal";
 import { 
   Plus, 
@@ -160,6 +161,7 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
   });
 
   const [selectedLineId, setSelectedLineId] = useState<string | null>("1");
+  const [previewItemId, setPreviewItemId] = useState<string | null>(null);
   const [availableItems, setAvailableItems] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
@@ -437,6 +439,7 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
       carService: Number(formData.carService) || 0,
       carServiceDiscount: Number(formData.carServiceDiscount) || 0,
       totalAmount: netTotal,
+      amountReceived: Number(formData.amountReceived) || 0,
       status: status
     };
 
@@ -484,10 +487,11 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
   }, [formData, items, grossTotal, netTotal, initialData, onClose]);
 
   const selectedItemDetails = useMemo(() => {
+    if (previewItemId) return availableItems.find(i => i._id === previewItemId) || null;
     const line = items.find(l => l.id === selectedLineId);
     if (!line || !line.itemId) return null;
     return availableItems.find(i => i._id === line.itemId);
-  }, [selectedLineId, items, availableItems]);
+  }, [previewItemId, selectedLineId, items, availableItems]);
 
   useEffect(() => {
     async function fetchHistory() {
@@ -573,11 +577,19 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
         setShowItemSearch(lineId);
         setActiveIndex(lineId, 0);
       } else {
-        setActiveIndex(lineId, prev => (prev < filteredItems.length - 1 ? prev + 1 : prev));
+        setActiveIndex(lineId, prev => {
+          const next = prev < filteredItems.length - 1 ? prev + 1 : prev;
+          if (filteredItems[next]) setPreviewItemId(filteredItems[next]._id);
+          return next;
+        });
       }
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setActiveIndex(lineId, prev => (prev > 0 ? prev - 1 : prev));
+      setActiveIndex(lineId, prev => {
+        const next = prev > 0 ? prev - 1 : prev;
+        if (filteredItems[next]) setPreviewItemId(filteredItems[next]._id);
+        return next;
+      });
     } else if (e.key === "PageDown") {
       e.preventDefault();
       setActiveIndex(lineId, prev => Math.min(filteredItems.length - 1, prev + 8));
@@ -589,6 +601,7 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
       if (showItemSearch === lineId && filteredItems[activeIndex]) {
         updateItem(lineId, "itemId", filteredItems[activeIndex]._id);
         setShowItemSearch(null);
+        setPreviewItemId(null);
       }
     } else if (e.key === "Escape") {
       setShowItemSearch(null);
@@ -752,16 +765,9 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
                   <tbody className="divide-y">
                     {items.map((line) => {
                       const query = line.itemId && showItemSearch === line.id ? "" : line.itemCode.toLowerCase();
-                      const filteredItems = availableItems.filter(i => 
-                        !query || i.code.toLowerCase().includes(query) || i.name.toLowerCase().includes(query)
-                      ).sort((a, b) => {
-                        if (!query) return 0;
-                        const aStart = a.name.toLowerCase().startsWith(query) || a.code.toLowerCase().startsWith(query);
-                        const bStart = b.name.toLowerCase().startsWith(query) || b.code.toLowerCase().startsWith(query);
-                        if (aStart && !bStart) return -1;
-                        if (!aStart && bStart) return 1;
-                        return 0;
-                      });
+                      const filteredItems = query
+                        ? filterAndSortItems(availableItems, query)
+                        : availableItems;
                       const rowActiveIndex = getActiveIndex(line.id);
 
                       return (
@@ -791,7 +797,8 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
                                     className={`px-3 py-1.5 cursor-pointer text-xs whitespace-nowrap transition-all border-b border-slate-100 last:border-0 ${
                                       idx === rowActiveIndex ? 'bg-blue-600 text-white font-bold' : 'hover:bg-blue-50 text-slate-800'
                                     }`}
-                                    onClick={() => { updateItem(line.id, "itemId", i._id); setShowItemSearch(null); }}
+                                    onMouseEnter={() => { setActiveIndex(line.id, idx); setPreviewItemId(i._id); }}
+                                    onClick={() => { updateItem(line.id, "itemId", i._id); setShowItemSearch(null); setPreviewItemId(null); }}
                                   >
                                     <span className="font-mono text-[10px] opacity-70 mr-2">{i.code}</span>{i.name}
                                   </div>
@@ -924,8 +931,7 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
                    <div className="flex items-center gap-2"><label className="text-xs font-bold w-24">Job No</label><input type="text" value={formData.jobNo} className="flex-1 border border-[#cbd5e1] rounded px-2 py-1 text-xs" /></div>
                 </div>
                 <div className="space-y-2">
-                   <div className="flex items-center gap-2"><label className="text-xs font-bold w-24">Employee Ref</label><select value={formData.employeeRef} onChange={e => setFormData({...formData, employeeRef: e.target.value})} className="flex-1 border border-[#cbd5e1] rounded px-2 py-1 text-xs"><option value="">Select Employee</option>{employees.map(emp => (<option key={emp._id} value={emp._id}>{emp.name}</option>))}</select></div>
-                   <div className="flex gap-2"><label className="text-xs font-bold w-24 pt-1">Remarks</label><textarea value={formData.remarks} onChange={e => setFormData({...formData, remarks: e.target.value})} className="flex-1 border border-[#cbd5e1] rounded px-2 py-1 text-xs h-16 resize-none" /></div>
+                   <div className="flex gap-2 col-span-2"><label className="text-xs font-bold w-24 pt-1">Remarks</label><textarea value={formData.remarks} onChange={e => setFormData({...formData, remarks: e.target.value})} className="flex-1 border border-[#cbd5e1] rounded px-2 py-1 text-xs h-16 resize-none" /></div>
                 </div>
               </div>
               <div className="bg-slate-50 p-2 rounded border border-slate-100"><div className="text-[10px] font-black text-slate-400 uppercase mb-1">Refund in Words</div><div className="text-xs font-black text-slate-700 italic">Rupees {netTotal.toLocaleString()} only.</div></div>

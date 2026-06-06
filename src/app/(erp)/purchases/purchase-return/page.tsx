@@ -14,6 +14,8 @@ export default function PurchaseReturnPage() {
   const [editOrder, setEditOrder] = useState<any | null>(null);
   const [returns, setReturns] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [filterDate, setFilterDate] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchReturns = async () => {
@@ -80,7 +82,20 @@ export default function PurchaseReturnPage() {
         }} 
       />
     );
-  }
+  const filteredReturns = returns.filter(ret => {
+    const matchesSearch = !searchQuery || 
+      (ret.invoiceNo || ret.docNo)?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ret.partyId?.companyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ret.partyId?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (ret.remarks || ret.reason)?.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesStatus = !statusFilter || ret.status?.toLowerCase() === statusFilter.toLowerCase();
+    
+    const retDateStr = ret.date ? new Date(ret.date).toISOString().split('T')[0] : "";
+    const matchesDate = !filterDate || retDateStr === filterDate;
+    
+    return matchesSearch && matchesStatus && matchesDate;
+  });
 
   return (
     <div className="space-y-6">
@@ -136,7 +151,17 @@ export default function PurchaseReturnPage() {
             />
           </div>
           <div className="flex items-center gap-3 w-full md:w-auto">
-            <select className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/10 transition-all flex-1 md:flex-none">
+            <input 
+              type="date" 
+              value={filterDate} 
+              onChange={(e) => setFilterDate(e.target.value)} 
+              className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/10 transition-all"
+            />
+            <select 
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/10 transition-all flex-1 md:flex-none"
+            >
               <option value="">All Status</option>
               <option value="Draft">Draft</option>
               <option value="Posted">Posted</option>
@@ -160,22 +185,24 @@ export default function PurchaseReturnPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-800/50/50 border-b border-slate-100 dark:border-slate-800">
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Return #</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Date</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Vendor</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Invoice Ref</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Reason</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest text-right">Amount</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Status</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center w-20">Actions</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-12">#</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Return #</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Date</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Vendor</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Invoice Ref</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Reason</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-right">Amount</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Status</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center w-20">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {isLoading ? (
-                <tr><td colSpan={8} className="px-6 py-12 text-center text-slate-400 font-bold">Loading...</td></tr>
-              ) : returns.length > 0 ? (
-                returns.map((ret) => (
+                <tr><td colSpan={9} className="px-6 py-12 text-center text-slate-400 font-bold">Loading...</td></tr>
+              ) : filteredReturns.length > 0 ? (
+                filteredReturns.map((ret, i) => (
                   <tr key={ret._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors group">
+                    <td className="px-6 py-4 text-slate-500 font-medium">{i + 1}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-maroon-800 transition-colors">{ret.invoiceNo || ret.docNo}</span>
@@ -183,7 +210,9 @@ export default function PurchaseReturnPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-sm font-bold text-slate-600 dark:text-slate-300">{new Date(ret.date).toLocaleDateString()}</span>
+                      <span className="text-sm font-bold text-slate-600 dark:text-slate-300">
+                        {ret.date ? new Date(ret.date).toLocaleDateString() : "-"}
+                      </span>
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{ret.partyId?.companyName || ret.partyId?.name || ret.vendor}</span>
@@ -192,7 +221,7 @@ export default function PurchaseReturnPage() {
                       <span className="text-xs font-bold text-maroon-800 bg-maroon-50 px-2 py-0.5 rounded">{ret.reference || ret.invoiceRef}</span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-sm font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 line-clamp-1">{ret.remarks || ret.reason}</span>
+                      <span className="text-sm font-medium text-slate-500 dark:text-slate-400 line-clamp-1">{ret.remarks || ret.reason}</span>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <span className="text-sm font-black text-slate-900 dark:text-white">{(ret.totalAmount || ret.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
@@ -241,8 +270,8 @@ export default function PurchaseReturnPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center">
-                    <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 font-medium">No purchase return records found.</p>
+                  <td colSpan={9} className="px-6 py-12 text-center">
+                    <p className="text-slate-500 dark:text-slate-400 font-medium">No purchase return records found.</p>
                   </td>
                 </tr>
               )}
@@ -251,14 +280,14 @@ export default function PurchaseReturnPage() {
         </div>
 
         {/* Footer info */}
-        <div className="p-4 border-t border-slate-50 bg-slate-50 dark:bg-slate-800/50/30 flex justify-between items-center text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">
-          <span>Total: {returns.length} return(s)</span>
+        <div className="p-4 border-t border-slate-50 bg-slate-50 dark:bg-slate-800/50/30 flex justify-between items-center text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest">
+          <span>Total: {filteredReturns.length} return(s)</span>
           <div className="flex gap-4">
             <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400"></span> Posted: {returns.filter(r => r.status === "Posted").length}
+              <span className="w-2 h-2 rounded-full bg-emerald-400"></span> Posted: {filteredReturns.filter(r => r.status === "Posted").length}
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-orange-400"></span> Draft: {returns.filter(r => r.status === "Draft").length}
+              <span className="w-2 h-2 rounded-full bg-orange-400"></span> Draft: {filteredReturns.filter(r => r.status === "Draft").length}
             </span>
           </div>
         </div>

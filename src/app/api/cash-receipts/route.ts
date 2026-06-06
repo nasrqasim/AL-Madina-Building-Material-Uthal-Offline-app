@@ -1,6 +1,7 @@
 import { fail, ok } from "@/lib/api";
 import dbConnect from "@/lib/db";
 import CashReceipt from "@/models/CashReceipt";
+import { recalculatePartyBalance } from "@/services/posting/invoicePostingHelper";
 import Party from "@/models/Party";
 import Account from "@/models/Account";
 import Employee from "@/models/Employee";
@@ -47,6 +48,10 @@ export async function POST(req: Request) {
     }
 
     const row = await CashReceipt.create(body);
+    const partyId = body.partyId?.toString?.() || body.partyId;
+    if (partyId && (body.status === "Posted" || !body.status)) {
+      await recalculatePartyBalance(String(partyId));
+    }
     return ok(row, 201);
   } catch (e) {
     return fail((e as Error).message);

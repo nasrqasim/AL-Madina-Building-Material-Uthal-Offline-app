@@ -3,13 +3,25 @@
 import ERPReportLayout from "@/components/erp/reports/ERPReportLayout";
 import { Download, Printer, Play, Box, DollarSign, ArrowUpRight, ArrowDownRight, LayoutGrid, Search, FileSpreadsheet } from "lucide-react";
 import { exportToExcel, printPage } from "@/lib/excel";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { lineStockQty } from "@/lib/itemUnits";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from 'recharts';
 
 export default function InventoryBalancesReportPage() {
   const [data, setData] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(true);
+
+  const filteredData = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return data;
+    return data.filter(
+      (r) =>
+        String(r.code || "").toLowerCase().includes(q) ||
+        String(r.name || "").toLowerCase().includes(q)
+    );
+  }, [data, searchQuery]);
 
   useEffect(() => {
     async function fetchData() {
@@ -36,13 +48,13 @@ export default function InventoryBalancesReportPage() {
             const itemSales = sales.flatMap((s: any) => 
               (s.lines || []).filter((l: any) => (l.itemId?._id || l.itemId) === item._id)
             );
-            const qtyOut = itemSales.reduce((sum: number, l: any) => sum + (l.qty || 0), 0);
+            const qtyOut = itemSales.reduce((sum: number, l: any) => sum + lineStockQty(l), 0);
 
             // Find all purchases for this item
             const itemPurchases = purchases.flatMap((p: any) => 
               (p.lines || []).filter((l: any) => (l.itemId?._id || l.itemId) === item._id)
             );
-            const qtyIn = itemPurchases.reduce((sum: number, l: any) => sum + (l.qty || 0), 0);
+            const qtyIn = itemPurchases.reduce((sum: number, l: any) => sum + lineStockQty(l), 0);
 
             // Opening stock is current stock - in + out (simplified)
             // But we have stockQtyCartons as "current" stock
@@ -74,13 +86,13 @@ export default function InventoryBalancesReportPage() {
     fetchData();
   }, []);
 
-  const totalOpeningValue = data.reduce((s, r) => s + (r.opening * r.rate), 0);
-  const totalClosingValue = data.reduce((s, r) => s + r.value, 0);
-  const totalQtyIn = data.reduce((s, r) => s + r.in, 0);
-  const totalQtyOut = data.reduce((s, r) => s + r.out, 0);
+  const totalOpeningValue = filteredData.reduce((s, r) => s + (r.opening * r.rate), 0);
+  const totalClosingValue = filteredData.reduce((s, r) => s + r.value, 0);
+  const totalQtyIn = filteredData.reduce((s, r) => s + r.in, 0);
+  const totalQtyOut = filteredData.reduce((s, r) => s + r.out, 0);
 
   const stats = [
-    { title: "Total Items", value: data.length.toString(), icon: Box, iconColor: "text-rose-600", iconBg: "bg-rose-50" },
+    { title: "Total Items", value: filteredData.length.toString(), icon: Box, iconColor: "text-rose-600", iconBg: "bg-rose-50" },
     { title: "Total Opening Value", value: `Rs.${totalOpeningValue.toLocaleString()}`, icon: DollarSign, iconColor: "text-blue-600", iconBg: "bg-blue-50" },
     { title: "Total Qty In", value: totalQtyIn.toLocaleString(), icon: ArrowUpRight, iconColor: "text-emerald-600", iconBg: "bg-emerald-50" },
     { title: "Total Qty Out", value: totalQtyOut.toLocaleString(), icon: ArrowDownRight, iconColor: "text-rose-600", iconBg: "bg-rose-50" },
@@ -125,7 +137,7 @@ export default function InventoryBalancesReportPage() {
         <div className="space-y-1 flex items-end">
            <div className="relative w-full">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500" size={12} />
-            <input type="text" placeholder="Search by item code or name..." className="w-full pl-7 pr-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-maroon-800/10 font-medium transition-all" />
+            <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search by item code or name..." className="w-full pl-7 pr-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-maroon-800/10 font-medium transition-all" />
           </div>
         </div>
       </div>
@@ -161,7 +173,7 @@ export default function InventoryBalancesReportPage() {
       filters={Filters}
       actions={[
         { label: "Print Balances", onClick: printPage, icon: Printer },
-        { label: "Export Excel", onClick: () => exportToExcel(data, "InventoryBalances.xlsx"), icon: FileSpreadsheet },
+        { label: "Export Excel", onClick: () => exportToExcel(filteredData, "InventoryBalances.xlsx"), icon: FileSpreadsheet },
       ]}
     >
       <div className="space-y-6">
@@ -180,7 +192,7 @@ export default function InventoryBalancesReportPage() {
             <div className="px-4">
               <div className="flex items-center gap-2 mb-4">
                 <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-widest">Stock Balances Summary</h3>
-                <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded text-xs font-bold">{data.length} items</span>
+                <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded text-xs font-bold">{filteredData.length} items</span>
               </div>
               <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-lg">
                 <table className="w-full text-left border-collapse min-w-max">
@@ -199,7 +211,7 @@ export default function InventoryBalancesReportPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {data.map((row: any, i: number) => (
+                    {filteredData.map((row: any, i: number) => (
                       <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors">
                         <td className="px-4 py-3 text-[11px] font-medium text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500">{i + 1}</td>
                         <td className="px-4 py-3 text-[11px] font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800/50/50">{row.code}</td>
@@ -215,10 +227,10 @@ export default function InventoryBalancesReportPage() {
                     ))}
                     <tr className="bg-slate-50 dark:bg-slate-800/50 font-black">
                       <td colSpan={4} className="px-4 py-3 text-right text-[10px] uppercase tracking-widest text-slate-800 dark:text-slate-100">Grand Total</td>
-                      <td className="px-4 py-3 text-[11px] text-right">{data.reduce((s, r) => s + r.opening, 0).toLocaleString()}</td>
+                      <td className="px-4 py-3 text-[11px] text-right">{filteredData.reduce((s, r) => s + r.opening, 0).toLocaleString()}</td>
                       <td className="px-4 py-3 text-[11px] text-right text-emerald-700">{totalQtyIn.toLocaleString()}</td>
                       <td className="px-4 py-3 text-[11px] text-right text-rose-700">{totalQtyOut.toLocaleString()}</td>
-                      <td className="px-4 py-3 text-[11px] text-right text-blue-700">{data.reduce((s, r) => s + r.closing, 0).toLocaleString()}</td>
+                      <td className="px-4 py-3 text-[11px] text-right text-blue-700">{filteredData.reduce((s, r) => s + r.closing, 0).toLocaleString()}</td>
                       <td className="px-4 py-3 text-[11px] text-right">-</td>
                       <td className="px-4 py-3 text-[11px] text-right text-slate-800 dark:text-slate-100">{totalClosingValue.toLocaleString()}</td>
                     </tr>

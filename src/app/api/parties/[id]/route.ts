@@ -1,12 +1,19 @@
 import { fail, ok } from "@/lib/api";
 import dbConnect from "@/lib/db";
 import Party from "@/models/Party";
+import { recalculatePartyBalance } from "@/services/posting/invoicePostingHelper";
 
-export async function PUT(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, { params }: { params: { id: string } }) {
   try {
-    const body = await req.json();
     await dbConnect();
-    const row = await Party.findByIdAndUpdate(params.id, body, { new: true });
+    const url = new URL(req.url);
+    const refresh = url.searchParams.get("refresh") === "1";
+
+    if (refresh) {
+      await recalculatePartyBalance(params.id);
+    }
+
+    const row = await Party.findById(params.id).lean();
     if (!row) return fail("Party not found", 404);
     return ok(row);
   } catch (e) {
@@ -14,13 +21,4 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   }
 }
 
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
-  try {
-    await dbConnect();
-    const row = await Party.findByIdAndDelete(params.id);
-    if (!row) return fail("Party not found", 404);
-    return ok({ deleted: true });
-  } catch (e) {
-    return fail((e as Error).message);
-  }
-}
+export const dynamic = "force-dynamic";

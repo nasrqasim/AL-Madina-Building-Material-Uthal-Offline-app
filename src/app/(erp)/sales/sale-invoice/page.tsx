@@ -26,6 +26,8 @@ export default function SaleInvoicePage() {
   const [viewOrder, setViewOrder] = useState<any | null>(null);
   const [editOrder, setEditOrder] = useState<any | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [filterDate, setFilterDate] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [invoices, setInvoices] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
@@ -97,13 +99,21 @@ export default function SaleInvoicePage() {
     );
   }
 
-  const filteredInvoices = invoices.filter(inv => 
-    (inv.invoiceNo?.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (inv.partyId?.companyName?.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (inv.partyId?.name?.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (inv.reference?.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (inv.regNo?.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const filteredInvoices = invoices.filter(inv => {
+    const matchesSearch = !searchQuery || 
+      inv.invoiceNo?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      inv.partyId?.companyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      inv.partyId?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      inv.reference?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      inv.regNo?.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesStatus = !statusFilter || inv.status?.toLowerCase() === statusFilter.toLowerCase();
+    
+    const invDateStr = inv.date ? new Date(inv.date).toISOString().split('T')[0] : "";
+    const matchesDate = !filterDate || invDateStr === filterDate;
+    
+    return matchesSearch && matchesStatus && matchesDate;
+  });
 
   return (
     <div className="space-y-6">
@@ -170,7 +180,17 @@ export default function SaleInvoicePage() {
             />
           </div>
           <div className="flex items-center gap-3 w-full md:w-auto">
-            <select className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/10 transition-all flex-1 md:flex-none">
+            <input 
+              type="date" 
+              value={filterDate} 
+              onChange={(e) => setFilterDate(e.target.value)} 
+              className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/10 transition-all"
+            />
+            <select 
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/10 transition-all flex-1 md:flex-none"
+            >
               <option value="">All Status</option>
               <option value="Draft">Draft</option>
               <option value="Posted">Posted</option>
@@ -194,6 +214,7 @@ export default function SaleInvoicePage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-800/50/50 border-b border-slate-100 dark:border-slate-800">
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest w-12">#</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Invoice #</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Customer</th>
@@ -212,8 +233,9 @@ export default function SaleInvoicePage() {
             </thead>
             <tbody className="divide-y divide-slate-50">
               {filteredInvoices.length > 0 ? (
-                filteredInvoices.map((inv) => (
+                filteredInvoices.map((inv, i) => (
                   <tr key={inv._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group text-[11px]">
+                    <td className="px-6 py-4 text-slate-500 font-medium">{i + 1}</td>
                     <td className="px-6 py-4">
                       <span className="font-bold text-slate-900 group-hover:text-maroon-800 transition-colors">{inv.invoiceNo}</span>
                       {inv.reference && <span className="block text-[9px] text-maroon-600 mt-1">Ref: {inv.reference}</span>}
@@ -306,7 +328,7 @@ export default function SaleInvoicePage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center">
+                  <td colSpan={15} className="px-6 py-12 text-center">
                     <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 font-medium">No sale invoices found.</p>
                   </td>
                 </tr>

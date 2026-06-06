@@ -14,6 +14,11 @@ import {
   resolvePartyIdWithLookup,
 } from "@/lib/purchaseFormHydrate";
 import {
+  applyPurchaseUnitFieldUpdate,
+  defaultPurchaseUnitsForItem,
+  resolveCatalogItem,
+} from "@/lib/itemUnits";
+import {
   Plus, 
   Trash2, 
   Save, 
@@ -135,27 +140,27 @@ export default function NonTaxPurchaseReturnForm({ onClose, onSave, initialData 
   };
 
   const updateItem = (id: string, field: keyof PurchaseLineRow, value: unknown) => {
-    setItems(items.map(i => {
+    setItems((prev) => prev.map((i) => {
       if (i.id === id) {
         let updated = { ...i, [field]: value };
 
 
         if (field === "itemId") {
-          const selected = availableItems.find(ai => ai._id === value);
+          const selected = availableItems.find((ai) => ai._id === value);
           if (selected) {
             updated.itemCode = selected.code;
             updated.description = selected.name;
             updated.unitPrice = selected.purchaseRate || selected.rate || 0;
-            const isFilter = selected.name?.toLowerCase().includes("filter") || selected.name?.toLowerCase().includes("fliter");
-            const gallonsInCtn = isFilter ? 1 : (selected.gallonsInCtn || 4);
-            const litersInCtn = isFilter ? 1 : (selected.litersInCtn || 16);
-            updated.cartons = 1;
-            updated.gallons = gallonsInCtn;
-            updated.liters = litersInCtn;
+            updated = defaultPurchaseUnitsForItem(updated, selected);
           }
         }
 
-        updated.total = (updated.cartons || 0) * (updated.unitPrice || 0);
+        if (field === "cartons" || field === "gallons" || field === "liters") {
+          const selected = resolveCatalogItem(availableItems, updated);
+          updated = applyPurchaseUnitFieldUpdate(updated, field, value as number | string, selected);
+        }
+
+        updated.total = (Number(updated.cartons) || 0) * (updated.unitPrice || 0);
         return updated;
       }
       return i;
@@ -357,13 +362,37 @@ export default function NonTaxPurchaseReturnForm({ onClose, onSave, initialData 
                       <input placeholder="Description" value={item.description} onChange={(e) => updateItem(item.id, "description", e.target.value)} className="w-full bg-transparent text-sm font-medium focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" />
                     </td>
                     <td className="px-2 py-4 text-center">
-                      <input type="number" value={item.cartons} onChange={(e) => updateItem(item.id, "cartons", parseFloat(e.target.value) || 0)} className="w-full bg-transparent text-sm font-black text-center focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" />
+                      <input
+                        type="number"
+                        min={0}
+                        step="any"
+                        value={item.cartons}
+                        onChange={(e) => updateItem(item.id, "cartons", e.target.value === "" ? "" : Number(e.target.value))}
+                        onBlur={(e) => updateItem(item.id, "cartons", Number(e.target.value) || 0)}
+                        className="w-full bg-transparent text-sm font-black text-center focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all"
+                      />
                     </td>
                     <td className="px-2 py-4 text-center">
-                      <input type="number" value={item.gallons} onChange={(e) => updateItem(item.id, "gallons", parseFloat(e.target.value) || 0)} className="w-full bg-transparent text-sm font-black text-center focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" />
+                      <input
+                        type="number"
+                        min={0}
+                        step="any"
+                        value={item.gallons}
+                        onChange={(e) => updateItem(item.id, "gallons", e.target.value === "" ? "" : Number(e.target.value))}
+                        onBlur={(e) => updateItem(item.id, "gallons", Number(e.target.value) || 0)}
+                        className="w-full bg-transparent text-sm font-black text-center focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all"
+                      />
                     </td>
                     <td className="px-2 py-4 text-center">
-                      <input type="number" value={item.liters} onChange={(e) => updateItem(item.id, "liters", parseFloat(e.target.value) || 0)} className="w-full bg-transparent text-sm font-black text-center focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" />
+                      <input
+                        type="number"
+                        min={0}
+                        step="any"
+                        value={item.liters}
+                        onChange={(e) => updateItem(item.id, "liters", e.target.value === "" ? "" : Number(e.target.value))}
+                        onBlur={(e) => updateItem(item.id, "liters", Number(e.target.value) || 0)}
+                        className="w-full bg-transparent text-sm font-black text-center focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all"
+                      />
                     </td>
                     <td className="px-4 py-4">
                       <input type="number" value={item.unitPrice} onChange={(e) => updateItem(item.id, "unitPrice", parseFloat(e.target.value) || 0)} className="w-full bg-transparent text-sm font-black text-center focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all text-maroon-800" />

@@ -26,6 +26,8 @@ export default function PurchaseInvoicePage() {
   const [viewOrder, setViewOrder] = useState<PurchaseInvoice | null>(null);
   const [editOrder, setEditOrder] = useState<PurchaseInvoice | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [filterDate, setFilterDate] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [invoices, setInvoices] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
@@ -109,7 +111,21 @@ export default function PurchaseInvoicePage() {
         }} 
       />
     );
-  }
+  const filteredInvoices = invoices.filter(inv => {
+    const matchesSearch = !searchQuery || 
+      inv.invoiceNo?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      inv.partyId?.companyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      inv.partyId?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      inv.vendorInvNo?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      inv.linkedRef?.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesStatus = !statusFilter || inv.status?.toLowerCase() === statusFilter.toLowerCase();
+    
+    const invDateStr = inv.date ? new Date(inv.date).toISOString().split('T')[0] : "";
+    const matchesDate = !filterDate || invDateStr === filterDate;
+    
+    return matchesSearch && matchesStatus && matchesDate;
+  });
 
   return (
     <div className="space-y-6">
@@ -177,7 +193,17 @@ export default function PurchaseInvoicePage() {
             />
           </div>
           <div className="flex items-center gap-3 w-full md:w-auto">
-            <select className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/10 transition-all flex-1 md:flex-none">
+            <input 
+              type="date" 
+              value={filterDate} 
+              onChange={(e) => setFilterDate(e.target.value)} 
+              className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/10 transition-all"
+            />
+            <select 
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/10 transition-all flex-1 md:flex-none"
+            >
               <option value="">All Status</option>
               <option value="Draft">Draft</option>
               <option value="Posted">Posted</option>
@@ -202,33 +228,37 @@ export default function PurchaseInvoicePage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-800/50/50 border-b border-slate-100 dark:border-slate-800">
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Invoice #</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Date</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Vendor</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Vendor Inv#</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Linked Ref</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest text-right">Total</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest text-right">Balance</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Status</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center w-20">Actions</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest w-12">#</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Invoice #</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Date</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Vendor</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Vendor Inv#</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Linked Ref</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-right">Total</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-right">Balance</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Status</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center w-20">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {invoices.length > 0 ? (
-                invoices.map((inv) => (
-                  <tr key={inv.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors group">
+              {filteredInvoices.length > 0 ? (
+                filteredInvoices.map((inv, i) => (
+                  <tr key={inv._id || inv.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors group">
+                    <td className="px-6 py-4 text-slate-500 font-medium">{i + 1}</td>
                     <td className="px-6 py-4">
                       <span className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-maroon-800 transition-colors">{inv.invoiceNo}</span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-sm font-bold text-slate-600 dark:text-slate-300">{inv.date}</span>
+                      <span className="text-sm font-bold text-slate-600 dark:text-slate-300">
+                        {inv.date ? new Date(inv.date).toLocaleDateString() : "-"}
+                      </span>
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{inv.partyId?.companyName || inv.partyId?.name || "N/A"}</span>
                     </td>
 
                     <td className="px-6 py-4">
-                      <span className="text-sm font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500">{inv.vendorInvNo}</span>
+                      <span className="text-sm font-medium text-slate-500 dark:text-slate-400">{inv.vendorInvNo}</span>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-1.5 text-xs font-bold text-maroon-800">
@@ -298,8 +328,8 @@ export default function PurchaseInvoicePage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center">
-                    <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 font-medium">No purchase invoices found.</p>
+                  <td colSpan={10} className="px-6 py-12 text-center">
+                    <p className="text-slate-500 dark:text-slate-400 font-medium">No purchase invoices found.</p>
                   </td>
                 </tr>
               )}
@@ -308,14 +338,14 @@ export default function PurchaseInvoicePage() {
         </div>
 
         {/* Footer info */}
-        <div className="p-4 border-t border-slate-50 bg-slate-50 dark:bg-slate-800/50/30 flex justify-between items-center text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">
-          <span>Total: {invoices.length} invoice(s)</span>
+        <div className="p-4 border-t border-slate-50 bg-slate-50 dark:bg-slate-800/50/30 flex justify-between items-center text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest">
+          <span>Total: {filteredInvoices.length} invoice(s)</span>
           <div className="flex gap-4">
             <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-blue-400"></span> Posted: {invoices.filter(i => i.status === "Posted").length}
+              <span className="w-2 h-2 rounded-full bg-blue-400"></span> Posted: {filteredInvoices.filter(i => i.status === "Posted").length}
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400"></span> Paid: {invoices.filter(i => i.status === "Paid").length}
+              <span className="w-2 h-2 rounded-full bg-emerald-400"></span> Paid: {filteredInvoices.filter(i => i.status === "Paid").length}
             </span>
           </div>
         </div>

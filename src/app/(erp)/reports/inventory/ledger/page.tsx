@@ -1,29 +1,33 @@
 "use client";
 
 import ERPReportLayout from "@/components/erp/reports/ERPReportLayout";
-import { Download, Printer, Play, Clock, Box, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, FileSpreadsheet } from "lucide-react";
+import SearchableItemSelect from "@/components/erp/ui/SearchableItemSelect";
+import { Download, Printer, Play, Clock, Box, ArrowUpRight, ArrowDownRight, FileSpreadsheet } from "lucide-react";
 import { exportToExcel, printPage } from "@/lib/excel";
 import { useState, useEffect } from "react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend, LineChart, Line } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 
 export default function InventoryLedgerReportPage() {
   const [items, setItems] = useState<any[]>([]);
   const [selectedItemId, setSelectedItemId] = useState("");
+  const [fromDate, setFromDate] = useState(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 3);
+    return d.toISOString().split("T")[0];
+  });
+  const [toDate, setToDate] = useState(() => {
+    return new Date().toISOString().split("T")[0];
+  });
   const [data, setData] = useState<any[]>([]);
+  const [summary, setSummary] = useState({ openingBalance: 0, totalIn: 0, totalOut: 0, closingBalance: 0 });
   const [isLoading, setIsLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
   useEffect(() => {
-    async function fetchItems() {
-      try {
-        const res = await fetch('/api/items');
-        const json = await res.json();
-        if (json.ok) setItems(json.data);
-      } catch (e) {
-        console.error("Error fetching items:", e);
-      }
-    }
-    fetchItems();
+    fetch('/api/items')
+      .then(r => r.json())
+      .then(json => { if (json.ok) setItems(json.data); })
+      .catch(console.error);
   }, []);
 
   const handleGenerate = async () => {
@@ -31,125 +35,82 @@ export default function InventoryLedgerReportPage() {
     setIsLoading(true);
     setHasSearched(true);
     try {
-      const [salesRes, purRes] = await Promise.all([
-        fetch('/api/sales'),
-        fetch('/api/purchases')
-      ]);
-      const [salesJson, purJson] = await Promise.all([
-        salesRes.json(),
-        purRes.json()
-      ]);
-
-      if (salesJson.ok && purJson.ok) {
-        const itemSales = salesJson.data.flatMap((s: any) => 
-          (s.lines || []).filter((l: any) => (l.itemId?._id || l.itemId) === selectedItemId)
-          .map((l: any) => ({
-            date: s.date,
-            refNo: s.invoiceNo || s.docNo,
-            type: "Sale",
-            location: "Main Warehouse",
-            in: 0,
-            out: l.qty || 0,
-            rate: l.rate,
-            total: l.total
-          }))
-        );
-
-        const itemPurchases = purJson.data.flatMap((p: any) => 
-          (p.lines || []).filter((l: any) => (l.itemId?._id || l.itemId) === selectedItemId)
-          .map((l: any) => ({
-            date: p.date,
-            refNo: p.invoiceNo || p.docNo,
-            type: "Purchase",
-            location: "Main Warehouse",
-            in: l.qty || 0,
-            out: 0,
-            rate: l.rate,
-            total: l.total
-          }))
-        );
-
-        const allTrans = [...itemSales, ...itemPurchases].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-        
-        let runningBalance = 0; // Simplified; ideally starts from opening before range
-        const dataWithBalance = allTrans.map(t => {
-          runningBalance += (t.in - t.out);
-          return { ...t, balance: runningBalance };
-        });
-
-        setData(dataWithBalance);
+      const params = new URLSearchParams({ itemId: selectedItemId });
+      if (fromDate) params.set("from", fromDate);
+      if (toDate) params.set("to", toDate);
+      const res = await fetch(`/api/reports/inventory-ledger?${params}`);
+      const json = await res.json();
+      if (json.ok) {
+        const payload = json.data;
+        const rows = Array.isArray(payload) ? payload : (payload.rows || []);
+        setData(rows.map((t: any) => ({
+          ...t,
+          date: new Date(t.date).toISOString(),
+        })));
+        if (!Array.isArray(payload) && payload) {
+          setSummary({
+            openingBalance: payload.openingBalance ?? 0,
+            totalIn: payload.totalIn ?? 0,
+            totalOut: payload.totalOut ?? 0,
+            closingBalance: payload.closingBalance ?? 0,
+          });
+        } else {
+          const totalIn = rows.reduce((s: number, r: any) => s + (r.in || 0), 0);
+          const totalOut = rows.reduce((s: number, r: any) => s + (r.out || 0), 0);
+          const closingBalance = rows.length > 0 ? rows[rows.length - 1].balance : 0;
+          const openingBalance = rows.length > 0 ? rows[0].balance - rows[0].in + rows[0].out : 0;
+          setSummary({ openingBalance, totalIn, totalOut, closingBalance });
+        }
+      } else {
+        alert(json.message || "Failed to load ledger");
+        setData([]);
       }
     } catch (e) {
       console.error("Error generating ledger:", e);
+      setData([]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const totalIn = data.reduce((s, r) => s + r.in, 0);
-  const totalOut = data.reduce((s, r) => s + r.out, 0);
-  const closingBalance = data.length > 0 ? data[data.length - 1].balance : 0;
+  
 
   const stats = [
-    { title: "Opening Balance", value: "0", icon: Box, iconColor: "text-slate-600 dark:text-slate-300", iconBg: "bg-slate-50 dark:bg-slate-800/50" },
-    { title: "Total In (Qty)", value: totalIn.toLocaleString(), icon: ArrowUpRight, iconColor: "text-emerald-600", iconBg: "bg-emerald-50" },
-    { title: "Total Out (Qty)", value: totalOut.toLocaleString(), icon: ArrowDownRight, iconColor: "text-rose-600", iconBg: "bg-rose-50" },
-    { title: "Closing Balance", value: closingBalance.toLocaleString(), icon: Box, iconColor: "text-blue-600", iconBg: "bg-blue-50", valueColor: "text-blue-600" },
+    { title: "Opening Balance", value: summary.openingBalance.toLocaleString(), icon: Box, iconColor: "text-slate-600 dark:text-slate-300", iconBg: "bg-slate-50 dark:bg-slate-800/50" },
+    { title: "Total In (Qty)", value: summary.totalIn.toLocaleString(), icon: ArrowUpRight, iconColor: "text-emerald-600", iconBg: "bg-emerald-50" },
+    { title: "Total Out (Qty)", value: summary.totalOut.toLocaleString(), icon: ArrowDownRight, iconColor: "text-rose-600", iconBg: "bg-rose-50" },
+    { title: "Closing Balance", value: summary.closingBalance.toLocaleString(), icon: Box, iconColor: "text-blue-600", iconBg: "bg-blue-50", valueColor: "text-blue-600" },
   ];
 
   const Filters = (
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <div className="space-y-1 lg:col-span-1">
-          <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-1">
+        <div className="space-y-1 lg:col-span-2">
+          <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-1">
             Item <span className="text-rose-500">*</span>
           </label>
-          <select 
-            className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/20"
+          <SearchableItemSelect
+            items={items}
             value={selectedItemId}
-            onChange={(e) => setSelectedItemId(e.target.value)}
-          >
-            <option value="">Select Item</option>
-            {items.map(item => (
-              <option key={item._id} value={item._id}>{item.name}</option>
-            ))}
-          </select>
+            onChange={setSelectedItemId}
+            placeholder="Type 170, code, or name..."
+          />
         </div>
         <div className="space-y-1">
-          <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">From Date</label>
-          <input type="date" className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/20" defaultValue="2026-03-31" />
+          <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">From Date</label>
+          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/20" />
         </div>
         <div className="space-y-1">
-          <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">To Date</label>
-          <input type="date" className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/20" defaultValue="2026-04-29" />
-        </div>
-        <div className="space-y-1">
-          <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Location</label>
-          <select className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/20">
-            <option>All Locations</option>
-          </select>
-        </div>
-        <div className="space-y-1">
-          <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Transaction Type</label>
-          <select className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/20">
-            <option>All Types</option>
-          </select>
-        </div>
-        <div className="space-y-1">
-          <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Direction</label>
-          <select className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/20">
-            <option>All</option>
-            <option>In</option>
-            <option>Out</option>
-          </select>
+          <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">To Date</label>
+          <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/20" />
         </div>
       </div>
       
       <div className="flex justify-end gap-2 mt-2">
-        <button className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-[10px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 flex items-center justify-center gap-1.5">
+        <button className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-[10px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 flex items-center justify-center gap-1.5">
           <Download size={14} /> Export CSV
         </button>
-        <button className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-[10px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 flex items-center justify-center gap-1.5">
+        <button className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-[10px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 flex items-center justify-center gap-1.5">
           <Printer size={14} /> Print
         </button>
         <button 
@@ -185,88 +146,69 @@ export default function InventoryLedgerReportPage() {
             <p className="text-sm font-bold">Generating inventory ledger...</p>
           </div>
         ) : !hasSearched ? (
-          <div className="flex flex-col items-center justify-center py-24 text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-800/50/50 mx-4">
+          <div className="flex flex-col items-center justify-center py-24 text-slate-400 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-800/50 mx-4">
             <Clock size={48} className="mb-4 opacity-30" />
             <p className="text-sm font-bold text-slate-600 dark:text-slate-300">Select an item and date range to view the ledger</p>
           </div>
         ) : data.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-800/50/50 mx-4">
+          <div className="flex flex-col items-center justify-center py-24 text-slate-400 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-800/50 mx-4">
             <Box size={48} className="mb-4 opacity-30" />
             <p className="text-sm font-bold text-slate-600 dark:text-slate-300">No transactions found for this item</p>
           </div>
         ) : (
           <>
             <div className="px-4">
-              <div className="flex items-center gap-2 mb-4">
-                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-widest">Transaction History</h3>
-                <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded text-xs font-bold">{data.length} records</span>
-              </div>
               <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-lg">
                 <table className="w-full text-left border-collapse min-w-max">
                   <thead className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
                     <tr>
-                      <th className="px-4 py-3 text-[9px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest w-8">#</th>
-                      <th className="px-4 py-3 text-[9px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Date</th>
-                      <th className="px-4 py-3 text-[9px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Ref No</th>
-                      <th className="px-4 py-3 text-[9px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Type</th>
-                      <th className="px-4 py-3 text-[9px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Location</th>
-                      <th className="px-4 py-3 text-[9px] font-black text-emerald-600 uppercase tracking-widest text-right">In (+)</th>
-                      <th className="px-4 py-3 text-[9px] font-black text-rose-600 uppercase tracking-widest text-right">Out (-)</th>
-                      <th className="px-4 py-3 text-[9px] font-black text-blue-600 uppercase tracking-widest text-right">Balance</th>
-                      <th className="px-4 py-3 text-[9px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest text-right">Rate</th>
-                      <th className="px-4 py-3 text-[9px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-widest text-right">Total</th>
+                      <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                      <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Type</th>
+                      <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Ref No</th>
+                      <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Location</th>
+                      <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">In (+)</th>
+                      <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Out (-)</th>
+                      <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Balance</th>
+                      <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Rate</th>
+                      <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Total</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    <tr className="bg-slate-50 dark:bg-slate-800/50/30 italic">
-                      <td colSpan={7} className="px-4 py-2 text-[10px] font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 text-right uppercase tracking-widest">Opening Balance</td>
-                      <td className="px-4 py-2 text-[11px] font-black text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 text-right">1,200</td>
-                      <td colSpan={2}></td>
-                    </tr>
                     {data.map((row, i) => (
-                      <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors">
-                        <td className="px-4 py-3 text-[11px] font-medium text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500">{i + 1}</td>
+                      <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                         <td className="px-4 py-3 text-[11px] font-medium text-slate-600 dark:text-slate-300">{new Date(row.date).toLocaleDateString()}</td>
-                        <td className="px-4 py-3 text-[11px] font-bold text-maroon-800 cursor-pointer hover:underline">{row.refNo}</td>
-                        <td className="px-4 py-3 text-[11px]">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest ${
-                            row.type === 'Purchase' ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'
-                          }`}>
-                            {row.type}
-                          </span>
-                        </td>
+                        <td className="px-4 py-3 text-[11px] font-bold text-slate-700 dark:text-slate-200">{row.type}</td>
+                        <td className="px-4 py-3 text-[11px] font-bold text-blue-600">{row.refNo}</td>
                         <td className="px-4 py-3 text-[11px] font-medium text-slate-600 dark:text-slate-300">{row.location}</td>
-                        <td className="px-4 py-3 text-[11px] font-black text-emerald-700 text-right">{row.in || '-'}</td>
-                        <td className="px-4 py-3 text-[11px] font-black text-rose-700 text-right">{row.out || '-'}</td>
-                        <td className="px-4 py-3 text-[11px] font-black text-blue-700 text-right bg-blue-50/30">{row.balance.toLocaleString()}</td>
-                        <td className="px-4 py-3 text-[11px] font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 text-right">{row.rate?.toLocaleString()}</td>
-                        <td className="px-4 py-3 text-[11px] font-black text-slate-800 dark:text-slate-100 text-right">{row.total?.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-[11px] font-black text-emerald-600 text-right">{row.in > 0 ? row.in : "-"}</td>
+                        <td className="px-4 py-3 text-[11px] font-black text-rose-600 text-right">{row.out > 0 ? row.out : "-"}</td>
+                        <td className="px-4 py-3 text-sm font-black text-slate-800 dark:text-slate-100 text-right">{row.balance}</td>
+                        <td className="px-4 py-3 text-[11px] font-medium text-slate-500 text-right">{row.rate?.toLocaleString?.() ?? row.rate}</td>
+                        <td className="px-4 py-3 text-[11px] font-bold text-slate-700 text-right">{row.total?.toLocaleString?.() ?? row.total}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             </div>
-
-            <div className="grid grid-cols-1 gap-4 px-4">
-              <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-white dark:bg-slate-900 shadow-sm">
-                <h3 className="text-xs font-black text-slate-800 dark:text-slate-100 mb-6 uppercase tracking-widest">Stock Level Trend</h3>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={trendData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="name" tick={{fontSize: 10}} />
-                      <YAxis tick={{fontSize: 10}} />
-                      <RechartsTooltip />
-                      <Line type="stepAfter" dataKey="balance" name="In-Stock Qty" stroke="#881337" strokeWidth={3} dot={{r: 4, fill: '#881337'}} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
+            {trendData.length > 1 && (
+              <div className="px-4 h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={trendData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} />
+                    <RechartsTooltip />
+                    <Line type="monotone" dataKey="balance" stroke="#881337" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
               </div>
-            </div>
+            )}
           </>
         )}
       </div>
     </ERPReportLayout>
   );
 }
+
+

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
+import { filterAndSortItems } from "@/lib/itemUnits";
 
 interface AvailableItem {
   _id: string;
@@ -22,6 +23,7 @@ interface ItemSearchInputProps {
   placeholder?: string;
   className?: string;
   showSaleRate?: boolean;             // show saleRate instead of purchaseRate
+  onActiveItemChange?: (item: AvailableItem | null) => void;
 }
 
 export default function ItemSearchInput({
@@ -32,6 +34,7 @@ export default function ItemSearchInput({
   placeholder = "Search item...",
   className = "",
   showSaleRate = false,
+  onActiveItemChange,
 }: ItemSearchInputProps) {
   const [query, setQuery] = useState(value || "");
   const [open, setOpen] = useState(false);
@@ -45,25 +48,11 @@ export default function ItemSearchInput({
     setQuery(value || "");
   }, [value]);
 
-  const filtered = availableItems.filter(i => {
-    const q = query.toLowerCase();
-    if (!q) return true;
-    return (
-      String(i.code || "").toLowerCase().includes(q) ||
-      String(i.name || "").toLowerCase().includes(q)
-    );
-  }).sort((a, b) => {
-    const q = query.toLowerCase();
-    const aName = String(a.name || "").toLowerCase();
-    const aCode = String(a.code || "").toLowerCase();
-    const bName = String(b.name || "").toLowerCase();
-    const bCode = String(b.code || "").toLowerCase();
-    const aMatch = aName.startsWith(q) || aCode.startsWith(q);
-    const bMatch = bName.startsWith(q) || bCode.startsWith(q);
-    if (aMatch && !bMatch) return -1;
-    if (!aMatch && bMatch) return 1;
-    return 0;
-  });
+  const filtered = useMemo(() => {
+    const q = query.trim();
+    if (!q) return availableItems.slice(0, 80);
+    return filterAndSortItems(availableItems, q).slice(0, 80);
+  }, [availableItems, query]);
 
   const positionDropdown = useCallback(() => {
     if (!inputRef.current) return;
@@ -102,6 +91,17 @@ export default function ItemSearchInput({
     setOpen(false);
     onSelect(item);
   };
+
+  useEffect(() => {
+    if (!open || !onActiveItemChange) return;
+    onActiveItemChange(filtered[activeIndex] ?? null);
+  }, [activeIndex, filtered, open, onActiveItemChange]);
+
+  useEffect(() => {
+    if (!open || !dropdownRef.current) return;
+    const el = dropdownRef.current.children[activeIndex] as HTMLElement | undefined;
+    el?.scrollIntoView({ block: "nearest" });
+  }, [activeIndex, open]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!open) return;
@@ -163,7 +163,10 @@ export default function ItemSearchInput({
               idx === activeIndex ? "bg-maroon-800 text-white" : "hover:bg-slate-800"
             }`}
             onMouseDown={(e) => { e.preventDefault(); handleSelect(item); }}
-            onMouseEnter={() => setActiveIndex(idx)}
+            onMouseEnter={() => {
+              setActiveIndex(idx);
+              if (onActiveItemChange) onActiveItemChange(item);
+            }}
           >
             <div className="flex items-center gap-3">
               <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)] shrink-0" />

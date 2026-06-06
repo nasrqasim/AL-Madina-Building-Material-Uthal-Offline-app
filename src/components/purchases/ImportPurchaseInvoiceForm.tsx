@@ -12,6 +12,11 @@ import {
 } from "@/lib/purchaseFormUtils";
 import { mapRecordToLineRows, resolvePartyIdWithLookup } from "@/lib/purchaseFormHydrate";
 import {
+  applyPurchaseUnitFieldUpdate,
+  defaultPurchaseUnitsForItem,
+  resolveCatalogItem,
+} from "@/lib/itemUnits";
+import {
   Plus, 
   Trash2, 
   Save, 
@@ -190,37 +195,25 @@ export default function ImportPurchaseInvoiceForm({ onClose, onSave, initialData
   };
 
   const updateItem = (id: string, field: keyof ImportLineRow, value: unknown) => {
-    setItems(items.map(i => {
+    setItems((prev) => prev.map((i) => {
       if (i.id === id) {
         let updated = { ...i, [field]: value };
         
-        if (field === "cartons" || field === "gallons" || field === "liters") {
-          const num = Number(value);
-          const selItem = availableItems.find(ai => ai._id === i.itemId);
-          const isFltr = selItem?.name?.toLowerCase().includes("filter") || selItem?.name?.toLowerCase().includes("fliter");
-          const galsInCtn = isFltr ? 1 : (selItem?.gallonsInCtn || 4);
-          const ltrsInCtn = isFltr ? 1 : (selItem?.litersInCtn || 16);
-          if (field === "cartons") {
-            updated.gallons = num * galsInCtn;
-            updated.liters = num * ltrsInCtn;
-          } else if (field === "gallons") {
-            updated.cartons = galsInCtn > 0 ? num / galsInCtn : 0;
-            updated.liters = galsInCtn > 0 ? (num / galsInCtn) * ltrsInCtn : 0;
-          } else if (field === "liters") {
-            updated.cartons = ltrsInCtn > 0 ? num / ltrsInCtn : 0;
-            updated.gallons = ltrsInCtn > 0 ? (num / ltrsInCtn) * galsInCtn : 0;
-          }
-        }
-
         if (field === "itemId") {
-          const selected = availableItems.find(ai => ai._id === value);
+          const selected = availableItems.find((ai) => ai._id === value);
           if (selected) {
             updated.itemCode = selected.code;
             updated.description = selected.name;
+            updated = defaultPurchaseUnitsForItem(updated, selected);
           }
         }
 
-        updated.foreignTotal = (updated.cartons || 0) * (updated.unitPriceUSD || 0);
+        if (field === "cartons" || field === "gallons" || field === "liters") {
+          const selItem = resolveCatalogItem(availableItems, updated);
+          updated = applyPurchaseUnitFieldUpdate(updated, field, value as number | string, selItem);
+        }
+
+        updated.foreignTotal = (Number(updated.cartons) || 0) * (updated.unitPriceUSD || 0);
         updated.pkrTotal = updated.foreignTotal * (formData.exchangeRate || 1);
         return updated;
       }
@@ -465,13 +458,40 @@ export default function ImportPurchaseInvoiceForm({ onClose, onSave, initialData
                         <input placeholder="Description" value={item.description} onChange={(e) => updateItem(item.id, "description", e.target.value)} onFocus={() => setSelectedLineId(item.id)} className="w-full bg-transparent text-sm font-medium focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" />
                       </td>
                       <td className="px-2 py-4 text-center">
-                        <input type="number" value={item.cartons} onChange={(e) => updateItem(item.id, "cartons", parseFloat(e.target.value) || 0)} onFocus={() => setSelectedLineId(item.id)} className="w-full bg-transparent text-sm font-black text-center focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" />
+                        <input
+                          type="number"
+                          min={0}
+                          step="any"
+                          value={item.cartons}
+                          onChange={(e) => updateItem(item.id, "cartons", e.target.value === "" ? "" : Number(e.target.value))}
+                          onBlur={(e) => updateItem(item.id, "cartons", Number(e.target.value) || 0)}
+                          onFocus={() => setSelectedLineId(item.id)}
+                          className="w-full bg-transparent text-sm font-black text-center focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all"
+                        />
                       </td>
                       <td className="px-2 py-4 text-center">
-                        <input type="number" value={item.gallons} onChange={(e) => updateItem(item.id, "gallons", parseFloat(e.target.value) || 0)} onFocus={() => setSelectedLineId(item.id)} className="w-full bg-transparent text-sm font-black text-center focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" />
+                        <input
+                          type="number"
+                          min={0}
+                          step="any"
+                          value={item.gallons}
+                          onChange={(e) => updateItem(item.id, "gallons", e.target.value === "" ? "" : Number(e.target.value))}
+                          onBlur={(e) => updateItem(item.id, "gallons", Number(e.target.value) || 0)}
+                          onFocus={() => setSelectedLineId(item.id)}
+                          className="w-full bg-transparent text-sm font-black text-center focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all"
+                        />
                       </td>
                       <td className="px-2 py-4 text-center">
-                        <input type="number" value={item.liters} onChange={(e) => updateItem(item.id, "liters", parseFloat(e.target.value) || 0)} onFocus={() => setSelectedLineId(item.id)} className="w-full bg-transparent text-sm font-black text-center focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" />
+                        <input
+                          type="number"
+                          min={0}
+                          step="any"
+                          value={item.liters}
+                          onChange={(e) => updateItem(item.id, "liters", e.target.value === "" ? "" : Number(e.target.value))}
+                          onBlur={(e) => updateItem(item.id, "liters", Number(e.target.value) || 0)}
+                          onFocus={() => setSelectedLineId(item.id)}
+                          className="w-full bg-transparent text-sm font-black text-center focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-2 transition-all"
+                        />
                       </td>
                       <td className="px-4 py-4 text-center">
                         <input type="number" value={item.unitPriceUSD} onChange={(e) => updateItem(item.id, "unitPriceUSD", parseFloat(e.target.value) || 0)} onFocus={() => setSelectedLineId(item.id)} className="w-full bg-transparent text-sm font-black focus:outline-none text-center border-b border-transparent focus:border-maroon-800/30 py-2 transition-all" />
