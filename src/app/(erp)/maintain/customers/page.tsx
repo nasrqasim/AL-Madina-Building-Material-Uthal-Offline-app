@@ -314,17 +314,17 @@ export default function CustomersPage() {
       )
     },
     { 
-      header: "Udhaar (Balance)", 
+      header: "Balance (Dr/Cr)", 
       accessor: "balance", 
       render: (val: number, row: any) => {
         const isNegative = val < 0;
         const formattedVal = isNegative 
           ? `-Rs. ${Math.abs(val).toLocaleString()}` 
-          : `Rs. ${val?.toLocaleString() || "0"}`;
-        const balanceLabel = isNegative ? " (Bakaya)" : val > 0 ? " (Udhaar)" : "";
+          : `+Rs. ${val?.toLocaleString() || "0"}`;
+        const balanceLabel = isNegative ? " (Debit)" : val > 0 ? " (Credit)" : "";
         return (
           <div className="flex flex-col">
-            <span className={`text-sm font-black ${val > (row.creditLimit || 0) && row.creditLimit > 0 ? "text-red-600 animate-pulse" : val > 0 ? "text-orange-600" : "text-emerald-600"}`}>
+            <span className={`text-sm font-black ${val > (row.creditLimit || 0) && row.creditLimit > 0 ? "text-red-600 animate-pulse" : val > 0 ? "text-emerald-600" : "text-rose-600"}`}>
               {formattedVal}{balanceLabel}
             </span>
             {val > (row.creditLimit || 0) && row.creditLimit > 0 && (

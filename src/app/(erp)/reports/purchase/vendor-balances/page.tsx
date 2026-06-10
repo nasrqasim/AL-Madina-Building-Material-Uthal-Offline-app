@@ -6,8 +6,8 @@ import { Download, Printer, Play, Users, DollarSign, ArrowDownLeft, ArrowUpRight
 import { exportToExcel, printPage } from "@/lib/excel";
 
 function formatBalance(val: number) {
-  if (val < 0) return { text: `Rs. ${Math.abs(val).toLocaleString()}`, label: "(Bakaya)", color: "text-rose-600" };
-  if (val > 0) return { text: `Rs. ${val.toLocaleString()}`, label: "(Udhaar)", color: "text-emerald-600" };
+  if (val < 0) return { text: `-Rs. ${Math.abs(val).toLocaleString()}`, label: "(Debit)", color: "text-rose-600" };
+  if (val > 0) return { text: `+Rs. ${val.toLocaleString()}`, label: "(Credit)", color: "text-emerald-600" };
   return { text: "Rs. 0", label: "", color: "text-slate-500" };
 }
 

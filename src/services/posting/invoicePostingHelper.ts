@@ -59,12 +59,16 @@ export async function recalculatePartyBalance(partyId: string) {
   let balance = 0;
 
   if (isCustomer) {
-    debit = openingBalance + totalInvoices;
-    credit = totalReturns + totalReceiptsPayments;
+    const opDebit = openingBalance > 0 ? openingBalance : 0;
+    const opCredit = openingBalance < 0 ? Math.abs(openingBalance) : 0;
+    debit = opDebit + totalInvoices;
+    credit = opCredit + totalReturns + totalReceiptsPayments;
     balance = debit - credit;
   } else {
-    credit = openingBalance + totalInvoices;
-    debit = totalReturns + totalReceiptsPayments;
+    const opCredit = openingBalance > 0 ? openingBalance : 0;
+    const opDebit = openingBalance < 0 ? Math.abs(openingBalance) : 0;
+    credit = opCredit + totalInvoices;
+    debit = opDebit + totalReturns + totalReceiptsPayments;
     balance = credit - debit;
   }
 

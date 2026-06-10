@@ -35,7 +35,7 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
     notes: "",
   });
 
-  const [openingBalanceType, setOpeningBalanceType] = useState<"Udhaar" | "Bakaya">("Udhaar");
+  const [openingBalanceType, setOpeningBalanceType] = useState<"Credit" | "Debit">("Credit");
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [shopProfile, setShopProfile] = useState<any>(null);
 
@@ -57,7 +57,7 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
   useEffect(() => {
     if (customer) {
       const op = customer.openingBalance || 0;
-      setOpeningBalanceType(op < 0 ? "Bakaya" : "Udhaar");
+      setOpeningBalanceType(op < 0 ? "Debit" : "Credit");
       setFormData({
         code: customer.code || "",
         name: customer.companyName || customer.name || "",
@@ -80,7 +80,7 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
         notes: customer.notes || "",
       });
     } else {
-      setOpeningBalanceType("Udhaar");
+      setOpeningBalanceType("Credit");
       setFormData({
         code: "",
         name: "",
@@ -108,7 +108,7 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (onSave) {
-      const finalOpeningBalance = openingBalanceType === "Bakaya" ? -Math.abs(Number(formData.openingBalance)) : Math.abs(Number(formData.openingBalance));
+      const finalOpeningBalance = openingBalanceType === "Debit" ? -Math.abs(Number(formData.openingBalance)) : Math.abs(Number(formData.openingBalance));
       onSave({
         ...formData,
         openingBalance: finalOpeningBalance
@@ -384,25 +384,25 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
               <div className="flex bg-slate-100 dark:bg-slate-800/60 p-1 rounded-xl shrink-0 w-36">
                 <button
                   type="button"
-                  onClick={() => setOpeningBalanceType("Udhaar")}
+                  onClick={() => setOpeningBalanceType("Credit")}
                   className={`flex-1 py-1 text-[11px] font-black rounded-lg transition-all ${
-                    openingBalanceType === "Udhaar"
+                    openingBalanceType === "Credit"
                       ? "bg-white dark:bg-slate-900 text-maroon-850 dark:text-white shadow-sm"
                       : "text-slate-500 hover:text-slate-700 dark:text-slate-400"
                   }`}
                 >
-                  Udhaar
+                  Credit
                 </button>
                 <button
                   type="button"
-                  onClick={() => setOpeningBalanceType("Bakaya")}
+                  onClick={() => setOpeningBalanceType("Debit")}
                   className={`flex-1 py-1 text-[11px] font-black rounded-lg transition-all ${
-                    openingBalanceType === "Bakaya"
+                    openingBalanceType === "Debit"
                       ? "bg-white dark:bg-slate-900 text-maroon-855 dark:text-white shadow-sm"
                       : "text-slate-500 hover:text-slate-700 dark:text-slate-400"
                   }`}
                 >
-                  Bakaya
+                  Debit
                 </button>
               </div>
             </div>
