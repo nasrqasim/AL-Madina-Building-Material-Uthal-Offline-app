@@ -121,7 +121,7 @@ export default function QuickPaymentModal({ isOpen, onClose, vendor, onSuccess }
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">Cash Account</label>
             <select value={formData.cashAccountId} onChange={e => setFormData({...formData, cashAccountId: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none" required>
               <option value="">Select Cash Account</option>
-              {cashAccounts.map(a => <option key={a._id} value={a._id}>{a.code} - {a.title}</option>)}
+              {cashAccounts.map(a => <option key={a._id} value={a._id}>{a.code} - {a.title || a.name}</option>)}
             </select>
           </div>
         ) : (

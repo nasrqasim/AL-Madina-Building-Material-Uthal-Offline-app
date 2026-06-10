@@ -25,6 +25,7 @@ export type PartyLike = {
 export type AccountLike = {
   _id?: string;
   title?: string;
+  name?: string;
   code?: string;
   type?: string;
   openingBalance?: number;

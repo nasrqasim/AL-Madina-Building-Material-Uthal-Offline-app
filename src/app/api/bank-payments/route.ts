@@ -2,6 +2,7 @@ import { fail, ok } from "@/lib/api";
 import dbConnect from "@/lib/db";
 import BankPayment from "@/models/BankPayment";
 import { postBankPayment } from "@/services/posting/transactionPosting";
+import { recalculatePartyBalance } from "@/services/posting/invoicePostingHelper";
 
 export async function GET() {
   await dbConnect();
@@ -75,6 +76,8 @@ export async function POST(req: Request) {
       netAmount: body.totalAmount - (body.whtAmount || 0),
       narration: body.narration,
     });
+
+    if (body.vendorId) await recalculatePartyBalance(String(body.vendorId));
 
     return ok(row, 201);
   } catch (e) {

@@ -35,6 +35,7 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
     notes: "",
   });
 
+  const [openingBalanceType, setOpeningBalanceType] = useState<"Udhaar" | "Bakaya">("Udhaar");
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [shopProfile, setShopProfile] = useState<any>(null);
 
@@ -55,6 +56,8 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
 
   useEffect(() => {
     if (customer) {
+      const op = customer.openingBalance || 0;
+      setOpeningBalanceType(op < 0 ? "Bakaya" : "Udhaar");
       setFormData({
         code: customer.code || "",
         name: customer.companyName || customer.name || "",
@@ -70,13 +73,14 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
         category: customer.category || "Cash Customer",
         creditLimit: customer.creditLimit || 0,
         creditDays: customer.creditDays || 30,
-        openingBalance: customer.openingBalance || 0,
+        openingBalance: Math.abs(op),
         debit: customer.debit || 0,
         credit: customer.credit || 0,
         status: customer.status || "Active",
         notes: customer.notes || "",
       });
     } else {
+      setOpeningBalanceType("Udhaar");
       setFormData({
         code: "",
         name: "",
@@ -104,7 +108,11 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (onSave) {
-      onSave(formData);
+      const finalOpeningBalance = openingBalanceType === "Bakaya" ? -Math.abs(Number(formData.openingBalance)) : Math.abs(Number(formData.openingBalance));
+      onSave({
+        ...formData,
+        openingBalance: finalOpeningBalance
+      });
     }
     onClose();
   };
@@ -363,15 +371,41 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-2">
-              <Wallet size={14} className="text-maroon-800" /> Udhaar (Opening Balance)
+              <Wallet size={14} className="text-maroon-800" /> Opening Balance
             </label>
-            <input
-              type="number"
-              value={formData.openingBalance}
-              onChange={(e) => setFormData({ ...formData, openingBalance: Number(e.target.value) })}
-              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 dark:bg-slate-900 focus:ring-4 focus:ring-maroon-800/5 outline-none transition-all dark:text-white"
-              placeholder="0"
-            />
+            <div className="flex gap-3">
+              <input
+                type="number"
+                value={formData.openingBalance}
+                onChange={(e) => setFormData({ ...formData, openingBalance: Number(e.target.value) })}
+                className="flex-1 min-w-0 px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-maroon-800/5 outline-none transition-all dark:text-white"
+                placeholder="0"
+              />
+              <div className="flex bg-slate-100 dark:bg-slate-800/60 p-1 rounded-xl shrink-0 w-36">
+                <button
+                  type="button"
+                  onClick={() => setOpeningBalanceType("Udhaar")}
+                  className={`flex-1 py-1 text-[11px] font-black rounded-lg transition-all ${
+                    openingBalanceType === "Udhaar"
+                      ? "bg-white dark:bg-slate-900 text-maroon-850 dark:text-white shadow-sm"
+                      : "text-slate-500 hover:text-slate-700 dark:text-slate-400"
+                  }`}
+                >
+                  Udhaar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOpeningBalanceType("Bakaya")}
+                  className={`flex-1 py-1 text-[11px] font-black rounded-lg transition-all ${
+                    openingBalanceType === "Bakaya"
+                      ? "bg-white dark:bg-slate-900 text-maroon-855 dark:text-white shadow-sm"
+                      : "text-slate-500 hover:text-slate-700 dark:text-slate-400"
+                  }`}
+                >
+                  Bakaya
+                </button>
+              </div>
+            </div>
           </div>
           <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-2">

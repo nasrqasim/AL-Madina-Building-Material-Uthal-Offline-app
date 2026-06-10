@@ -321,7 +321,7 @@ export default function CashPaymentForm({ onClose, initialData }: CashPaymentFor
                     <option value="">Select cash account...</option>
                     {cashAccounts.map((a) => (
                       <option key={a._id} value={a._id}>
-                        {a.code} - {a.title} (Rs. {(a.openingBalance || 0).toLocaleString()})
+                        {a.code} - {a.title || a.name || "Cash Account"} (Rs. {(a.openingBalance || 0).toLocaleString()})
                       </option>
                     ))}
                   </select>
@@ -431,9 +431,11 @@ export default function CashPaymentForm({ onClose, initialData }: CashPaymentFor
                                 className="w-full px-2 py-2 border rounded-lg text-sm font-bold"
                               >
                                 <option value="">Select account</option>
-                                {availableAccounts.map((a) => (
-                                  <option key={a._id} value={a._id}>{a.title} ({a.code})</option>
-                                ))}
+                                {availableAccounts
+                                  .filter(a => !["1000", "1010", "1200", "1300", "2000", "3000", "4000"].includes(a.code || ""))
+                                  .map((a) => (
+                                    <option key={a._id} value={a._id}>{a.title || a.name || "Account"} ({a.code})</option>
+                                  ))}
                               </select>
                             </td>
                             <td className="p-2">

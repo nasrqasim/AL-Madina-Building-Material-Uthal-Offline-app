@@ -89,7 +89,7 @@ export default function LedgerReportPage() {
           >
             <option value="">Select Account</option>
             {accounts.map(acc => (
-              <option key={acc._id} value={acc.code}>{acc.code} - {acc.title}</option>
+              <option key={acc._id} value={acc.code}>{acc.code} - {acc.title || acc.name}</option>
             ))}
           </select>
         </div>

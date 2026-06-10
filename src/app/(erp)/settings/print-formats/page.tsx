@@ -193,9 +193,39 @@ export default function PrintFormatsPage() {
                   </div>
                 </div>
 
+                {/* Paper Size */}
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                    <Layout size={14} /> Paper Size
+                  </label>
+                  <div className="flex bg-slate-50 dark:bg-slate-800/50 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
+                    {(["Thermal", "A5", "A4"] as const).map((size) => (
+                      <button
+                        key={size}
+                        type="button"
+                        onClick={() => setConfig({...config, paperSize: size})}
+                        className={`flex-1 px-3 py-2 rounded-lg text-xs font-black uppercase transition-all ${
+                          config.paperSize === size
+                            ? 'bg-maroon-800 text-white shadow-sm'
+                            : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                        }`}
+                      >
+                        {size === "Thermal" ? "🧾 Thermal" : size === "A5" ? "📄 A5" : "📋 A4"}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[9px] text-slate-400 font-medium">
+                    {config.paperSize === "Thermal" 
+                      ? "80mm receipt printer — narrow thermal layout" 
+                      : config.paperSize === "A5" 
+                      ? "A5 (148×210mm) — half-page corporate layout"
+                      : "A4 (210×297mm) — full-page corporate layout (Black Copper)"}
+                  </p>
+                </div>
+
                 {/* Typography */}
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-2">
                     <Type size={14} /> Typography
                   </label>
                   <select 

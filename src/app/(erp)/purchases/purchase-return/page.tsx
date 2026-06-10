@@ -82,6 +82,8 @@ export default function PurchaseReturnPage() {
         }} 
       />
     );
+  }
+
   const filteredReturns = returns.filter(ret => {
     const matchesSearch = !searchQuery || 
       (ret.invoiceNo || ret.docNo)?.toLowerCase().includes(searchQuery.toLowerCase()) ||

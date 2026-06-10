@@ -111,6 +111,8 @@ export default function PurchaseInvoicePage() {
         }} 
       />
     );
+  }
+
   const filteredInvoices = invoices.filter(inv => {
     const matchesSearch = !searchQuery || 
       inv.invoiceNo?.toLowerCase().includes(searchQuery.toLowerCase()) ||

@@ -166,11 +166,18 @@ export default function VendorsPage() {
     { 
       header: "Opening Balance", 
       accessor: "openingBalance", 
-      render: (val: number) => (
-        <span className="text-sm font-bold text-slate-600 dark:text-slate-400">
-          Rs.{val?.toLocaleString() || "0"}
-        </span>
-      )
+      render: (val: number) => {
+        const isNegative = val < 0;
+        const formattedVal = isNegative 
+          ? `-Rs. ${Math.abs(val).toLocaleString()}` 
+          : `Rs. ${val?.toLocaleString() || "0"}`;
+        const balanceLabel = isNegative ? " (Bakaya)" : val > 0 ? " (Udhaar)" : "";
+        return (
+          <span className="text-sm font-bold text-slate-600 dark:text-slate-400">
+            {formattedVal}{balanceLabel}
+          </span>
+        );
+      }
     },
     { 
       header: "Debit (Payment)", 
@@ -189,11 +196,18 @@ export default function VendorsPage() {
     { 
       header: "Closing Balance", 
       accessor: "balance", 
-      render: (val: number) => (
-        <span className={`text-sm font-black ${val > 0 ? "text-orange-600" : "text-emerald-600"}`}>
-          Rs.{val?.toLocaleString() || "0"}
-        </span>
-      )
+      render: (val: number) => {
+        const isNegative = val < 0;
+        const formattedVal = isNegative 
+          ? `-Rs. ${Math.abs(val).toLocaleString()}` 
+          : `Rs. ${val?.toLocaleString() || "0"}`;
+        const balanceLabel = isNegative ? " (Bakaya)" : val > 0 ? " (Udhaar)" : "";
+        return (
+          <span className={`text-sm font-black ${val > 0 ? "text-orange-600" : "text-emerald-600"}`}>
+            {formattedVal}{balanceLabel}
+          </span>
+        );
+      }
     },
     { 
       header: "Status", 

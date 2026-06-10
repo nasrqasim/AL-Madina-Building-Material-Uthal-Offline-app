@@ -422,7 +422,7 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
                 <option value="">Search cash accounts...</option>
                 {cashAccounts.map(a => (
                   <option key={a._id} value={a._id}>
-                    {a.title} (Rs. {(a.openingBalance || 0).toLocaleString()})
+                    {a.title || a.name || "Cash Account"} (Rs. {(a.openingBalance || 0).toLocaleString()})
                   </option>
                 ))}
               </select>
@@ -551,9 +551,11 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
                                 className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-bold outline-none focus:border-maroon-800"
                               >
                                 <option value="">-- Select Account --</option>
-                                {availableAccounts.map(a => (
-                                  <option key={a._id} value={a._id}>{a.title} ({a.code})</option>
-                                ))}
+                                {availableAccounts
+                                  .filter(a => !["1000", "1010", "1200", "1300", "2000", "3000", "4000"].includes(a.code || ""))
+                                  .map(a => (
+                                    <option key={a._id} value={a._id}>{a.title || a.name || "Account"} ({a.code})</option>
+                                  ))}
                               </select>
                             </td>
                             <td className="px-4 py-3">

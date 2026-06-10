@@ -31,6 +31,14 @@ export default function CustomersPage() {
   const [isLedgerLoading, setIsLedgerLoading] = useState(false);
   const [shopProfile, setShopProfile] = useState<any>(null);
 
+  const formatBalance = (val: number) => {
+    if (val === undefined || val === null) return "Rs. 0";
+    if (val < 0) {
+      return `-Rs. ${Math.abs(val).toLocaleString()}`;
+    }
+    return `Rs. ${val.toLocaleString()}`;
+  };
+
   const fetchCustomers = async () => {
     setIsLoading(true);
     try {
@@ -308,16 +316,23 @@ export default function CustomersPage() {
     { 
       header: "Udhaar (Balance)", 
       accessor: "balance", 
-      render: (val: number, row: any) => (
-        <div className="flex flex-col">
-          <span className={`text-sm font-black ${val > (row.creditLimit || 0) && row.creditLimit > 0 ? "text-red-600 animate-pulse" : val > 0 ? "text-orange-600" : "text-emerald-600"}`}>
-            Rs.{val?.toLocaleString() || "0"}
-          </span>
-          {val > (row.creditLimit || 0) && row.creditLimit > 0 && (
-            <span className="text-[8px] font-black text-red-600 uppercase tracking-tighter">Over Limit! (Max: {row.creditLimit?.toLocaleString()})</span>
-          )}
-        </div>
-      )
+      render: (val: number, row: any) => {
+        const isNegative = val < 0;
+        const formattedVal = isNegative 
+          ? `-Rs. ${Math.abs(val).toLocaleString()}` 
+          : `Rs. ${val?.toLocaleString() || "0"}`;
+        const balanceLabel = isNegative ? " (Bakaya)" : val > 0 ? " (Udhaar)" : "";
+        return (
+          <div className="flex flex-col">
+            <span className={`text-sm font-black ${val > (row.creditLimit || 0) && row.creditLimit > 0 ? "text-red-600 animate-pulse" : val > 0 ? "text-orange-600" : "text-emerald-600"}`}>
+              {formattedVal}{balanceLabel}
+            </span>
+            {val > (row.creditLimit || 0) && row.creditLimit > 0 && (
+              <span className="text-[8px] font-black text-red-600 uppercase tracking-tighter">Over Limit! (Max: {row.creditLimit?.toLocaleString()})</span>
+            )}
+          </div>
+        );
+      }
     },
     { 
       header: "Status", 
@@ -461,10 +476,10 @@ export default function CustomersPage() {
 
         {/* Ledger Summary Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 no-print">
-          <ERPStatCard label="Opening Balance" value={`Rs. ${ledgerData.opening.toLocaleString()}`} icon={Wallet} variant="slate" />
-          <ERPStatCard label="Total Debit (Sales)" value={`Rs. ${ledgerData.totalDr.toLocaleString()}`} icon={Play} variant="green" />
-          <ERPStatCard label="Total Credit (Receipts)" value={`Rs. ${ledgerData.totalCr.toLocaleString()}`} icon={Play} variant="orange" />
-          <ERPStatCard label="Closing Balance" value={`Rs. ${ledgerData.closing.toLocaleString()}`} icon={Wallet} variant="maroon" />
+          <ERPStatCard label="Opening Balance" value={formatBalance(ledgerData.opening)} icon={Wallet} variant="slate" />
+          <ERPStatCard label="Total Debit (Sales)" value={formatBalance(ledgerData.totalDr)} icon={Play} variant="green" />
+          <ERPStatCard label="Total Credit (Receipts)" value={formatBalance(ledgerData.totalCr)} icon={Play} variant="orange" />
+          <ERPStatCard label="Closing Balance" value={formatBalance(ledgerData.closing)} icon={Wallet} variant="maroon" />
         </div>
 
         {/* Print Layout */}
@@ -535,7 +550,7 @@ export default function CustomersPage() {
                     <td className="px-4 py-3 uppercase tracking-tighter text-slate-400">Opening Balance</td>
                     <td className="px-4 py-3 text-right">-</td>
                     <td className="px-4 py-3 text-right">-</td>
-                    <td className="px-4 py-3 text-right text-slate-900 dark:text-white">Rs. {ledgerData.opening.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right text-slate-900 dark:text-white">{formatBalance(ledgerData.opening)}</td>
                   </tr>
 
                   {ledgerData.rows.length === 0 ? (
@@ -565,7 +580,7 @@ export default function CustomersPage() {
                           {row.credit > 0 ? `Rs. ${row.credit.toLocaleString()}` : "-"}
                         </td>
                         <td className="px-4 py-3 text-right text-slate-900 dark:text-white">
-                          Rs. {row.runningBalance.toLocaleString()}
+                          {formatBalance(row.runningBalance)}
                         </td>
                       </tr>
                     ))
@@ -577,7 +592,7 @@ export default function CustomersPage() {
                     <td className="px-4 py-3.5 text-right text-emerald-700">Rs. {ledgerData.totalDr.toLocaleString()}</td>
                     <td className="px-4 py-3.5 text-right text-rose-700">Rs. {ledgerData.totalCr.toLocaleString()}</td>
                     <td className="px-4 py-3.5 text-right text-maroon-800 dark:text-maroon-400">
-                      Rs. {ledgerData.closing.toLocaleString()}
+                      {formatBalance(ledgerData.closing)}
                     </td>
                   </tr>
                 </tbody>
