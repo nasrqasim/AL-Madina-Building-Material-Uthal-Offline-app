@@ -182,9 +182,15 @@ export default function VendorBalancesReportPage() {
                         <span className="px-1.5 py-0.5 rounded text-[8px] font-black border border-rose-200 bg-rose-50 text-rose-600 uppercase tracking-wider">{row.type}</span>
                       </td>
                       <td className="px-4 py-3 text-[11px] font-medium text-slate-600 dark:text-slate-300 text-center">{row.city}</td>
-                      <td className="px-4 py-3 text-[11px] font-medium text-slate-500 dark:text-slate-400 text-right">{row.opening.toLocaleString()}</td>
-                      <td className="px-4 py-3 text-[11px] font-medium text-emerald-600 text-right">{row.debit.toLocaleString()}</td>
-                      <td className="px-4 py-3 text-[11px] font-medium text-slate-600 dark:text-slate-300 text-right">{row.credit.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-[11px] font-medium text-slate-500 dark:text-slate-400 text-right">
+                        {row.opening < 0 ? `-Rs. ${Math.abs(row.opening).toLocaleString()}` : `+Rs. ${row.opening.toLocaleString()}`}
+                      </td>
+                      <td className={`px-4 py-3 text-[11px] font-medium text-right ${row.opening < 0 ? "text-rose-600" : "text-emerald-600"}`}>
+                        {row.opening < 0 ? `-Rs. ${Math.abs(row.debit).toLocaleString()}` : `Rs. ${row.debit.toLocaleString()}`}
+                      </td>
+                      <td className="px-4 py-3 text-[11px] font-medium text-slate-600 dark:text-slate-300 text-right">
+                        {row.opening < 0 && row.credit === 0 ? "Rs. 0" : `+Rs. ${row.credit.toLocaleString()}`}
+                      </td>
                       <td className={`px-4 py-3 text-[11px] font-black text-right ${bal.color}`}>
                         {Math.abs(row.closing).toLocaleString()}
                         {bal.label && <span className="ml-1 text-[9px] font-bold opacity-70">{bal.label}</span>}

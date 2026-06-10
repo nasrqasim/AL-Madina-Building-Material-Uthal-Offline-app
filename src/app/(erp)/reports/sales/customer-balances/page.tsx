@@ -191,9 +191,15 @@ export default function CustomerBalancesReportPage() {
                           <td className="px-4 py-3 text-[11px] font-bold text-blue-600 cursor-pointer hover:underline uppercase">{row.customer}</td>
                           <td className="px-4 py-3 text-[11px] font-medium text-slate-600 dark:text-slate-300">{row.region}</td>
                           <td className="px-4 py-3 text-[11px] font-medium text-slate-600 dark:text-slate-300">{row.area}</td>
-                          <td className="px-4 py-3 text-[11px] font-medium text-slate-500 dark:text-slate-400 text-right">{row.opening.toLocaleString()}</td>
-                          <td className="px-4 py-3 text-[11px] font-medium text-emerald-700 text-right">{row.debit.toLocaleString()}</td>
-                          <td className="px-4 py-3 text-[11px] font-medium text-rose-700 text-right">{row.credit.toLocaleString()}</td>
+                          <td className="px-4 py-3 text-[11px] font-medium text-slate-500 dark:text-slate-400 text-right">
+                            {row.opening < 0 ? `-Rs. ${Math.abs(row.opening).toLocaleString()}` : `+Rs. ${row.opening.toLocaleString()}`}
+                          </td>
+                          <td className={`px-4 py-3 text-[11px] font-medium text-right ${row.opening < 0 && row.debit === 0 ? "text-slate-500" : "text-emerald-700"}`}>
+                            {row.opening < 0 && row.debit === 0 ? "Rs. 0" : `+Rs. ${row.debit.toLocaleString()}`}
+                          </td>
+                          <td className={`px-4 py-3 text-[11px] font-medium text-right ${row.opening < 0 ? "text-rose-700" : "text-slate-500"}`}>
+                            {row.opening < 0 ? `-Rs. ${Math.abs(row.credit).toLocaleString()}` : `Rs. ${row.credit.toLocaleString()}`}
+                          </td>
                           <td className={`px-4 py-3 text-[11px] font-black text-right ${bal.color}`}>
                             {Math.abs(row.closing).toLocaleString()}
                             {bal.label && <span className="ml-1 text-[9px] font-bold opacity-70">{bal.label}</span>}

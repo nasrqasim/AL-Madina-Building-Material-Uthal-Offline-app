@@ -182,15 +182,33 @@ export default function VendorsPage() {
     { 
       header: "Debit (Payment)", 
       accessor: "debit",
-      render: (val: number) => {
-        return <span className="text-sm font-bold text-emerald-600">{val !== undefined && val !== null ? `Rs.${Number(val).toLocaleString()}` : "-"}</span>;
+      render: (val: number, row: any) => {
+        let displayVal = val;
+        if (row.openingBalance < 0) {
+          displayVal = -Math.abs(val);
+        }
+        return (
+          <span className={`text-sm font-bold ${displayVal < 0 ? "text-rose-600" : "text-emerald-600"}`}>
+            {displayVal < 0 ? `-Rs. ${Math.abs(displayVal).toLocaleString()}` : `Rs. ${displayVal.toLocaleString()}`}
+          </span>
+        );
       }
     },
     { 
       header: "Credit (Purchased)", 
       accessor: "credit",
-      render: (val: number) => {
-        return <span className="text-sm font-bold text-rose-600">{val !== undefined && val !== null ? `Rs.${Number(val).toLocaleString()}` : "-"}</span>;
+      render: (val: number, row: any) => {
+        let displayVal = val;
+        if (row.openingBalance < 0 && val === 0) {
+          displayVal = 0;
+        } else if (val > 0) {
+          displayVal = Math.abs(val);
+        }
+        return (
+          <span className={`text-sm font-bold ${displayVal < 0 ? "text-rose-600" : "text-emerald-600"}`}>
+            {displayVal < 0 ? `-Rs. ${Math.abs(displayVal).toLocaleString()}` : `+Rs. ${displayVal.toLocaleString()}`}
+          </span>
+        );
       }
     },
     { 
