@@ -182,33 +182,23 @@ export default function VendorsPage() {
     { 
       header: "Debit (Payment)", 
       accessor: "debit",
-      render: (val: number, row: any) => {
-        let displayVal = val;
-        if (row.openingBalance < 0) {
-          displayVal = -Math.abs(val);
+      render: (val: number) => {
+        const num = Number(val) || 0;
+        if (num !== 0) {
+          return <span className="text-sm font-bold text-rose-600">-Rs. {Math.abs(num).toLocaleString()}</span>;
         }
-        return (
-          <span className={`text-sm font-bold ${displayVal < 0 ? "text-rose-600" : "text-emerald-600"}`}>
-            {displayVal < 0 ? `-Rs. ${Math.abs(displayVal).toLocaleString()}` : `Rs. ${displayVal.toLocaleString()}`}
-          </span>
-        );
+        return <span className="text-sm font-bold text-slate-500">Rs. 0</span>;
       }
     },
     { 
       header: "Credit (Purchased)", 
       accessor: "credit",
-      render: (val: number, row: any) => {
-        let displayVal = val;
-        if (row.openingBalance < 0 && val === 0) {
-          displayVal = 0;
-        } else if (val > 0) {
-          displayVal = Math.abs(val);
+      render: (val: number) => {
+        const num = Number(val) || 0;
+        if (num !== 0) {
+          return <span className="text-sm font-bold text-emerald-600">+Rs. {Math.abs(num).toLocaleString()}</span>;
         }
-        return (
-          <span className={`text-sm font-bold ${displayVal < 0 ? "text-rose-600" : "text-emerald-600"}`}>
-            {displayVal < 0 ? `-Rs. ${Math.abs(displayVal).toLocaleString()}` : `+Rs. ${displayVal.toLocaleString()}`}
-          </span>
-        );
+        return <span className="text-sm font-bold text-slate-500">Rs. 0</span>;
       }
     },
     { 

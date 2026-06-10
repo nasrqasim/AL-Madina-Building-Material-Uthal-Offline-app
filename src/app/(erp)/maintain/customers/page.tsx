@@ -324,7 +324,7 @@ export default function CustomersPage() {
         const balanceLabel = isNegative ? " (Debit)" : val > 0 ? " (Credit)" : "";
         return (
           <div className="flex flex-col">
-            <span className={`text-sm font-black ${val > (row.creditLimit || 0) && row.creditLimit > 0 ? "text-red-600 animate-pulse" : val > 0 ? "text-emerald-600" : "text-rose-600"}`}>
+            <span className={`text-sm font-black ${val > (row.creditLimit || 0) && row.creditLimit > 0 ? "text-red-600 animate-pulse" : val > 0 ? "text-emerald-600" : val < 0 ? "text-rose-600" : "text-slate-500"}`}>
               {formattedVal}{balanceLabel}
             </span>
             {val > (row.creditLimit || 0) && row.creditLimit > 0 && (

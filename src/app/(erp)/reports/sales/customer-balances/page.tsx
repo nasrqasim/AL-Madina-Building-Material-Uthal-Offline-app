@@ -194,11 +194,11 @@ export default function CustomerBalancesReportPage() {
                           <td className="px-4 py-3 text-[11px] font-medium text-slate-500 dark:text-slate-400 text-right">
                             {row.opening < 0 ? `-Rs. ${Math.abs(row.opening).toLocaleString()}` : `+Rs. ${row.opening.toLocaleString()}`}
                           </td>
-                          <td className={`px-4 py-3 text-[11px] font-medium text-right ${row.opening < 0 && row.debit === 0 ? "text-slate-500" : "text-emerald-700"}`}>
-                            {row.opening < 0 && row.debit === 0 ? "Rs. 0" : `+Rs. ${row.debit.toLocaleString()}`}
+                          <td className="px-4 py-3 text-[11px] font-medium text-rose-600 text-right">
+                            {row.debit !== 0 ? `-Rs. ${Math.abs(row.debit).toLocaleString()}` : "Rs. 0"}
                           </td>
-                          <td className={`px-4 py-3 text-[11px] font-medium text-right ${row.opening < 0 ? "text-rose-700" : "text-slate-500"}`}>
-                            {row.opening < 0 ? `-Rs. ${Math.abs(row.credit).toLocaleString()}` : `Rs. ${row.credit.toLocaleString()}`}
+                          <td className="px-4 py-3 text-[11px] font-medium text-emerald-600 text-right">
+                            {row.credit !== 0 ? `+Rs. ${Math.abs(row.credit).toLocaleString()}` : "Rs. 0"}
                           </td>
                           <td className={`px-4 py-3 text-[11px] font-black text-right ${bal.color}`}>
                             {Math.abs(row.closing).toLocaleString()}
@@ -210,8 +210,8 @@ export default function CustomerBalancesReportPage() {
                     <tr className="bg-slate-50 dark:bg-slate-800/50 font-black">
                       <td colSpan={4} className="px-4 py-3 text-right text-[10px] uppercase tracking-widest text-slate-800 dark:text-slate-100">Grand Total</td>
                       <td className="px-4 py-3 text-[11px] text-right text-slate-800 dark:text-slate-100">{filteredData.reduce((s, r) => s + r.opening, 0).toLocaleString()}</td>
-                      <td className="px-4 py-3 text-[11px] text-right text-emerald-700">{totalDebit.toLocaleString()}</td>
-                      <td className="px-4 py-3 text-[11px] text-right text-rose-700">{totalCredit.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-[11px] text-right text-rose-600">-Rs. {totalDebit.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-[11px] text-right text-emerald-600">+Rs. {totalCredit.toLocaleString()}</td>
                       <td className={`px-4 py-3 text-[11px] text-right ${closingFmt.color}`}>
                         {Math.abs(totalClosing).toLocaleString()}
                         {closingFmt.label && <span className="ml-1 text-[9px] font-bold opacity-70">{closingFmt.label}</span>}

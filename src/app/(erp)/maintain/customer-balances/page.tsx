@@ -307,39 +307,61 @@ export default function CustomerBalancesPage() {
     { 
       header: "Opening Balance", 
       accessor: "openingBalance", 
-      render: (val: number) => (
-        <span className="text-sm font-bold text-slate-600 dark:text-slate-400">
-          Rs.{val?.toLocaleString() || "0"}
-        </span>
-      )
+      render: (val: number) => {
+        const isNegative = val < 0;
+        const formattedVal = isNegative 
+          ? `-Rs. ${Math.abs(val).toLocaleString()}` 
+          : `+Rs. ${val?.toLocaleString() || "0"}`;
+        const balanceLabel = isNegative ? " (Debit)" : val > 0 ? " (Credit)" : "";
+        return (
+          <span className="text-sm font-bold text-slate-600 dark:text-slate-400">
+            {formattedVal}{balanceLabel}
+          </span>
+        );
+      }
     },
     { 
       header: "Debit", 
       accessor: "debit",
       render: (val: number) => {
-        return <span className="text-sm font-bold text-emerald-600">{val !== undefined && val !== null ? `Rs.${Number(val).toLocaleString()}` : "-"}</span>;
+        const num = Number(val) || 0;
+        if (num !== 0) {
+          return <span className="text-sm font-bold text-rose-600">-Rs. {Math.abs(num).toLocaleString()}</span>;
+        }
+        return <span className="text-sm font-bold text-slate-500">Rs. 0</span>;
       }
     },
     { 
       header: "Credit", 
       accessor: "credit",
       render: (val: number) => {
-        return <span className="text-sm font-bold text-rose-600">{val !== undefined && val !== null ? `Rs.${Number(val).toLocaleString()}` : "-"}</span>;
+        const num = Number(val) || 0;
+        if (num !== 0) {
+          return <span className="text-sm font-bold text-emerald-600">+Rs. {Math.abs(num).toLocaleString()}</span>;
+        }
+        return <span className="text-sm font-bold text-slate-500">Rs. 0</span>;
       }
     },
     { 
       header: "Closing Balance", 
       accessor: "balance", 
-      render: (val: number, row: any) => (
-        <div className="flex flex-col">
-          <span className={`text-sm font-black ${val > (row.creditLimit || 0) && row.creditLimit > 0 ? "text-red-600 animate-pulse" : val > 0 ? "text-orange-600" : "text-emerald-600"}`}>
-            Rs.{val?.toLocaleString() || "0"}
-          </span>
-          {val > (row.creditLimit || 0) && row.creditLimit > 0 && (
-            <span className="text-[8px] font-black text-red-600 uppercase tracking-tighter">Over Limit! (Max: {row.creditLimit?.toLocaleString()})</span>
-          )}
-        </div>
-      )
+      render: (val: number, row: any) => {
+        const isNegative = val < 0;
+        const formattedVal = isNegative 
+          ? `-Rs. ${Math.abs(val).toLocaleString()}` 
+          : `+Rs. ${val?.toLocaleString() || "0"}`;
+        const balanceLabel = isNegative ? " (Debit)" : val > 0 ? " (Credit)" : "";
+        return (
+          <div className="flex flex-col">
+            <span className={`text-sm font-black ${val > (row.creditLimit || 0) && row.creditLimit > 0 ? "text-red-600 animate-pulse" : isNegative ? "text-rose-600" : "text-emerald-600"}`}>
+              {formattedVal}{balanceLabel}
+            </span>
+            {val > (row.creditLimit || 0) && row.creditLimit > 0 && (
+              <span className="text-[8px] font-black text-red-600 uppercase tracking-tighter">Over Limit! (Max: {row.creditLimit?.toLocaleString()})</span>
+            )}
+          </div>
+        );
+      }
     },
     { 
       header: "Status", 
@@ -809,10 +831,24 @@ export default function CustomerBalancesPage() {
               footerContent={
                 <tr>
                   <td colSpan={3} className="px-6 py-4 text-right uppercase tracking-widest text-xs">Total PKR:</td>
-                  <td className="px-6 py-4 text-sm">Rs.{filteredCustomers.reduce((acc, c) => acc + (c.openingBalance || 0), 0).toLocaleString()}</td>
-                  <td className="px-6 py-4 text-sm text-emerald-600">Rs.{filteredCustomers.reduce((acc, c) => acc + (c.debit || 0), 0).toLocaleString()}</td>
-                  <td className="px-6 py-4 text-sm text-rose-600">Rs.{filteredCustomers.reduce((acc, c) => acc + (c.credit || 0), 0).toLocaleString()}</td>
-                  <td className="px-6 py-4 text-sm text-maroon-800 dark:text-maroon-400">Rs.{filteredCustomers.reduce((acc, c) => acc + (c.balance || 0), 0).toLocaleString()}</td>
+                  <td className="px-6 py-4 text-sm font-bold">
+                    {(() => {
+                      const totalOpening = filteredCustomers.reduce((acc, c) => acc + (c.openingBalance || 0), 0);
+                      return totalOpening < 0 ? `-Rs. ${Math.abs(totalOpening).toLocaleString()}` : `+Rs. ${totalOpening.toLocaleString()}`;
+                    })()}
+                  </td>
+                  <td className="px-6 py-4 text-sm font-bold text-rose-600">
+                    -Rs. {filteredCustomers.reduce((acc, c) => acc + (c.debit || 0), 0).toLocaleString()}
+                  </td>
+                  <td className="px-6 py-4 text-sm font-bold text-emerald-600">
+                    +Rs. {filteredCustomers.reduce((acc, c) => acc + (c.credit || 0), 0).toLocaleString()}
+                  </td>
+                  <td className="px-6 py-4 text-sm font-bold text-slate-800 dark:text-slate-100">
+                    {(() => {
+                      const totalClosing = filteredCustomers.reduce((acc, c) => acc + (c.balance || 0), 0);
+                      return totalClosing < 0 ? `-Rs. ${Math.abs(totalClosing).toLocaleString()}` : `+Rs. ${totalClosing.toLocaleString()}`;
+                    })()}
+                  </td>
                   <td className="px-6 py-4 text-center">-</td>
                   <td className="px-6 py-4 print:hidden"></td>
                 </tr>

@@ -5,10 +5,6 @@ import { recalculatePartyBalance } from "@/services/posting/invoicePostingHelper
 
 export async function GET() {
   await dbConnect();
-  const parties = await Party.find().lean();
-  for (const p of parties) {
-    await recalculatePartyBalance(String(p._id));
-  }
   const rows = await Party.find().sort({ createdAt: -1 }).lean();
   return ok(rows);
 }
