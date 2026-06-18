@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import PrintTemplate from "@/components/print/PrintTemplate";
-import { filterAndSortItems } from "@/lib/itemUnits";
+import ItemSearchInput from "@/components/erp/ui/ItemSearchInput";
 import CustomerModal from "@/components/erp/maintain/CustomerModal";
+import ERPModal from "@/components/erp/ui/ERPModal";
 import { 
   Plus, 
   Trash2, 
@@ -166,28 +167,41 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
   const [customers, setCustomers] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
-  const [showItemSearch, setShowItemSearch] = useState<string | null>(null);
+
   const [showCustomerSearch, setShowCustomerSearch] = useState(false);
   const [itemHistory, setItemHistory] = useState<any[]>([]);
 
+  const [banks, setBanks] = useState<any[]>([]);
+
   const fetchData = useCallback(async () => {
     try {
-      const [itemsRes, partiesRes, locsRes, empsRes] = await Promise.all([
+      const [itemsRes, partiesRes, locsRes, empsRes, banksRes] = await Promise.all([
         fetch("/api/items"),
         fetch("/api/parties"),
         fetch("/api/locations"),
-        fetch("/api/employees")
+        fetch("/api/employees"),
+        fetch("/api/banks")
       ]);
-      const [itemsData, partiesData, locsData, empsData] = await Promise.all([
+      const [itemsData, partiesData, locsData, empsData, banksData] = await Promise.all([
         itemsRes.json(),
         partiesRes.json(),
         locsRes.json(),
-        empsRes.json()
+        empsRes.json(),
+        banksRes.json()
       ]);
       if (itemsData.ok) setAvailableItems(itemsData.data);
-      if (partiesData.ok) setCustomers(partiesData.data.filter((p: any) => p.type === "Customer"));
+      if (partiesData.ok) {
+        // Exclude deleted/inactive customers
+        setCustomers(partiesData.data.filter((p: any) => 
+          p.type === "Customer" && 
+          p.status?.toLowerCase() === "active" && 
+          !p.isDeleted && 
+          !p.deleted
+        ));
+      }
       if (locsData.ok) setLocations(locsData.data);
       if (empsData.ok) setEmployees(empsData.data);
+      if (banksData.ok) setBanks(banksData.data);
     } catch (e) { console.error(e); }
   }, []);
 
@@ -195,10 +209,13 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
     fetchData();
   }, [fetchData]);
 
+  // Track currently edited invoice ID
+  const [currentInvoiceId, setCurrentInvoiceId] = useState(initialData?._id || "");
+
   // Default customer loading & editing customer balance Sync
   useEffect(() => {
     if (customers.length > 0) {
-      if (!initialData?._id) {
+      if (!formData.customerId && !currentInvoiceId) {
         const defaultCust = customers.find(c => 
           c.name.toLowerCase() === "walk-in cash customer" || 
           c.name.toLowerCase() === "walk-in(cash) customer" ||
@@ -215,17 +232,197 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
             customerBalance: defaultCust.balance || 0
           }));
         }
-      } else {
+      } else if (formData.customerId) {
         const currentCust = customers.find(c => c._id === formData.customerId);
         if (currentCust) {
           setFormData(prev => ({
             ...prev,
-            customerBalance: currentCust.balance || 0
+            customerBalance: currentCust.balance || 0,
+            customerCode: currentCust.code || prev.customerCode,
+            customerAddress: currentCust.address || prev.customerAddress,
+            customerTelephone: currentCust.phone || prev.customerTelephone,
+            customerName: currentCust.name || prev.customerName
           }));
         }
       }
     }
-  }, [customers, initialData, formData.customerId]);
+  }, [customers, currentInvoiceId, formData.customerId]);
+
+  const [showPrevInvoicesModal, setShowPrevInvoicesModal] = useState(false);
+  const [prevInvoices, setPrevInvoices] = useState<any[]>([]);
+  const [isLoadingPrevInvoices, setIsLoadingPrevInvoices] = useState(false);
+  const [selectedPrevInvoice, setSelectedPrevInvoice] = useState<any | null>(null);
+  
+  const [prevInvoiceHistory, setPrevInvoiceHistory] = useState<any[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  
+  const [showReceivePaymentDialog, setShowReceivePaymentDialog] = useState(false);
+  const [payAmount, setPayAmount] = useState("");
+  const [payMethod, setPayMethod] = useState<"Cash" | "Bank">("Cash");
+  const [payBankId, setPayBankId] = useState("");
+  const [payRemarks, setPayRemarks] = useState("");
+  const [payDate, setPayDate] = useState("");
+  const [isPostingPayment, setIsPostingPayment] = useState(false);
+  const [prevInvoiceSearchQuery, setPrevInvoiceSearchQuery] = useState("");
+
+  const fetchPrevInvoices = useCallback(async () => {
+    if (!formData.customerId) return;
+    setIsLoadingPrevInvoices(true);
+    try {
+      const res = await fetch(`/api/invoices?partyId=${formData.customerId}`);
+      const json = await res.json();
+      if (json.ok) {
+        setPrevInvoices(json.data.filter((i: any) => i.type === "sale_return" || i.type === "non_tax_sale_return"));
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoadingPrevInvoices(false);
+    }
+  }, [formData.customerId]);
+
+  useEffect(() => {
+    if (showPrevInvoicesModal && formData.customerId) {
+      fetchPrevInvoices();
+    }
+  }, [showPrevInvoicesModal, formData.customerId, fetchPrevInvoices]);
+
+  const fetchPaymentHistory = useCallback(async (invoiceId: string) => {
+    setIsLoadingHistory(true);
+    try {
+      const res = await fetch(`/api/invoices/${invoiceId}/payment`);
+      const json = await res.json();
+      if (json.ok) {
+        setPrevInvoiceHistory(json.data);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedPrevInvoice?._id) {
+      fetchPaymentHistory(selectedPrevInvoice._id);
+    } else {
+      setPrevInvoiceHistory([]);
+    }
+  }, [selectedPrevInvoice, fetchPaymentHistory]);
+
+  const handlePostPayment = async () => {
+    if (!selectedPrevInvoice) return;
+    const amountNum = Number(payAmount) || 0;
+    if (amountNum <= 0) {
+      alert("Please enter a valid payment amount.");
+      return;
+    }
+    const outstanding = (selectedPrevInvoice.totalAmount || 0) - (selectedPrevInvoice.amountReceived || 0);
+    if (amountNum > outstanding) {
+      alert("Payment amount cannot exceed the outstanding balance.");
+      return;
+    }
+
+    setIsPostingPayment(true);
+    try {
+      const res = await fetch(`/api/invoices/${selectedPrevInvoice._id}/payment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: amountNum,
+          paymentMethod: payMethod,
+          bankId: payMethod === "Bank" ? payBankId : undefined,
+          date: payDate || new Date().toISOString().split("T")[0],
+          remarks: payRemarks
+        })
+      });
+      const json = await res.json();
+      if (json.ok) {
+        alert("Payment processed successfully!");
+        setShowReceivePaymentDialog(false);
+        setPayAmount("");
+        setPayRemarks("");
+        // Refresh invoices and history
+        await fetchPrevInvoices();
+        const updatedInvoice = await fetch(`/api/invoices/${selectedPrevInvoice._id}`).then(r => r.json());
+        if (updatedInvoice.ok) {
+          setSelectedPrevInvoice(updatedInvoice.data);
+        }
+        fetchData();
+      } else {
+        alert("Failed to save payment: " + (json.message || "Unknown error"));
+      }
+    } catch (e: any) {
+      console.error(e);
+      alert("Error saving payment: " + e.message);
+    } finally {
+      setIsPostingPayment(false);
+    }
+  };
+
+  const handleEditInvoiceFromModal = (inv: any) => {
+    if (inv.status?.toLowerCase() === "posted" || inv.status?.toLowerCase() === "returned" || inv.status?.toLowerCase() === "paid") {
+      const pin = prompt("This return invoice is POSTED. Please enter Supervisor PIN to edit:");
+      if (pin !== "1234") {
+        alert("Invalid PIN. Unauthorized to edit posted returns.");
+        return;
+      }
+    }
+
+    setCurrentInvoiceId(inv._id);
+    setFormData({
+      serialNo: inv.invoiceNo,
+      date: inv.date ? new Date(inv.date).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+      invoiceType: inv.invoiceType || "Sales Return",
+      invoiceRef: inv.reference || "",
+      vehicleNo: inv.regNo || "",
+      rangeKms: inv.rangeKms || 0,
+      termsOfPayment: inv.paymentTerms || "Cash",
+      isCancelled: inv.isCancelled || false,
+      isWholesale: inv.isWholesale || false,
+      isRetail: inv.isRetail || true,
+      isOnCredit: inv.isCreditBill || false,
+      startKms: inv.startKms || 0,
+      endKms: inv.endKms || 0,
+      oilGaugeLimit: inv.oilGaugeLimit || 0,
+      status: inv.status || "returned",
+      
+      customerId: inv.partyId?._id || inv.partyId || "",
+      customerCode: inv.partyId?.code || "",
+      customerName: inv.partyId?.name || "",
+      customerAddress: inv.partyId?.address || "",
+      customerTelephone: inv.partyId?.phone || "",
+      customerBalance: inv.partyId?.balance || 0.00,
+      
+      locationId: inv.locationId?._id || inv.locationId || "",
+      jobNo: inv.jobId?.code || "",
+      employeeRef: inv.employeeId?._id || inv.employeeId || "",
+      remarks: inv.notes || "",
+      
+      additionalDiscount: inv.discountAmount || 0,
+      carService: inv.carService || 0,
+      carServiceDiscount: inv.carServiceDiscount || 0,
+      amountReceived: inv.amountReceived || 0
+    });
+
+    if (inv.lines && inv.lines.length > 0) {
+      setItems(inv.lines.map((l: any, idx: number) => ({
+        id: idx.toString(),
+        itemId: l.itemId?._id || l.itemId,
+        itemCode: l.itemId?.code || "",
+        description: l.itemId?.name || "",
+        cartons: l.cartons || l.qty || 0,
+        gallons: l.gallons || 0,
+        liters: l.liters || 0,
+        ratePerCtn: l.rate || 0,
+        grossAmount: l.grossAmount || 0,
+        netAmount: l.netAmount || 0,
+        reason: l.description || ""
+      })));
+    }
+
+    setShowPrevInvoicesModal(false);
+  };
 
   const [activeCustomerIndex, setActiveCustomerIndex] = useState(0);
   const customerListRef = useRef<HTMLDivElement>(null);
@@ -408,7 +605,34 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
     return Math.max(0, calculated);
   }, [grossTotal, formData.carService, formData.carServiceDiscount, formData.additionalDiscount]);
 
+  const balanceAmount = netTotal - Number(formData.amountReceived);
+
+  const displayBalance = useMemo(() => {
+    const name = formData.customerName || "";
+    if (name.toLowerCase().includes("walk-in")) {
+      return "0.00";
+    }
+    const bal = formData.customerBalance;
+    if (bal === 0) return "0.00";
+    if (bal > 0) {
+      return `${bal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Cr`;
+    } else {
+      return `${Math.abs(bal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Dr`;
+    }
+  }, [formData.customerName, formData.customerBalance]);
+
   const handleSave = useCallback(async (status: string) => {
+    if (formData.isOnCredit && (!formData.customerId || formData.customerName.toLowerCase().includes("walk-in"))) {
+      alert("Customer selection is required for credit returns. Credit returns cannot be made to Walk-in Cash Customer.");
+      return;
+    }
+
+    const outstanding = netTotal - Number(formData.amountReceived);
+    if (outstanding < 0) {
+      alert("Refund amount cannot exceed the net return amount.");
+      return;
+    }
+
     const payload = {
       ...initialData,
       invoiceNo: formData.serialNo,
@@ -444,8 +668,8 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
     };
 
     try {
-      const res = await fetch(initialData?._id ? `/api/invoices/${initialData._id}` : "/api/invoices", {
-        method: initialData?._id ? "PUT" : "POST",
+      const res = await fetch(currentInvoiceId ? `/api/invoices/${currentInvoiceId}` : "/api/invoices", {
+        method: currentInvoiceId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
@@ -480,11 +704,19 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
           onClose();
         }
       } else {
-        const error = await res.json();
-        alert("Failed to save return: " + (error.message || "Unknown error"));
+        const text = await res.text();
+        try {
+          const error = JSON.parse(text);
+          alert("Failed to save return: " + (error.message || "Unknown error"));
+        } catch {
+          alert("Failed to save return. Server returned error: " + text.substring(0, 150));
+        }
       }
-    } catch (e) { console.error(e); }
-  }, [formData, items, grossTotal, netTotal, initialData, onClose]);
+    } catch (e: any) { 
+      console.error(e); 
+      alert("Error occurred while saving: " + e.message);
+    }
+  }, [formData, items, grossTotal, netTotal, initialData, currentInvoiceId, onClose]);
 
   const selectedItemDetails = useMemo(() => {
     if (previewItemId) return availableItems.find(i => i._id === previewItemId) || null;
@@ -541,72 +773,7 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleSave]);
 
-  // Per-row active index stored in a ref to avoid shared-state bug
-  const itemActiveIndexRef = useRef<Record<string, number>>({});
-  const [, forceUpdate] = useState(0);
-  const itemListRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  const getActiveIndex = (lineId: string) => itemActiveIndexRef.current[lineId] ?? 0;
-
-  const setActiveIndex = (lineId: string, value: number | ((prev: number) => number)) => {
-    const prev = itemActiveIndexRef.current[lineId] ?? 0;
-    const next = typeof value === 'function' ? value(prev) : value;
-    itemActiveIndexRef.current[lineId] = next;
-    forceUpdate(n => n + 1);
-    // Scroll into view
-    const container = itemListRefs.current[lineId];
-    if (container) {
-      const activeEl = container.children[next] as HTMLElement;
-      if (activeEl) {
-        const top = container.scrollTop;
-        const bottom = top + container.clientHeight;
-        if (activeEl.offsetTop < top) {
-          container.scrollTo({ top: activeEl.offsetTop, behavior: 'smooth' });
-        } else if (activeEl.offsetTop + activeEl.clientHeight > bottom) {
-          container.scrollTo({ top: activeEl.offsetTop + activeEl.clientHeight - container.clientHeight, behavior: 'smooth' });
-        }
-      }
-    }
-  };
-
-  const handleItemKeyDown = (e: React.KeyboardEvent, lineId: string, filteredItems: any[]) => {
-    const activeIndex = getActiveIndex(lineId);
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      if (!showItemSearch) {
-        setShowItemSearch(lineId);
-        setActiveIndex(lineId, 0);
-      } else {
-        setActiveIndex(lineId, prev => {
-          const next = prev < filteredItems.length - 1 ? prev + 1 : prev;
-          if (filteredItems[next]) setPreviewItemId(filteredItems[next]._id);
-          return next;
-        });
-      }
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setActiveIndex(lineId, prev => {
-        const next = prev > 0 ? prev - 1 : prev;
-        if (filteredItems[next]) setPreviewItemId(filteredItems[next]._id);
-        return next;
-      });
-    } else if (e.key === "PageDown") {
-      e.preventDefault();
-      setActiveIndex(lineId, prev => Math.min(filteredItems.length - 1, prev + 8));
-    } else if (e.key === "PageUp") {
-      e.preventDefault();
-      setActiveIndex(lineId, prev => Math.max(0, prev - 8));
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      if (showItemSearch === lineId && filteredItems[activeIndex]) {
-        updateItem(lineId, "itemId", filteredItems[activeIndex]._id);
-        setShowItemSearch(null);
-        setPreviewItemId(null);
-      }
-    } else if (e.key === "Escape") {
-      setShowItemSearch(null);
-    }
-  };
 
   return (
     <div className="flex flex-col h-screen bg-[#f3f4f6] text-[#333] font-sans overflow-hidden">
@@ -738,7 +905,23 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
                   </div>
                 </div>
                 <div className="flex gap-3"><label className="text-xs font-bold w-16">Address</label><textarea value={formData.customerAddress} readOnly className="flex-1 border border-[#eab308] rounded px-2 py-1 text-xs h-16 resize-none bg-yellow-50/50 outline-none" /></div>
-                <div className="flex items-center gap-3 bg-yellow-100 p-2 rounded"><label className="text-xs font-black text-yellow-900 w-16 uppercase">Refund Bal</label><div className="flex-1 text-right text-lg font-black text-rose-600 font-mono">{formData.customerBalance.toFixed(2)}</div></div>
+                <div className="flex items-center gap-3"><label className="text-xs font-bold w-16">Telephone</label><input type="text" value={formData.customerTelephone} readOnly className="flex-1 border border-[#eab308] rounded px-2 py-1 text-xs bg-yellow-50/50 outline-none" /></div>
+                <div className="flex items-center gap-3 bg-yellow-100 p-2 rounded">
+                  <label className="text-xs font-black text-yellow-900 w-16 uppercase">Refund Bal</label>
+                  <div className="flex-1 text-right text-lg font-black text-rose-600 font-mono">
+                    {displayBalance}
+                  </div>
+                </div>
+                {/* Previous Invoices Button */}
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowPrevInvoicesModal(true)}
+                    className="px-3 py-1.5 bg-yellow-600 hover:bg-yellow-700 text-white text-[10px] font-black uppercase tracking-wider rounded transition-all shadow-sm"
+                  >
+                    Previous Invoices
+                  </button>
+                </div>
              </div>
           </div>
         </div>
@@ -764,48 +947,22 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
                   </thead>
                   <tbody className="divide-y">
                     {items.map((line) => {
-                      const query = line.itemId && showItemSearch === line.id ? "" : line.itemCode.toLowerCase();
-                      const filteredItems = query
-                        ? filterAndSortItems(availableItems, query)
-                        : availableItems;
-                      const rowActiveIndex = getActiveIndex(line.id);
-
                       return (
                       <tr key={line.id} className={`group ${selectedLineId === line.id ? 'bg-blue-50' : 'hover:bg-slate-50'}`} onClick={() => setSelectedLineId(line.id)}>
                         <td className="p-0 border-r relative">
-                          <input 
-                            type="text" 
-                            value={line.itemCode} 
+                          <ItemSearchInput
+                            value={line.itemCode || ""}
+                            availableItems={availableItems}
+                            onSelect={(selected) => {
+                              updateItem(line.id, "itemId", selected._id);
+                            }}
+                            onChange={(val) => updateItem(line.id, "itemCode", val)}
+                            onActiveItemChange={(activeItem) => {
+                              setPreviewItemId(activeItem ? activeItem._id : null);
+                            }}
                             placeholder="Search..."
-                            onChange={e => { updateItem(line.id, "itemCode", e.target.value); setShowItemSearch(line.id); setActiveIndex(line.id, 0); }} 
-                            onFocus={(e) => { e.target.select(); setShowItemSearch(line.id); setActiveIndex(line.id, 0); }}
-                            onKeyDown={(e) => handleItemKeyDown(e, line.id, filteredItems)}
-                            className="w-full px-3 py-2 text-xs font-bold outline-none bg-transparent" 
+                            className="px-3"
                           />
-                          {showItemSearch === line.id && (
-                            <>
-                              <div className="fixed inset-0 z-40" onClick={() => setShowItemSearch(null)} />
-                              <div 
-                                ref={el => { itemListRefs.current[line.id] = el; }}
-                                className="absolute top-full left-0 w-max min-w-[300px] bg-white text-black border border-slate-300 shadow-xl z-50 max-h-56 overflow-auto mt-1"
-                              >
-                                {filteredItems.length === 0 ? (
-                                  <div className="px-3 py-2 text-xs text-slate-400 italic">No items found</div>
-                                ) : filteredItems.map((i, idx) => (
-                                  <div 
-                                    key={i._id} 
-                                    className={`px-3 py-1.5 cursor-pointer text-xs whitespace-nowrap transition-all border-b border-slate-100 last:border-0 ${
-                                      idx === rowActiveIndex ? 'bg-blue-600 text-white font-bold' : 'hover:bg-blue-50 text-slate-800'
-                                    }`}
-                                    onMouseEnter={() => { setActiveIndex(line.id, idx); setPreviewItemId(i._id); }}
-                                    onClick={() => { updateItem(line.id, "itemId", i._id); setShowItemSearch(null); setPreviewItemId(null); }}
-                                  >
-                                    <span className="font-mono text-[10px] opacity-70 mr-2">{i.code}</span>{i.name}
-                                  </div>
-                                ))}
-                              </div>
-                            </>
-                          )}
                         </td>
                         <td className="px-3 py-2 text-xs font-medium border-r">{line.description}</td>
                         <td className="px-3 py-2 text-xs font-black text-right border-r font-mono bg-slate-50">
@@ -945,6 +1102,7 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
                  <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-400 uppercase">Car Wash Discount</span><input type="number" value={formData.carServiceDiscount} onChange={e => setFormData({...formData, carServiceDiscount: Math.max(0, Number(e.target.value) || 0)})} className="w-32 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-right font-black font-mono text-rose-300 outline-none" /></div>
                  <div className="flex justify-between items-center bg-slate-700/50 p-3 rounded-lg border border-slate-600 mt-4"><span className="text-sm font-black text-white uppercase tracking-wider">Net Refund</span><span className="text-3xl font-black font-mono text-rose-400">-{netTotal.toFixed(2)}</span></div>
                  <div className="flex justify-between items-center pt-4"><span className="text-xs font-bold text-slate-400 uppercase">Amount Refunded</span><input type="number" value={formData.amountReceived} onChange={e => setFormData({...formData, amountReceived: Number(e.target.value)})} className="w-40 bg-white text-slate-900 border-none rounded px-3 py-2 text-right text-lg font-black font-mono outline-none" /></div>
+                 <div className="flex justify-between items-center pt-2"><span className="text-xs font-bold text-slate-400 uppercase">Balance</span><span className={`text-xl font-black font-mono ${balanceAmount > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>-{balanceAmount.toFixed(2)}</span></div>
               </div>
            </div>
         </div>
@@ -967,6 +1125,284 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
           onClose={() => setShowCustomerModal(false)} 
           onSave={handleSaveCustomer}
         />
+      )}
+
+      {showPrevInvoicesModal && (
+        <ERPModal
+          isOpen={showPrevInvoicesModal}
+          onClose={() => {
+            setShowPrevInvoicesModal(false);
+            setSelectedPrevInvoice(null);
+          }}
+          title={`Previous Returns - ${formData.customerName}`}
+          size="2xl"
+        >
+          <div className="space-y-6">
+            {/* Search and Filters */}
+            <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-lg border">
+              <Search size={16} className="text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search by Return Invoice No..."
+                value={prevInvoiceSearchQuery}
+                onChange={(e) => setPrevInvoiceSearchQuery(e.target.value)}
+                className="bg-transparent text-xs outline-none flex-1 font-bold"
+              />
+            </div>
+
+            {/* Invoices Table */}
+            <div className="border rounded-lg overflow-hidden bg-white max-h-[300px] overflow-y-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 border-b font-black text-slate-500 uppercase tracking-wider sticky top-0">
+                  <tr>
+                    <th className="px-4 py-2">Return No</th>
+                    <th className="px-4 py-2">Date</th>
+                    <th className="px-4 py-2 text-right">Net Amount</th>
+                    <th className="px-4 py-2 text-right">Refunded</th>
+                    <th className="px-4 py-2 text-right">Remaining</th>
+                    <th className="px-4 py-2 text-center">Status</th>
+                    <th className="px-4 py-2 text-center">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y font-bold text-slate-700">
+                  {isLoadingPrevInvoices ? (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-8 text-center text-slate-400 italic">Loading returns...</td>
+                    </tr>
+                  ) : prevInvoices.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-8 text-center text-slate-400 italic">No previous returns found</td>
+                    </tr>
+                  ) : (
+                    prevInvoices
+                      .filter((inv) =>
+                        inv.invoiceNo.toLowerCase().includes(prevInvoiceSearchQuery.toLowerCase())
+                      )
+                      .map((inv) => {
+                        const remaining = (inv.totalAmount || 0) - (inv.amountReceived || 0);
+                        let paymentStatus = "Unpaid";
+                        if (remaining <= 0) paymentStatus = "Paid";
+                        else if (inv.amountReceived > 0) paymentStatus = "Partially Paid";
+
+                        const isSelected = selectedPrevInvoice?._id === inv._id;
+
+                        return (
+                          <tr
+                            key={inv._id}
+                            className={`hover:bg-slate-50 cursor-pointer transition-colors ${
+                              isSelected ? "bg-blue-50/50" : ""
+                            }`}
+                            onClick={() => setSelectedPrevInvoice(inv)}
+                          >
+                            <td className="px-4 py-2 text-blue-600 font-black">{inv.invoiceNo}</td>
+                            <td className="px-4 py-2">{new Date(inv.date).toLocaleDateString()}</td>
+                            <td className="px-4 py-2 text-right">{(inv.totalAmount || 0).toFixed(2)}</td>
+                            <td className="px-4 py-2 text-right">{(inv.amountReceived || 0).toFixed(2)}</td>
+                            <td className="px-4 py-2 text-right text-rose-600">{Math.max(0, remaining).toFixed(2)}</td>
+                            <td className="px-4 py-2 text-center">
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] uppercase tracking-wider font-black ${
+                                paymentStatus === "Paid" ? "bg-emerald-100 text-emerald-700" :
+                                paymentStatus === "Partially Paid" ? "bg-yellow-100 text-yellow-700" :
+                                "bg-rose-100 text-rose-700"
+                              }`}>
+                                {paymentStatus}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2 text-center flex items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                type="button"
+                                onClick={() => handleEditInvoiceFromModal(inv)}
+                                className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[9px] uppercase tracking-wider rounded font-black border"
+                              >
+                                Edit
+                              </button>
+                              {remaining > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedPrevInvoice(inv);
+                                    setPayAmount(remaining.toFixed(2));
+                                    setPayDate(new Date().toISOString().split("T")[0]);
+                                    setShowReceivePaymentDialog(true);
+                                  }}
+                                  className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] uppercase tracking-wider rounded font-black shadow-sm"
+                                >
+                                  Pay
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Selected Invoice Details and History */}
+            {selectedPrevInvoice && (
+              <div className="bg-slate-50 p-4 rounded-xl border space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                <div className="flex justify-between border-b pb-2">
+                  <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest">
+                    Return Items: {selectedPrevInvoice.invoiceNo}
+                  </h4>
+                  <span className="text-xs font-bold text-slate-700">
+                    Outstanding: Rs. {((selectedPrevInvoice.totalAmount || 0) - (selectedPrevInvoice.amountReceived || 0)).toFixed(2)}
+                  </span>
+                </div>
+
+                {/* Items Mini-list */}
+                <div className="text-[10px] space-y-1">
+                  {selectedPrevInvoice.lines?.map((line: any, idx: number) => (
+                    <div key={idx} className="flex justify-between font-bold text-slate-600">
+                      <span>{line.itemId?.name || line.description} (x{line.cartons} ctn)</span>
+                      <span>Rs. {(line.netAmount || 0).toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Payment History Section */}
+                <div className="pt-2">
+                  <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest border-b pb-2 mb-2">
+                    Refund History
+                  </h4>
+                  {isLoadingHistory ? (
+                    <p className="text-[10px] text-slate-400 italic">Loading refund history...</p>
+                  ) : prevInvoiceHistory.length === 0 ? (
+                    <p className="text-[10px] text-slate-400 italic">No refund payments recorded for this return yet.</p>
+                  ) : (
+                    <div className="border rounded overflow-hidden bg-white max-h-[150px] overflow-y-auto">
+                      <table className="w-full text-left text-[10px]">
+                        <thead className="bg-slate-100 border-b font-black text-slate-500 uppercase tracking-wider sticky top-0">
+                          <tr>
+                            <th className="px-3 py-1.5">Date</th>
+                            <th className="px-3 py-1.5">Voucher No</th>
+                            <th className="px-3 py-1.5 text-right">Amount Refunded</th>
+                            <th className="px-3 py-1.5">Method</th>
+                            <th className="px-3 py-1.5">User</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y font-bold text-slate-600">
+                          {prevInvoiceHistory.map((hist, idx) => (
+                            <tr key={idx} className="hover:bg-slate-50">
+                              <td className="px-3 py-1.5">{new Date(hist.date).toLocaleDateString()}</td>
+                              <td className="px-3 py-1.5 font-mono text-slate-900">{hist.voucherNo}</td>
+                              <td className="px-3 py-1.5 text-right font-black">{(hist.amountReceived || 0).toFixed(2)}</td>
+                              <td className="px-3 py-1.5">
+                                <span className={`px-1.5 py-0.5 rounded text-[8px] uppercase tracking-wider font-black ${
+                                  hist.paymentMethod === "Cash" ? "bg-yellow-100 text-yellow-700" : "bg-blue-100 text-blue-700"
+                                }`}>
+                                  {hist.paymentMethod}
+                                </span>
+                              </td>
+                              <td className="px-3 py-1.5 text-slate-500">{hist.user}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </ERPModal>
+      )}
+
+      {/* Receive Remaining Payment Dialog */}
+      {showReceivePaymentDialog && selectedPrevInvoice && (
+        <ERPModal
+          isOpen={showReceivePaymentDialog}
+          onClose={() => setShowReceivePaymentDialog(false)}
+          title={`Pay Outstanding Refund - ${selectedPrevInvoice.invoiceNo}`}
+          size="md"
+        >
+          <div className="space-y-4 text-xs">
+            <div className="bg-slate-50 p-3 rounded-lg border flex justify-between items-center font-bold">
+              <span className="text-slate-500">Outstanding Balance:</span>
+              <span className="text-rose-600 font-black text-sm">
+                Rs. {((selectedPrevInvoice.totalAmount || 0) - (selectedPrevInvoice.amountReceived || 0)).toFixed(2)}
+              </span>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount to Pay *</label>
+              <input
+                type="number"
+                value={payAmount}
+                onChange={(e) => setPayAmount(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-black focus:bg-white outline-none focus:border-emerald-600 transition-all text-right font-mono"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Payment Method *</label>
+              <select
+                value={payMethod}
+                onChange={(e) => setPayMethod(e.target.value as "Cash" | "Bank")}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg font-bold focus:bg-white outline-none"
+              >
+                <option value="Cash">Cash</option>
+                <option value="Bank">Bank</option>
+              </select>
+            </div>
+
+            {payMethod === "Bank" && (
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Select Bank Account *</label>
+                <select
+                  value={payBankId}
+                  onChange={(e) => setPayBankId(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg font-bold focus:bg-white outline-none"
+                >
+                  <option value="">-- Select Bank Account --</option>
+                  {banks.map((b: any) => (
+                    <option key={b._id} value={b._id}>{b.name} ({b.accountNumber})</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Payment Date *</label>
+              <input
+                type="date"
+                value={payDate}
+                onChange={(e) => setPayDate(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg font-bold focus:bg-white outline-none"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Remarks</label>
+              <textarea
+                rows={2}
+                value={payRemarks}
+                onChange={(e) => setPayRemarks(e.target.value)}
+                placeholder="Payment description..."
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg font-bold focus:bg-white outline-none resize-none"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowReceivePaymentDialog(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handlePostPayment}
+                disabled={isPostingPayment}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold shadow-lg shadow-emerald-600/10 disabled:opacity-50"
+              >
+                {isPostingPayment ? "Posting..." : "Post Payment"}
+              </button>
+            </div>
+          </div>
+        </ERPModal>
       )}
     </div>
   );

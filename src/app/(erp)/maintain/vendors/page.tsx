@@ -6,6 +6,7 @@ import ERPDataTable from "@/components/erp/ui/ERPDataTable";
 import VendorModal from "@/components/erp/maintain/VendorModal";
 import QuickPaymentModal from "@/components/erp/maintain/QuickPaymentModal";
 import WhatsAppShareModal from "@/components/erp/whatsapp/WhatsAppShareModal";
+import VendorProfileHistory from "@/components/erp/maintain/VendorProfileHistory";
 import { Plus, FileText, Download, Printer, UserCheck, UserX, Wallet, Search, Edit2, Trash2, MapPin, User, Hash, FileSpreadsheet, MessageCircle } from "lucide-react";
 import ERPStatCard from "@/components/erp/ui/ERPStatCard";
 import { exportToExcel, downloadTemplate, printPage, printListDocument, triggerFileInput, importFromExcel } from "@/lib/excel";
@@ -21,6 +22,7 @@ export default function VendorsPage() {
   const [shopProfile, setShopProfile] = useState<any>(null);
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [waParty, setWaParty] = useState<any>(null);
+  const [selectedProfileVendor, setSelectedProfileVendor] = useState<any>(null);
 
   const fetchVendors = async () => {
     setIsLoading(true);
@@ -51,6 +53,19 @@ export default function VendorsPage() {
     fetchVendors();
     fetchShopProfile();
   }, []);
+
+  useEffect(() => {
+    if (vendors.length > 0 && typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const vendorId = params.get("vendorId");
+      if (vendorId) {
+        const matched = vendors.find((v: any) => v._id === vendorId);
+        if (matched) {
+          setSelectedProfileVendor(matched);
+        }
+      }
+    }
+  }, [vendors]);
 
   const handleAdd = () => {
     setSelectedVendor(null);
@@ -243,6 +258,19 @@ export default function VendorsPage() {
     );
   });
 
+  if (selectedProfileVendor) {
+    return (
+      <VendorProfileHistory 
+        vendor={selectedProfileVendor}
+        onBack={() => {
+          setSelectedProfileVendor(null);
+          fetchVendors();
+        }}
+        shopProfile={shopProfile}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       <style>{`
@@ -406,6 +434,7 @@ export default function VendorsPage() {
               data={filteredVendors} 
               actions={[
                 { label: "Edit", onClick: handleEdit, icon: Edit2 },
+                { label: "View Profile", onClick: (row: any) => setSelectedProfileVendor(row), icon: FileText },
                 { 
                   label: "WhatsApp Reminder", 
                   onClick: (row: any) => { setWaParty(row); setIsWhatsAppModalOpen(true); }, 

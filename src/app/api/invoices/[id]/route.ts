@@ -1,6 +1,7 @@
 import { fail, ok } from "@/lib/api";
 import dbConnect from "@/lib/db";
 import Invoice from "@/models/Invoice";
+import Party from "@/models/Party";
 import JournalEntry from "@/models/JournalEntry";
 import { generateInvoiceJournalEntries, recalculatePartyBalance } from "@/services/posting/invoicePostingHelper";
 import { normalizeInvoicePayload } from "@/lib/invoicePayload";
@@ -22,6 +23,15 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     const body = await req.json();
     await dbConnect();
     const payload = normalizeInvoicePayload(body);
+
+    if (payload.partyId) {
+      const party = await Party.findById(payload.partyId).lean() as any;
+      if (party && (party.name || party.companyName || "").toLowerCase().includes("walk-in")) {
+        payload.amountReceived = payload.totalAmount;
+        payload.balance = 0;
+      }
+    }
+
     const row = await Invoice.findByIdAndUpdate(
       params.id,
       { $set: payload },

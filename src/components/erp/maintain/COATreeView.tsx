@@ -219,6 +219,26 @@ export default function COATreeView() {
   }, []);
 
   useEffect(() => {
+    if (accounts.length > 0 && typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const accountCode = params.get("accountCode");
+      if (accountCode) {
+        const matched = accounts.find((a: any) => a.code === accountCode);
+        if (matched) {
+          setActiveAccount({
+            _id: matched._id,
+            code: matched.code,
+            name: matched.title || matched.name,
+            type: "ledger",
+            balance: matched.currentBalance ?? matched.openingBalance ?? 0,
+            rawAccount: matched
+          });
+        }
+      }
+    }
+  }, [accounts]);
+
+  useEffect(() => {
     if (activeAccount) {
       fetchLedgerEntries(activeAccount.code);
     }

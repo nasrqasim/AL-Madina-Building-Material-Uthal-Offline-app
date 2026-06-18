@@ -6,6 +6,7 @@ import ERPDataTable from "@/components/erp/ui/ERPDataTable";
 import CustomerModal from "@/components/erp/maintain/CustomerModal";
 import QuickReceiptModal from "@/components/erp/maintain/QuickReceiptModal";
 import WhatsAppShareModal from "@/components/erp/whatsapp/WhatsAppShareModal";
+import CustomerProfileHistory from "@/components/erp/maintain/CustomerProfileHistory";
 import { Plus, FileText, Download, Printer, UserCheck, UserX, Wallet, Search, Edit2, Trash2, MapPin, FileSpreadsheet, ArrowLeft, Play, Calendar, MessageCircle } from "lucide-react";
 import ERPStatCard from "@/components/erp/ui/ERPStatCard";
 import { exportToExcel, downloadTemplate, printPage, printListDocument, triggerFileInput, importFromExcel } from "@/lib/excel";
@@ -68,6 +69,19 @@ export default function CustomerBalancesPage() {
     setLedgerFromDate(`${year}-${month}-01`);
     setLedgerToDate(`${year}-${month}-${day}`);
   }, []);
+
+  useEffect(() => {
+    if (customers.length > 0 && typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const customerId = params.get("customerId");
+      if (customerId) {
+        const matched = customers.find((c: any) => c._id === customerId);
+        if (matched) {
+          handleOpenLedger(matched);
+        }
+      }
+    }
+  }, [customers]);
 
   const handleAdd = () => {
     setSelectedCustomer(null);
@@ -308,11 +322,11 @@ export default function CustomerBalancesPage() {
       header: "Opening Balance", 
       accessor: "openingBalance", 
       render: (val: number) => {
-        const isNegative = val < 0;
-        const formattedVal = isNegative 
-          ? `-Rs. ${Math.abs(val).toLocaleString()}` 
-          : `+Rs. ${val?.toLocaleString() || "0"}`;
-        const balanceLabel = isNegative ? " (Debit)" : val > 0 ? " (Credit)" : "";
+        const isDebit = val > 0;
+        const formattedVal = isDebit 
+          ? `+Rs. ${val.toLocaleString()}` 
+          : val < 0 ? `-Rs. ${Math.abs(val).toLocaleString()}` : "Rs. 0";
+        const balanceLabel = isDebit ? " (Debit)" : val < 0 ? " (Credit)" : "";
         return (
           <span className="text-sm font-bold text-slate-600 dark:text-slate-400">
             {formattedVal}{balanceLabel}
@@ -326,7 +340,7 @@ export default function CustomerBalancesPage() {
       render: (val: number) => {
         const num = Number(val) || 0;
         if (num !== 0) {
-          return <span className="text-sm font-bold text-rose-600">-Rs. {Math.abs(num).toLocaleString()}</span>;
+          return <span className="text-sm font-bold text-emerald-600">+Rs. {Math.abs(num).toLocaleString()}</span>;
         }
         return <span className="text-sm font-bold text-slate-500">Rs. 0</span>;
       }
@@ -337,7 +351,7 @@ export default function CustomerBalancesPage() {
       render: (val: number) => {
         const num = Number(val) || 0;
         if (num !== 0) {
-          return <span className="text-sm font-bold text-emerald-600">+Rs. {Math.abs(num).toLocaleString()}</span>;
+          return <span className="text-sm font-bold text-rose-600">-Rs. {Math.abs(num).toLocaleString()}</span>;
         }
         return <span className="text-sm font-bold text-slate-500">Rs. 0</span>;
       }
@@ -346,14 +360,14 @@ export default function CustomerBalancesPage() {
       header: "Closing Balance", 
       accessor: "balance", 
       render: (val: number, row: any) => {
-        const isNegative = val < 0;
-        const formattedVal = isNegative 
-          ? `-Rs. ${Math.abs(val).toLocaleString()}` 
-          : `+Rs. ${val?.toLocaleString() || "0"}`;
-        const balanceLabel = isNegative ? " (Debit)" : val > 0 ? " (Credit)" : "";
+        const isDebit = val > 0;
+        const formattedVal = isDebit 
+          ? `+Rs. ${val.toLocaleString()}` 
+          : val < 0 ? `-Rs. ${Math.abs(val).toLocaleString()}` : "Rs. 0";
+        const balanceLabel = isDebit ? " (Debit)" : val < 0 ? " (Credit)" : "";
         return (
           <div className="flex flex-col">
-            <span className={`text-sm font-black ${val > (row.creditLimit || 0) && row.creditLimit > 0 ? "text-red-600 animate-pulse" : isNegative ? "text-rose-600" : "text-emerald-600"}`}>
+            <span className={`text-sm font-black ${val > (row.creditLimit || 0) && row.creditLimit > 0 ? "text-red-600 animate-pulse" : isDebit ? "text-rose-600" : val < 0 ? "text-emerald-600" : "text-slate-500"}`}>
               {formattedVal}{balanceLabel}
             </span>
             {val > (row.creditLimit || 0) && row.creditLimit > 0 && (
@@ -400,249 +414,18 @@ export default function CustomerBalancesPage() {
     );
   });
 
-  // LEDGER / STATEMENT VIEW
+  // LEDGER / COMPLETE CUSTOMER PROFILE HISTORY VIEW
   if (selectedLedgerCustomer) {
     return (
-      <div className="space-y-6">
-        {/* Style Overrides for Window Printing */}
-        <style>{`
-          @media print {
-            aside, header, nav, .no-print, button, input, select {
-              display: none !important;
-            }
-            body {
-              background: white !important;
-              color: black !important;
-            }
-            .print-container {
-              width: 100% !important;
-              max-width: 100% !important;
-              margin: 0 !important;
-              padding: 0 !important;
-              border: none !important;
-              box-shadow: none !important;
-            }
-            table {
-              border-collapse: collapse !important;
-              width: 100% !important;
-            }
-            th, td {
-              border: 1px solid #e2e8f0 !important;
-              padding: 8px !important;
-            }
-          }
-        `}</style>
-
-        <div className="flex justify-between items-center no-print">
-          <button 
-            onClick={() => setSelectedLedgerCustomer(null)}
-            className="flex items-center gap-2 px-6 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-white rounded-xl text-sm font-black transition-all"
-          >
-            <ArrowLeft size={18} />
-            Back to Customers
-          </button>
-          <div className="flex gap-2">
-            {selectedLedgerCustomer?.phone && selectedLedgerCustomer.phone.replace(/[^0-9]/g, "").length >= 10 && (
-              <button 
-                onClick={() => {
-                  setWaParty(selectedLedgerCustomer);
-                  setWaDocData(ledgerData);
-                  setWaType("Statement");
-                  setIsWhatsAppModalOpen(true);
-                }}
-                className="flex items-center gap-2 px-6 py-2.5 bg-[#25D366] hover:bg-[#1EBE5D] text-white rounded-xl text-sm font-black shadow-xl shadow-[#25D366]/20 transition-all"
-              >
-                <MessageCircle size={18} />
-                WhatsApp Statement
-              </button>
-            )}
-            <button 
-              onClick={printPage}
-              className="flex items-center gap-2 px-6 py-2.5 bg-maroon-800 hover:bg-maroon-900 text-white rounded-xl text-sm font-black shadow-xl shadow-maroon-900/20 transition-all"
-            >
-              <Printer size={18} />
-              Print Ledger
-            </button>
-          </div>
-        </div>
-
-        {/* Date Filter Panel */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] p-6 shadow-sm no-print">
-          <div className="flex flex-col md:flex-row gap-4 items-end justify-between">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-                  <Calendar size={12} /> Date From
-                </label>
-                <input 
-                  type="date" 
-                  value={ledgerFromDate}
-                  onChange={(e) => setLedgerFromDate(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold focus:outline-none dark:text-white dark:bg-slate-900"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-                  <Calendar size={12} /> Date To
-                </label>
-                <input 
-                  type="date" 
-                  value={ledgerToDate}
-                  onChange={(e) => setLedgerToDate(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold focus:outline-none dark:text-white dark:bg-slate-900"
-                />
-              </div>
-            </div>
-            <button 
-              onClick={() => handleOpenLedger(selectedLedgerCustomer)}
-              className="px-8 py-3 bg-slate-900 hover:bg-black dark:bg-maroon-800 dark:hover:bg-maroon-900 text-white rounded-xl text-sm font-black uppercase tracking-widest transition-all flex items-center gap-2"
-            >
-              <Play size={14} />
-              Apply Range
-            </button>
-          </div>
-        </div>
-
-        {/* Ledger Summary Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 no-print">
-          <ERPStatCard label="Opening Balance" value={`Rs. ${ledgerData.opening.toLocaleString()}`} icon={Wallet} variant="slate" />
-          <ERPStatCard label="Total Debit (Sales)" value={`Rs. ${ledgerData.totalDr.toLocaleString()}`} icon={Play} variant="green" />
-          <ERPStatCard label="Total Credit (Receipts)" value={`Rs. ${ledgerData.totalCr.toLocaleString()}`} icon={Play} variant="orange" />
-          <ERPStatCard label="Closing Balance" value={`Rs. ${ledgerData.closing.toLocaleString()}`} icon={Wallet} variant="maroon" />
-        </div>
-
-        {/* Print Layout */}
-        <div className="print-container bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] p-10 shadow-sm transition-all">
-          
-          {/* Statement Header */}
-          <div className="flex justify-between items-start border-b border-slate-200 dark:border-slate-800 pb-6 mb-6">
-            <div className="space-y-1">
-              <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{shopProfile?.companyName || "Najeeb Oil Shop"}</h2>
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{shopProfile?.address || "Bela, Balochistan, Pakistan"}</p>
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Ph: {shopProfile?.phone || "+92 333 1234567"} | NTN: {shopProfile?.ntn || "0000000-0"}</p>
-            </div>
-            <div className="text-right">
-              <h1 className="text-3xl font-black text-maroon-800 uppercase tracking-widest">Customer Ledger</h1>
-              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mt-1">Statement of Account</p>
-            </div>
-          </div>
-
-          {/* Customer / Period Info */}
-          <div className="grid grid-cols-2 gap-8 mb-8 pb-4 border-b border-slate-100 dark:border-slate-850">
-            <div>
-              <p className="text-[10px] font-black text-maroon-800 uppercase tracking-widest mb-1.5">Statement For</p>
-              <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase">{selectedLedgerCustomer.name}</h4>
-              {selectedLedgerCustomer.contactPerson && (
-                <p className="text-[10px] text-slate-500 font-bold uppercase">Contact: {selectedLedgerCustomer.contactPerson}</p>
-              )}
-              <p className="text-[10px] text-slate-500 font-bold uppercase">Ph: {selectedLedgerCustomer.phone || "-"}</p>
-              <p className="text-[10px] text-slate-500 font-bold uppercase">Area: {selectedLedgerCustomer.area || "-"}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-[10px] font-black text-maroon-800 uppercase tracking-widest mb-1.5">Statement Period</p>
-              <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase">
-                {new Date(ledgerFromDate).toLocaleDateString()} to {new Date(ledgerToDate).toLocaleDateString()}
-              </h4>
-              <p className="text-[10px] text-slate-500 font-bold uppercase mt-1">Category: {selectedLedgerCustomer.category}</p>
-              <p className="text-[10px] text-slate-500 font-bold uppercase">Generated: {new Date().toLocaleDateString()}</p>
-            </div>
-          </div>
-
-          {/* Statement Table */}
-          {isLedgerLoading ? (
-            <div className="py-24 text-center text-slate-400">
-              <div className="w-8 h-8 border-4 border-maroon-850 border-t-transparent rounded-full animate-spin mb-4 mx-auto"></div>
-              <p className="text-xs font-black uppercase tracking-widest">Fetching Ledger History...</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead className="bg-slate-50 dark:bg-slate-850 border-b border-slate-200 dark:border-slate-800 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
-                  <tr>
-                    <th className="px-4 py-3">Date</th>
-                    <th className="px-4 py-3">Doc No</th>
-                    <th className="px-4 py-3">Type</th>
-                    <th className="px-4 py-3">Description</th>
-                    <th className="px-4 py-3 text-right">Debit (Dr)</th>
-                    <th className="px-4 py-3 text-right">Credit (Cr)</th>
-                    <th className="px-4 py-3 text-right">Balance</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-850 text-xs font-bold text-slate-700 dark:text-slate-300">
-                  {/* Opening Balance Row */}
-                  <tr className="bg-slate-50/50 dark:bg-slate-850/50 font-black">
-                    <td className="px-4 py-3 text-slate-400">{new Date(ledgerFromDate).toLocaleDateString()}</td>
-                    <td className="px-4 py-3">-</td>
-                    <td className="px-4 py-3">
-                      <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-[9px] rounded font-black tracking-widest text-slate-500">OPEN</span>
-                    </td>
-                    <td className="px-4 py-3 uppercase tracking-tighter text-slate-400">Opening Balance</td>
-                    <td className="px-4 py-3 text-right">-</td>
-                    <td className="px-4 py-3 text-right">-</td>
-                    <td className="px-4 py-3 text-right text-slate-900 dark:text-white">Rs. {ledgerData.opening.toLocaleString()}</td>
-                  </tr>
-
-                  {ledgerData.rows.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-slate-400 font-bold italic uppercase tracking-wider text-[10px]">
-                        No transactions recorded during this period
-                      </td>
-                    </tr>
-                  ) : (
-                    ledgerData.rows.map((row, i) => (
-                      <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/50 transition-colors">
-                        <td className="px-4 py-3">{new Date(row.date).toLocaleDateString()}</td>
-                        <td className="px-4 py-3 text-blue-600">{row.voucherNo}</td>
-                        <td className="px-4 py-3">
-                          <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest ${
-                            row.type === "Sale Invoice" ? "bg-emerald-50 text-emerald-600" :
-                            row.type === "Sale Return" ? "bg-orange-50 text-orange-600" : "bg-blue-50 text-blue-600"
-                          }`}>
-                            {row.type}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">{row.remarks}</td>
-                        <td className="px-4 py-3 text-right text-emerald-700">
-                          {row.debit > 0 ? `Rs. ${row.debit.toLocaleString()}` : "-"}
-                        </td>
-                        <td className="px-4 py-3 text-right text-rose-700">
-                          {row.credit > 0 ? `Rs. ${row.credit.toLocaleString()}` : "-"}
-                        </td>
-                        <td className="px-4 py-3 text-right text-slate-900 dark:text-white">
-                          Rs. {row.runningBalance.toLocaleString()}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-
-                  {/* Summary / Total Footer Row */}
-                  <tr className="bg-slate-100 dark:bg-slate-800 font-black text-slate-950 dark:text-white">
-                    <td colSpan={4} className="px-4 py-3.5 text-right uppercase tracking-widest text-[10px]">Statement Summary & Closing</td>
-                    <td className="px-4 py-3.5 text-right text-emerald-700">Rs. {ledgerData.totalDr.toLocaleString()}</td>
-                    <td className="px-4 py-3.5 text-right text-rose-700">Rs. {ledgerData.totalCr.toLocaleString()}</td>
-                    <td className="px-4 py-3.5 text-right text-maroon-800 dark:text-maroon-400">
-                      Rs. {ledgerData.closing.toLocaleString()}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Statement Signatures (for official ledger prints) */}
-          <div className="mt-20 flex justify-between items-end border-t border-slate-100 dark:border-slate-850 pt-8 no-print-override">
-            <div>
-              <div className="w-48 border-b border-slate-350 dark:border-slate-800 mb-2"></div>
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Authorized Signature</p>
-            </div>
-            <div className="text-right">
-              <div className="w-48 border-b border-slate-350 dark:border-slate-800 mb-2 ml-auto"></div>
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Customer Confirmation</p>
-            </div>
-          </div>
-
-        </div>
-      </div>
+      <CustomerProfileHistory 
+        customer={selectedLedgerCustomer}
+        onBack={() => {
+          setSelectedLedgerCustomer(null);
+          fetchCustomers();
+        }}
+        shopProfile={shopProfile}
+        fetchCustomers={fetchCustomers}
+      />
     );
   }
 

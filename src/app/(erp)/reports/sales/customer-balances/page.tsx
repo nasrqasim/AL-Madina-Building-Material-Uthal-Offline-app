@@ -5,10 +5,11 @@ import { Download, Printer, Play, Users, DollarSign, ArrowUpRight, ArrowDownRigh
 import { exportToExcel, printPage } from "@/lib/excel";
 import { useState, useEffect } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from 'recharts';
+import CustomerProfileHistory from "@/components/erp/maintain/CustomerProfileHistory";
 
 function formatBalance(val: number) {
-  if (val < 0) return { text: `-Rs. ${Math.abs(val).toLocaleString()}`, label: "(Debit)", color: "text-rose-600" };
-  if (val > 0) return { text: `+Rs. ${val.toLocaleString()}`, label: "(Credit)", color: "text-emerald-600" };
+  if (val > 0) return { text: `Rs. ${val.toLocaleString()}`, label: "(Debit)", color: "text-rose-600" };
+  if (val < 0) return { text: `Rs. ${Math.abs(val).toLocaleString()}`, label: "(Credit)", color: "text-emerald-600" };
   return { text: "Rs. 0", label: "", color: "text-slate-500" };
 }
 
@@ -17,6 +18,21 @@ export default function CustomerBalancesReportPage() {
   const [filteredData, setFilteredData] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+  const [shopProfile, setShopProfile] = useState<any>(null);
+
+  useEffect(() => {
+    async function fetchShop() {
+      try {
+        const res = await fetch("/api/shop-profile");
+        const json = await res.json();
+        if (json.ok) setShopProfile(json.data);
+      } catch (err) {
+        console.error("Error fetching shop profile:", err);
+      }
+    }
+    fetchShop();
+  }, []);
 
   useEffect(() => {
     async function fetchData() {
@@ -27,7 +43,6 @@ export default function CustomerBalancesReportPage() {
         const parties = json.ok ? json.data : (Array.isArray(json) ? json : []);
 
         const result = parties
-          .filter((p: any) => p.balance !== 0 || p.debit !== 0 || p.credit !== 0)
           .map((p: any) => ({
             id: p._id,
             customer: p.name || p.companyName || "Unknown",
@@ -38,6 +53,7 @@ export default function CustomerBalancesReportPage() {
             debit: Number(p.debit) || 0,
             credit: Number(p.credit) || 0,
             closing: Number(p.balance) || 0,
+            rawParty: p
           }));
 
         setData(result);
@@ -143,6 +159,18 @@ export default function CustomerBalancesReportPage() {
 
   const barData = filteredData.slice(0, 10).map(r => ({ name: r.customer, balance: r.closing }));
 
+  if (selectedCustomer) {
+    return (
+      <div className="p-6">
+        <CustomerProfileHistory 
+          customer={selectedCustomer}
+          onBack={() => setSelectedCustomer(null)}
+          shopProfile={shopProfile}
+        />
+      </div>
+    );
+  }
+
   return (
     <ERPReportLayout
       title="Customer Balances"
@@ -188,17 +216,22 @@ export default function CustomerBalancesReportPage() {
                       return (
                         <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                           <td className="px-4 py-3 text-[11px] font-medium text-slate-400 dark:text-slate-500">{i + 1}</td>
-                          <td className="px-4 py-3 text-[11px] font-bold text-blue-600 cursor-pointer hover:underline uppercase">{row.customer}</td>
+                          <td 
+                            onClick={() => setSelectedCustomer(row.rawParty)}
+                            className="px-4 py-3 text-[11px] font-bold text-blue-600 cursor-pointer hover:underline uppercase"
+                          >
+                            {row.customer}
+                          </td>
                           <td className="px-4 py-3 text-[11px] font-medium text-slate-600 dark:text-slate-300">{row.region}</td>
                           <td className="px-4 py-3 text-[11px] font-medium text-slate-600 dark:text-slate-300">{row.area}</td>
                           <td className="px-4 py-3 text-[11px] font-medium text-slate-500 dark:text-slate-400 text-right">
-                            {row.opening < 0 ? `-Rs. ${Math.abs(row.opening).toLocaleString()}` : `+Rs. ${row.opening.toLocaleString()}`}
-                          </td>
-                          <td className="px-4 py-3 text-[11px] font-medium text-rose-600 text-right">
-                            {row.debit !== 0 ? `-Rs. ${Math.abs(row.debit).toLocaleString()}` : "Rs. 0"}
+                            {row.opening > 0 ? `+Rs. ${row.opening.toLocaleString()}` : row.opening < 0 ? `-Rs. ${Math.abs(row.opening).toLocaleString()}` : "Rs. 0"}
                           </td>
                           <td className="px-4 py-3 text-[11px] font-medium text-emerald-600 text-right">
-                            {row.credit !== 0 ? `+Rs. ${Math.abs(row.credit).toLocaleString()}` : "Rs. 0"}
+                            {row.debit !== 0 ? `+Rs. ${row.debit.toLocaleString()}` : "Rs. 0"}
+                          </td>
+                          <td className="px-4 py-3 text-[11px] font-medium text-rose-600 text-right">
+                            {row.credit !== 0 ? `-Rs. ${row.credit.toLocaleString()}` : "Rs. 0"}
                           </td>
                           <td className={`px-4 py-3 text-[11px] font-black text-right ${bal.color}`}>
                             {Math.abs(row.closing).toLocaleString()}
@@ -210,8 +243,8 @@ export default function CustomerBalancesReportPage() {
                     <tr className="bg-slate-50 dark:bg-slate-800/50 font-black">
                       <td colSpan={4} className="px-4 py-3 text-right text-[10px] uppercase tracking-widest text-slate-800 dark:text-slate-100">Grand Total</td>
                       <td className="px-4 py-3 text-[11px] text-right text-slate-800 dark:text-slate-100">{filteredData.reduce((s, r) => s + r.opening, 0).toLocaleString()}</td>
-                      <td className="px-4 py-3 text-[11px] text-right text-rose-600">-Rs. {totalDebit.toLocaleString()}</td>
-                      <td className="px-4 py-3 text-[11px] text-right text-emerald-600">+Rs. {totalCredit.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-[11px] text-right text-emerald-600">+Rs. {totalDebit.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-[11px] text-right text-rose-600">-Rs. {totalCredit.toLocaleString()}</td>
                       <td className={`px-4 py-3 text-[11px] text-right ${closingFmt.color}`}>
                         {Math.abs(totalClosing).toLocaleString()}
                         {closingFmt.label && <span className="ml-1 text-[9px] font-bold opacity-70">{closingFmt.label}</span>}

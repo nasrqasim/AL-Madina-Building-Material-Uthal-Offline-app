@@ -132,19 +132,24 @@ export default function PurchaseInvoiceDetails({ invoice, onClose, onEdit }: Pur
                   <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Gross Amt</th>
                   <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Disc %</th>
                   <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Disc (PKR)</th>
+                  <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Tax %</th>
+                  <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Tax (PKR)</th>
                   <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Net Total</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50 font-bold">
                 {items.length === 0 ? (
-                  <tr><td colSpan={10} className="px-5 py-10 text-center text-slate-400 font-medium">No items found.</td></tr>
+                  <tr><td colSpan={12} className="px-5 py-10 text-center text-slate-400 font-medium">No items found.</td></tr>
                 ) : items.map((item: any, idx: number) => {
                   const ctns = item.cartons ?? item.qty ?? 0;
                   const price = item.rate ?? item.unitPrice ?? 0;
                   const gross = item.grossAmount ?? (ctns * price);
                   const discPct = item.discountPercent ?? item.discPercent ?? 0;
                   const discAmt = item.discountAmount ?? (gross * discPct / 100);
-                  const net = item.netAmount ?? item.total ?? (gross - discAmt);
+                  const taxable = gross - discAmt;
+                  const taxPct = item.taxPercent ?? 0;
+                  const taxAmt = (taxable * taxPct) / 100;
+                  const net = item.netAmount ?? item.total ?? (taxable + taxAmt);
                   return (
                     <tr key={idx} className="hover:bg-slate-50 transition-colors">
                       <td className="px-5 py-4 text-xs font-bold text-slate-400 text-center">{idx + 1}</td>
@@ -158,6 +163,8 @@ export default function PurchaseInvoiceDetails({ invoice, onClose, onEdit }: Pur
                       <td className="px-4 py-4 text-sm text-slate-900 dark:text-white text-right">{fmt(gross)}</td>
                       <td className="px-4 py-4 text-sm text-rose-500 text-right">{discPct}%</td>
                       <td className="px-4 py-4 text-sm text-rose-500 text-right">-{fmt(discAmt)}</td>
+                      <td className="px-4 py-4 text-sm text-slate-900 dark:text-white text-right">{taxPct}%</td>
+                      <td className="px-4 py-4 text-sm text-slate-900 dark:text-white text-right">+{fmt(taxAmt)}</td>
                       <td className="px-4 py-4 text-sm font-black text-slate-900 dark:text-white text-right">{fmt(net)}</td>
                     </tr>
                   );

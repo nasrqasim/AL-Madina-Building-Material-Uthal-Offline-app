@@ -43,6 +43,15 @@ export async function POST(req: Request) {
     await dbConnect();
 
     const payload = normalizeInvoicePayload(body);
+
+    if (payload.partyId) {
+      const party = await Party.findById(payload.partyId).lean() as any;
+      if (party && (party.name || party.companyName || "").toLowerCase().includes("walk-in")) {
+        payload.amountReceived = payload.totalAmount;
+        payload.balance = 0;
+      }
+    }
+
     const row = await Invoice.create(payload);
 
     await generateInvoiceJournalEntries(row);

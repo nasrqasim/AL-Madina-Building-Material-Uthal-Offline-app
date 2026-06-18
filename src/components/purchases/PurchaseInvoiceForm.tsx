@@ -21,17 +21,12 @@ interface PIItem {
   liters: number | string;
   unitPrice: number | string;
   discPercent: number | string;
-  isTaxable: boolean;
+  isTaxable?: boolean;
   taxPercent: number | string;
+  taxAmount?: number;
   grossAmount: number;
   discountAmount: number;
   total: number;
-}
-
-interface PurchaseInvoiceFormProps {
-  onClose: () => void;
-  onSave?: (data: any) => void;
-  initialData?: any;
 }
 
 function calcItem(item: PIItem): PIItem {
@@ -42,8 +37,20 @@ function calcItem(item: PIItem): PIItem {
   const gross = ctns * price;
   const discAmt = gross * disc / 100;
   const afterDisc = gross - discAmt;
-  const taxAmt = item.isTaxable ? afterDisc * tax / 100 : 0;
-  return { ...item, grossAmount: gross, discountAmount: discAmt, total: afterDisc + taxAmt };
+  const taxAmt = afterDisc * tax / 100;
+  return { 
+    ...item, 
+    grossAmount: gross, 
+    discountAmount: discAmt, 
+    taxAmount: taxAmt, 
+    total: afterDisc + taxAmt 
+  };
+}
+
+interface PurchaseInvoiceFormProps {
+  onClose: () => void;
+  onSave?: (data: any) => void;
+  initialData?: any;
 }
 
 export default function PurchaseInvoiceForm({ onClose, onSave, initialData }: PurchaseInvoiceFormProps) {
@@ -158,10 +165,7 @@ export default function PurchaseInvoiceForm({ onClose, onSave, initialData }: Pu
   // Totals
   const subTotal = items.reduce((s, i) => s + i.grossAmount, 0);
   const totalDiscount = items.reduce((s, i) => s + i.discountAmount, 0);
-  const totalTax = items.reduce((s, i) => {
-    const afterDisc = i.grossAmount - i.discountAmount;
-    return s + (i.isTaxable ? afterDisc * (Number(i.taxPercent) || 0) / 100 : 0);
-  }, 0);
+  const totalTax = items.reduce((s, i) => s + (i.taxAmount || 0), 0);
   const totalPKR = subTotal - totalDiscount + totalTax;
   const balance = totalPKR - Number(formData.amountPaid);
 
@@ -343,7 +347,8 @@ export default function PurchaseInvoiceForm({ onClose, onSave, initialData }: Pu
                   <th className="px-3 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-28 text-right">Unit Price</th>
                   <th className="px-3 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-20 text-right">Disc %</th>
                   <th className="px-3 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-28 text-right">Disc (PKR)</th>
-                  <th className="px-3 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-20 text-center">Tax?</th>
+                  <th className="px-3 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-20 text-right">Tax %</th>
+                  <th className="px-3 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-28 text-right">Tax (PKR)</th>
                   <th className="px-3 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-32 text-right">Total</th>
                   <th className="px-3 py-3 w-10"></th>
                 </tr>
@@ -432,13 +437,20 @@ export default function PurchaseInvoiceForm({ onClose, onSave, initialData }: Pu
                     <td className="px-3 py-3 text-right">
                       <span className="text-sm font-bold text-rose-500">{fmt(item.discountAmount)}</span>
                     </td>
-                    <td className="px-3 py-3 text-center">
+                    <td className="px-3 py-3 text-right">
                       <input
-                        type="checkbox"
-                        checked={item.isTaxable}
-                        onChange={e => updateItem(item.id, "isTaxable", e.target.checked)}
-                        className="w-4 h-4 rounded border-slate-300 text-maroon-800"
+                        type="number"
+                        min={0}
+                        max={100}
+                        step="any"
+                        value={item.taxPercent}
+                        onChange={e => updateItem(item.id, "taxPercent", e.target.value === "" ? "" : Number(e.target.value))}
+                        onBlur={e => updateItem(item.id, "taxPercent", Number(e.target.value) || 0)}
+                        className="w-full bg-transparent text-sm font-black text-right focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-1"
                       />
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{fmt(item.taxAmount || 0)}</span>
                     </td>
                     <td className="px-3 py-3 text-right">
                       <span className="text-sm font-black text-slate-900 dark:text-white">{fmt(item.total)}</span>

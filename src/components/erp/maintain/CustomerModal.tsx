@@ -57,7 +57,7 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
   useEffect(() => {
     if (customer) {
       const op = customer.openingBalance || 0;
-      setOpeningBalanceType(op < 0 ? "Debit" : "Credit");
+      setOpeningBalanceType(op > 0 ? "Debit" : "Credit");
       setFormData({
         code: customer.code || "",
         name: customer.companyName || customer.name || "",
@@ -80,7 +80,7 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
         notes: customer.notes || "",
       });
     } else {
-      setOpeningBalanceType("Credit");
+      setOpeningBalanceType("Debit");
       setFormData({
         code: "",
         name: "",
@@ -108,7 +108,7 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (onSave) {
-      const finalOpeningBalance = openingBalanceType === "Debit" ? -Math.abs(Number(formData.openingBalance)) : Math.abs(Number(formData.openingBalance));
+      const finalOpeningBalance = openingBalanceType === "Debit" ? Math.abs(Number(formData.openingBalance)) : -Math.abs(Number(formData.openingBalance));
       onSave({
         ...formData,
         openingBalance: finalOpeningBalance

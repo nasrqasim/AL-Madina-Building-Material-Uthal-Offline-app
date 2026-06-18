@@ -5,71 +5,168 @@ import Item from "@/models/Item";
 import Party from "@/models/Party";
 import Account from "@/models/Account";
 import JournalEntry from "@/models/JournalEntry";
+import CashPayment from "@/models/CashPayment";
+import CashReceipt from "@/models/CashReceipt";
+import BankPayment from "@/models/BankPayment";
+import BankReceipt from "@/models/BankReceipt";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    console.log("Dashboard API: Connecting to DB...");
     await dbConnect();
-    console.log("Dashboard API: Connected. Fetching data...");
     
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const { searchParams } = new URL(req.url);
+    const dateParam = searchParams.get("date"); // YYYY-MM-DD format
+    
+    const targetDate = dateParam ? new Date(dateParam) : new Date("2026-06-17");
+    
+    const startOfDay = new Date(targetDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(targetDate);
+    endOfDay.setHours(23, 59, 59, 999);
+    
+    const startStr = startOfDay.toISOString().split("T")[0];
+    const endStr = endOfDay.toISOString().split("T")[0];
 
-    // 1. Today's Sales
-    const salesToday = await Invoice.aggregate([
-      { $match: { type: "sale", createdAt: { $gte: today } } },
-      { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+    // 1. Sales today (Daily Sales) - representing actual cash received
+    // Include: Sale Invoices cash received (amountReceived), POS Sales total (since POS is cash/card received, so totalAmount)
+    // Less: Sale Returns and POS Returns total amount
+    const salesInvoicesTodayRes = await Invoice.aggregate([
+      { $match: { type: { $in: ["sale", "non_tax_sale", "challan"] }, date: { $gte: startOfDay, $lte: endOfDay }, status: { $ne: "cancelled" } } },
+      { $group: { _id: null, total: { $sum: "$amountReceived" } } }
     ]);
-    console.log("Dashboard API: salesToday fetched", salesToday);
+    const posSalesTodayRes = await Invoice.aggregate([
+      { $match: { type: "pos", date: { $gte: startOfDay, $lte: endOfDay }, status: { $ne: "cancelled" } } },
+      { $group: { _id: null, total: { $sum: "$totalAmount" } } }
+    ]);
+    const returnsTodayRes = await Invoice.aggregate([
+      { $match: { type: { $in: ["sale_return", "non_tax_sale_return"] }, date: { $gte: startOfDay, $lte: endOfDay }, status: { $ne: "cancelled" } } },
+      { $group: { _id: null, total: { $sum: "$totalAmount" } } }
+    ]);
 
-    // 2. Receivables: Sum of Customer outstanding balances (real-time udhaar)
-    const customerBalances = await Party.find({ type: "Customer" }).lean();
-    const totalReceivables = customerBalances.reduce((sum, p) => sum + (p.balance ?? 0), 0);
-    console.log("Dashboard API: totalReceivables calculated", totalReceivables);
+    const saleInvoiceTotal = salesInvoicesTodayRes[0]?.total ?? 0;
+    const posSalesTotal = posSalesTodayRes[0]?.total ?? 0;
+    const returnTotal = returnsTodayRes[0]?.total ?? 0;
 
-    // 3. Payables: Sum of Vendor outstanding balances
-    const vendorBalances = await Party.find({ type: "Vendor" }).lean();
-    const totalPayables = vendorBalances.reduce((sum, p) => sum + (p.balance ?? 0), 0);
-    console.log("Dashboard API: totalPayables calculated", totalPayables);
+    const salesToday = (saleInvoiceTotal + posSalesTotal) - returnTotal;
 
-    // 4. Low stock items
-    const lowStockCount = await Item.countDocuments({ 
-      $expr: { $lte: ["$stockQtyCartons", "$reorderLevel"] } 
+    // 2. Low Stock Count
+    const lowStockCount = await Item.countDocuments({
+      $expr: { $lte: ["$stockQtyCartons", "$reorderLevel"] }
     });
-    console.log("Dashboard API: lowStockCount fetched", lowStockCount);
 
-    // 5. Cash & Bank balances from Account opening + JournalEntry
-    const cashOpeningAccs = await Account.find({ type: "cash" }).lean();
-    const cashOpening = cashOpeningAccs.reduce((sum, acc) => sum + (acc.openingBalance ?? 0), 0);
-    const cashCodes = cashOpeningAccs.map((acc: any) => acc.code);
-
-    const cashTransactions = cashCodes.length > 0 ? await JournalEntry.aggregate([
-      { $match: { accountCode: { $in: cashCodes } } },
+    // ==========================================
+    // CASH & BANK BALANCES CALCULATIONS
+    // ==========================================
+    const cashBankAccs = await Account.find({ type: { $in: ["cash", "bank"] } }).lean();
+    const cashBankCodes = Array.from(new Set(cashBankAccs.map((a: any) => a.code).concat(["1111", "1110"])));
+    
+    // Initial opening balance from Account schema
+    const cashBankInitialOpening = cashBankAccs.reduce((sum, acc) => sum + (acc.openingBalance ?? 0), 0);
+    
+    // Transactions before today (Opening Balance)
+    const cashBankTxBefore = await JournalEntry.aggregate([
+      { $match: { accountCode: { $in: cashBankCodes }, date: { $lt: startOfDay } } },
       { $group: { _id: null, balance: { $sum: { $subtract: ["$debit", "$credit"] } } } }
-    ]) : [];
-    const totalCash = cashOpening + (cashTransactions[0]?.balance ?? 0);
+    ]);
+    const cashBankOpening = cashBankInitialOpening + (cashBankTxBefore[0]?.balance ?? 0);
 
-    const bankOpeningAccs = await Account.find({ type: "bank" }).lean();
-    const bankOpening = bankOpeningAccs.reduce((sum, acc) => sum + (acc.openingBalance ?? 0), 0);
-    const bankCodes = bankOpeningAccs.map((acc: any) => acc.code);
+    // Receipts today (Debits today)
+    const cashBankReceiptsRes = await JournalEntry.aggregate([
+      { $match: { accountCode: { $in: cashBankCodes }, date: { $gte: startOfDay, $lte: endOfDay } } },
+      { $group: { _id: null, total: { $sum: "$debit" } } }
+    ]);
+    const cashBankReceipts = cashBankReceiptsRes[0]?.total ?? 0;
 
-    const bankTransactions = bankCodes.length > 0 ? await JournalEntry.aggregate([
-      { $match: { accountCode: { $in: bankCodes } } },
-      { $group: { _id: null, balance: { $sum: { $subtract: ["$debit", "$credit"] } } } }
-    ]) : [];
-    const totalBank = bankOpening + (bankTransactions[0]?.balance ?? 0);
+    // Payments today (Credits today)
+    const cashBankPaymentsRes = await JournalEntry.aggregate([
+      { $match: { accountCode: { $in: cashBankCodes }, date: { $gte: startOfDay, $lte: endOfDay } } },
+      { $group: { _id: null, total: { $sum: "$credit" } } }
+    ]);
+    const cashBankPayments = cashBankPaymentsRes[0]?.total ?? 0;
+    
+    const cashBankCurrent = cashBankOpening + cashBankReceipts - cashBankPayments;
 
-    const cashBankBalance = totalCash + totalBank;
-    console.log("Dashboard API: cashBankBalance calculated", cashBankBalance);
+    // ==========================================
+    // RECEIVABLES CALCULATIONS (CUSTOMERS)
+    // ==========================================
+    const customers = await Party.find({ type: "Customer" }).lean();
+    const recInitialOpening = customers.reduce((sum, c) => sum + (c.openingBalance ?? 0), 0);
+
+    // Opening Receivables before today
+    const recTxBefore = await JournalEntry.aggregate([
+      { $match: { accountCode: "1100", date: { $lt: startOfDay } } },
+      { $group: { _id: null, total: { $sum: { $subtract: ["$debit", "$credit"] } } } }
+    ]);
+    const recOpening = recInitialOpening + (recTxBefore[0]?.total ?? 0);
+
+    // Sales (debits) today
+    const recSalesTodayRes = await JournalEntry.aggregate([
+      { $match: { accountCode: "1100", date: { $gte: startOfDay, $lte: endOfDay } } },
+      { $group: { _id: null, total: { $sum: "$debit" } } }
+    ]);
+    const recSalesToday = recSalesTodayRes[0]?.total ?? 0;
+
+    // Receipts/Credits today
+    const recReceiptsTodayRes = await JournalEntry.aggregate([
+      { $match: { accountCode: "1100", date: { $gte: startOfDay, $lte: endOfDay } } },
+      { $group: { _id: null, total: { $sum: "$credit" } } }
+    ]);
+    const recReceiptsToday = recReceiptsTodayRes[0]?.total ?? 0;
+
+    const recCurrent = recOpening + recSalesToday - recReceiptsToday;
+
+    // ==========================================
+    // PAYABLES CALCULATIONS (VENDORS)
+    // ==========================================
+    const vendors = await Party.find({ type: "Vendor" }).lean();
+    const payInitialOpening = vendors.reduce((sum, v) => sum + (v.openingBalance ?? 0), 0);
+
+    // Opening Payables before today (Credit is positive, Debit is negative)
+    const payTxBefore = await JournalEntry.aggregate([
+      { $match: { accountCode: "2100", date: { $lt: startOfDay } } },
+      { $group: { _id: null, total: { $sum: { $subtract: ["$credit", "$debit"] } } } }
+    ]);
+    const payOpening = payInitialOpening + (payTxBefore[0]?.total ?? 0);
+
+    // Purchases/Credits today
+    const payPurchasesTodayRes = await JournalEntry.aggregate([
+      { $match: { accountCode: "2100", date: { $gte: startOfDay, $lte: endOfDay } } },
+      { $group: { _id: null, total: { $sum: "$credit" } } }
+    ]);
+    const payPurchasesToday = payPurchasesTodayRes[0]?.total ?? 0;
+
+    // Payments/Debits today
+    const payPaymentsTodayRes = await JournalEntry.aggregate([
+      { $match: { accountCode: "2100", date: { $gte: startOfDay, $lte: endOfDay } } },
+      { $group: { _id: null, total: { $sum: "$debit" } } }
+    ]);
+    const payPaymentsToday = payPaymentsTodayRes[0]?.total ?? 0;
+
+    const payCurrent = payOpening + payPurchasesToday - payPaymentsToday;
 
     return ok({
-      salesToday: salesToday[0]?.total ?? 0,
-      receivables: totalReceivables,
-      payables: totalPayables,
-      cashBankBalance: cashBankBalance,
+      salesToday: salesToday,
       lowStockCount,
+      cashBank: {
+        opening: cashBankOpening,
+        receipts: cashBankReceipts,
+        payments: cashBankPayments,
+        current: cashBankCurrent
+      },
+      receivables: {
+        opening: recOpening,
+        sales: recSalesToday,
+        receipts: recReceiptsToday,
+        current: recCurrent
+      },
+      payables: {
+        opening: payOpening,
+        purchases: payPurchasesToday,
+        payments: payPaymentsToday,
+        current: payCurrent
+      }
     });
-
+    
   } catch (error: any) {
     console.error("Dashboard API Error:", error);
     return Response.json({ error: error.message }, { status: 500 });

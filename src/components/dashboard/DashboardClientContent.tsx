@@ -35,6 +35,19 @@ interface DashboardClientContentProps {
 
 export default function DashboardClientContent({ userName }: DashboardClientContentProps) {
   const [visibility, setVisibility] = useState<Record<WidgetKey, boolean>>(DEFAULT_VISIBILITY);
+  const [selectedDate, setSelectedDate] = useState("2026-06-17");
+
+  const handlePrevDay = () => {
+    const d = new Date(selectedDate);
+    d.setDate(d.getDate() - 1);
+    setSelectedDate(d.toISOString().split("T")[0]);
+  };
+
+  const handleNextDay = () => {
+    const d = new Date(selectedDate);
+    d.setDate(d.getDate() + 1);
+    setSelectedDate(d.toISOString().split("T")[0]);
+  };
 
   useEffect(() => {
     // Load from localStorage on mount
@@ -58,8 +71,35 @@ export default function DashboardClientContent({ userName }: DashboardClientCont
       {/* Hero always visible */}
       <DashboardHero userName={userName} />
 
+      {/* Daily Report Date Selector */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-sm">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider">Trouble Shooting Report</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={handlePrevDay}
+            className="px-3 py-1.5 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl text-xs font-black text-slate-600 dark:text-slate-300 transition-colors"
+          >
+            &lt;&lt;
+          </button>
+          <input 
+            type="date"
+            value={selectedDate}
+            onChange={e => setSelectedDate(e.target.value)}
+            className="px-4 py-2 border border-slate-200 dark:border-slate-800 dark:bg-slate-950 rounded-xl text-sm font-bold focus:outline-none dark:text-white"
+          />
+          <button 
+            onClick={handleNextDay}
+            className="px-3 py-1.5 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl text-xs font-black text-slate-600 dark:text-slate-300 transition-colors"
+          >
+            &gt;&gt;
+          </button>
+        </div>
+      </div>
+
       {/* Stats Cards — executiveSummary */}
-      {show("kpiCards") && <StatsCards />}
+      {show("kpiCards") && <StatsCards selectedDate={selectedDate} />}
 
       {/* Activity Feed + Quick Actions — activityFeed */}
       {show("activityFeed") && (

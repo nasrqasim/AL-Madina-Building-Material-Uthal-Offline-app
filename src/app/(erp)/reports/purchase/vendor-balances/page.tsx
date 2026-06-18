@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import ERPReportLayout from "@/components/erp/reports/ERPReportLayout";
 import { Download, Printer, Play, Users, DollarSign, ArrowDownLeft, ArrowUpRight, Search, FileSpreadsheet } from "lucide-react";
 import { exportToExcel, printPage } from "@/lib/excel";
+import VendorProfileHistory from "@/components/erp/maintain/VendorProfileHistory";
 
 function formatBalance(val: number) {
   if (val < 0) return { text: `-Rs. ${Math.abs(val).toLocaleString()}`, label: "(Debit)", color: "text-rose-600" };
@@ -16,6 +17,21 @@ export default function VendorBalancesReportPage() {
   const [filteredData, setFilteredData] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedVendor, setSelectedVendor] = useState<any>(null);
+  const [shopProfile, setShopProfile] = useState<any>(null);
+
+  useEffect(() => {
+    async function fetchShop() {
+      try {
+        const res = await fetch("/api/shop-profile");
+        const json = await res.json();
+        if (json.ok) setShopProfile(json.data);
+      } catch (err) {
+        console.error("Error fetching shop profile:", err);
+      }
+    }
+    fetchShop();
+  }, []);
 
   useEffect(() => {
     async function fetchData() {
@@ -26,7 +42,6 @@ export default function VendorBalancesReportPage() {
         const parties = json.ok ? json.data : (Array.isArray(json) ? json : []);
 
         const result = parties
-          .filter((p: any) => p.balance !== 0 || p.debit !== 0 || p.credit !== 0)
           .map((p: any) => ({
             id: p._id,
             vendor: p.name || p.companyName || "Unknown Vendor",
@@ -36,6 +51,7 @@ export default function VendorBalancesReportPage() {
             debit: Number(p.debit) || 0,
             credit: Number(p.credit) || 0,
             closing: Number(p.balance) || 0,
+            rawParty: p
           }));
 
         setData(result);
@@ -134,6 +150,18 @@ export default function VendorBalancesReportPage() {
     </div>
   );
 
+  if (selectedVendor) {
+    return (
+      <div className="p-6">
+        <VendorProfileHistory 
+          vendor={selectedVendor}
+          onBack={() => setSelectedVendor(null)}
+          shopProfile={shopProfile}
+        />
+      </div>
+    );
+  }
+
   return (
     <ERPReportLayout
       title="Vendor Balances"
@@ -177,13 +205,18 @@ export default function VendorBalancesReportPage() {
                   return (
                     <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                       <td className="px-4 py-3 text-[11px] font-medium text-slate-400 dark:text-slate-500">{i + 1}</td>
-                      <td className="px-4 py-3 text-[11px] font-bold text-blue-600 cursor-pointer hover:underline">{row.vendor}</td>
+                      <td 
+                        onClick={() => setSelectedVendor(row.rawParty)}
+                        className="px-4 py-3 text-[11px] font-bold text-blue-600 cursor-pointer hover:underline"
+                      >
+                        {row.vendor}
+                      </td>
                       <td className="px-4 py-3 text-[11px] text-center">
                         <span className="px-1.5 py-0.5 rounded text-[8px] font-black border border-rose-200 bg-rose-50 text-rose-600 uppercase tracking-wider">{row.type}</span>
                       </td>
                       <td className="px-4 py-3 text-[11px] font-medium text-slate-600 dark:text-slate-300 text-center">{row.city}</td>
                       <td className="px-4 py-3 text-[11px] font-medium text-slate-500 dark:text-slate-400 text-right">
-                        {row.opening < 0 ? `-Rs. ${Math.abs(row.opening).toLocaleString()}` : `+Rs. ${row.opening.toLocaleString()}`}
+                        {row.opening > 0 ? `+Rs. ${row.opening.toLocaleString()}` : row.opening < 0 ? `-Rs. ${Math.abs(row.opening).toLocaleString()}` : "Rs. 0"}
                       </td>
                       <td className="px-4 py-3 text-[11px] font-medium text-rose-600 text-right">
                         {row.debit !== 0 ? `-Rs. ${Math.abs(row.debit).toLocaleString()}` : "Rs. 0"}

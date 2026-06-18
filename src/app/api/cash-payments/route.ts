@@ -1,7 +1,7 @@
 import { fail, ok } from "@/lib/api";
 import dbConnect from "@/lib/db";
 import CashPayment from "@/models/CashPayment";
-import { recalculatePartyBalance } from "@/services/posting/invoicePostingHelper";
+import { recalculatePartyBalance, postCashPaymentJournalEntries } from "@/services/posting/invoicePostingHelper";
 
 export async function GET() {
   await dbConnect();
@@ -68,8 +68,11 @@ export async function POST(req: Request) {
 
     const row = await CashPayment.create(payload);
 
-    if (partyId && payload.status === "Posted") {
-      await recalculatePartyBalance(String(partyId));
+    if (row.status === "Posted") {
+      await postCashPaymentJournalEntries(row);
+      if (partyId) {
+        await recalculatePartyBalance(String(partyId));
+      }
     }
 
     const populated = await CashPayment.findById(row._id)
