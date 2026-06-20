@@ -173,8 +173,10 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
   const [previewItemId, setPreviewItemId] = useState<string | null>(null);
   const [availableItems, setAvailableItems] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
+  const [allCustomers, setAllCustomers] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
+  const isInitializedRef = useRef(false);
 
   const [showCustomerSearch, setShowCustomerSearch] = useState(false);
   const [itemHistory, setItemHistory] = useState<any[]>([]);
@@ -207,9 +209,10 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
           !p.deleted
         );
         setCustomers(activeCustomers);
+        setAllCustomers(activeCustomers);
 
         // Only set default customer on initial load of a new invoice
-        if (!initialData?._id && !formData.customerId) {
+        if (!initialData?._id && !isInitializedRef.current) {
           const defaultCust = activeCustomers.find((c: any) => 
             c.name.toLowerCase().includes("walk-in")
           );
@@ -226,12 +229,13 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
             }));
           }
         }
+        isInitializedRef.current = true;
       }
       if (locsData.ok) setLocations(locsData.data);
       if (empsData.ok) setEmployees(empsData.data);
       if (banksData.ok) setBanks(banksData.data);
     } catch (e) { console.error(e); }
-  }, [initialData, formData.customerId]);
+  }, [initialData]);
 
   useEffect(() => {
     fetchData();
@@ -242,10 +246,14 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
 
   // Debounced search for customers when user types
   useEffect(() => {
-    if (!showCustomerSearch || formData.customerId) return;
+    if (!showCustomerSearch) return;
     
     const query = formData.customerName;
-    const delay = query ? 200 : 0;
+    if (!query) {
+      setCustomers(allCustomers);
+      return;
+    }
+    const delay = 200;
     
     const timer = setTimeout(async () => {
       try {
@@ -260,12 +268,12 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
     }, delay);
     
     return () => clearTimeout(timer);
-  }, [formData.customerName, formData.customerId, showCustomerSearch]);
+  }, [formData.customerName, showCustomerSearch, allCustomers]);
 
   // Sync customer details when customerId changes (e.g. on selection)
   useEffect(() => {
-    if (customers.length > 0 && formData.customerId) {
-      const currentCust = customers.find(c => c._id === formData.customerId);
+    if (allCustomers.length > 0 && formData.customerId) {
+      const currentCust = allCustomers.find(c => c._id === formData.customerId);
       if (currentCust) {
         setFormData(prev => ({
           ...prev,
@@ -278,7 +286,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
         }));
       }
     }
-  }, [customers, formData.customerId]);
+  }, [allCustomers, formData.customerId]);
 
   const [showPrevInvoicesModal, setShowPrevInvoicesModal] = useState(false);
   const [prevInvoices, setPrevInvoices] = useState<any[]>([]);
@@ -561,8 +569,9 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
     setItems(prev => prev.map(i => {
       const item = availableItems.find(ai => ai._id === i.itemId);
       if (item) {
-        const ratePerCtn = isWholesale ? (item.wholesaleRate || item.rate || 0) : (item.retailRate || item.rate || 0);
-        const qty = (Number(i.cartons) || 0) + (Number(i.gallons) || 0) + (Number(i.liters) || 0);
+        const baseRate = isWholesale ? (item.wholesaleRate || item.rate || 0) : (item.retailRate || item.rate || 0);
+        const ratePerCtn = formData.isOnCredit ? baseRate * 1.10 : baseRate;
+        const qty = Number(i.cartons) || 0;
         const grossAmount = qty * ratePerCtn;
         const discount = (grossAmount * (i.discPercent || 0)) / 100;
         const netAmount = grossAmount - discount;
@@ -625,7 +634,8 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
         if (field === "itemId" && item) {
           updated.itemCode = item.code;
           updated.description = item.name;
-          updated.ratePerCtn = formData.isWholesale ? (item.wholesaleRate || item.rate || 0) : (item.retailRate || item.rate || 0);
+          const baseRate = formData.isWholesale ? (item.wholesaleRate || item.rate || 0) : (item.retailRate || item.rate || 0);
+          updated.ratePerCtn = formData.isOnCredit ? baseRate * 1.10 : baseRate;
           
           updated.cartons = 1;
           const isFilterNow = item.name?.toLowerCase().includes("filter") || item.name?.toLowerCase().includes("fliter");
@@ -869,7 +879,35 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                 </div>
                 <div className="flex items-center gap-2">
                   <label className="text-xs font-bold w-24">Payment Terms</label>
-                  <input type="text" value={formData.termsOfPayment} onChange={e => setFormData({...formData, termsOfPayment: e.target.value})} className="flex-1 border border-[#cbd5e1] rounded px-2 py-1 text-xs outline-none" />
+                  <input 
+                    type="text" 
+                    value={formData.termsOfPayment} 
+                    onChange={e => {
+                      const val = e.target.value;
+                      const nextOnCredit = val.toLowerCase().includes("credit");
+                      setFormData({
+                        ...formData, 
+                        termsOfPayment: val,
+                        isOnCredit: nextOnCredit
+                      });
+                      if (nextOnCredit !== formData.isOnCredit) {
+                        setItems(prev => prev.map(i => {
+                          const item = availableItems.find(ai => ai._id === i.itemId);
+                          if (item) {
+                            const baseRate = formData.isWholesale ? (item.wholesaleRate || item.rate || 0) : (item.retailRate || item.rate || 0);
+                            const ratePerCtn = nextOnCredit ? baseRate * 1.10 : baseRate;
+                            const qty = Number(i.cartons) || 0;
+                            const grossAmount = qty * ratePerCtn;
+                            const discount = (grossAmount * (i.discPercent || 0)) / 100;
+                            const netAmount = grossAmount - discount;
+                            return { ...i, ratePerCtn, grossAmount, discount, netAmount };
+                          }
+                          return i;
+                        }));
+                      }
+                    }} 
+                    className="flex-1 border border-[#cbd5e1] rounded px-2 py-1 text-xs outline-none" 
+                  />
                 </div>
               </div>
 
@@ -878,7 +916,34 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                   <label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={formData.isCancelled} onChange={e => setFormData({...formData, isCancelled: e.target.checked})} /> Cancel</label>
                   <label className="flex items-center gap-2 text-xs font-bold"><input type="radio" checked={formData.isWholesale} onChange={() => handlePriceTypeChange(true)} /> Whole Sale</label>
                   <label className="flex items-center gap-2 text-xs font-bold"><input type="radio" checked={formData.isRetail} onChange={() => handlePriceTypeChange(false)} /> Retail</label>
-                  <label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={formData.isOnCredit} onChange={e => setFormData({...formData, isOnCredit: e.target.checked})} /> On Credit Bill</label>
+                  <label className="flex items-center gap-2 text-xs font-bold">
+                    <input 
+                      type="checkbox" 
+                      checked={formData.isOnCredit} 
+                      onChange={e => {
+                        const nextOnCredit = e.target.checked;
+                        setFormData({
+                          ...formData, 
+                          isOnCredit: nextOnCredit,
+                          termsOfPayment: nextOnCredit ? "Credit on Bill" : "Cash"
+                        });
+                        setItems(prev => prev.map(i => {
+                          const item = availableItems.find(ai => ai._id === i.itemId);
+                          if (item) {
+                            const baseRate = formData.isWholesale ? (item.wholesaleRate || item.rate || 0) : (item.retailRate || item.rate || 0);
+                            const ratePerCtn = nextOnCredit ? baseRate * 1.10 : baseRate;
+                            const qty = Number(i.cartons) || 0;
+                            const grossAmount = qty * ratePerCtn;
+                            const discount = (grossAmount * (i.discPercent || 0)) / 100;
+                            const netAmount = grossAmount - discount;
+                            return { ...i, ratePerCtn, grossAmount, discount, netAmount };
+                          }
+                          return i;
+                        }));
+                      }} 
+                    /> 
+                    On Credit Bill
+                  </label>
                 </div>
                 <div className="grid grid-cols-2 gap-2 pt-2">
                   <div className="space-y-2">
@@ -1165,9 +1230,9 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
            <div className="col-span-12 lg:col-span-5 bg-slate-800 text-white p-6 rounded border border-slate-900 shadow-xl space-y-4">
               <div className="space-y-3">
                   <div className="flex justify-between items-center border-b border-slate-700 pb-2"><span className="text-xs font-bold text-slate-400 uppercase">Gross Total</span><span className="text-lg font-black font-mono">{grossTotal.toFixed(2)}</span></div>
-                  <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-400 uppercase">Additional Discount</span><input type="number" value={formData.additionalDiscount} onChange={e => setFormData({...formData, additionalDiscount: Math.max(0, Number(e.target.value) || 0)})} className="w-32 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-right font-black font-mono text-rose-400 outline-none" /></div>
-                  <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-400 uppercase">Car Service</span><input type="number" value={formData.carService} onChange={e => setFormData({...formData, carService: Math.max(0, Number(e.target.value) || 0)})} className="w-32 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-right font-black font-mono text-blue-300 outline-none" /></div>
-                  <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-400 uppercase">Car Wash Discount</span><input type="number" value={formData.carServiceDiscount} onChange={e => setFormData({...formData, carServiceDiscount: Math.max(0, Number(e.target.value) || 0)})} className="w-32 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-right font-black font-mono text-rose-300 outline-none" /></div>
+                  <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-400 uppercase">Additional Discount</span><input type="number" value={formData.additionalDiscount} onChange={e => setFormData({...formData, additionalDiscount: Math.max(0, Number(e.target.value) || 0)})} className="w-32 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-right font-black font-mono text-rose-400 outline-none no-spinner" /></div>
+                  <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-400 uppercase">Car Service</span><input type="number" value={formData.carService} onChange={e => setFormData({...formData, carService: Math.max(0, Number(e.target.value) || 0)})} className="w-32 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-right font-black font-mono text-blue-300 outline-none no-spinner" /></div>
+                  <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-400 uppercase">Car Wash Discount</span><input type="number" value={formData.carServiceDiscount} onChange={e => setFormData({...formData, carServiceDiscount: Math.max(0, Number(e.target.value) || 0)})} className="w-32 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-right font-black font-mono text-rose-300 outline-none no-spinner" /></div>
                  <div className="flex justify-between items-center bg-slate-700/50 p-3 rounded-lg border border-slate-600 mt-4"><span className="text-sm font-black text-white uppercase tracking-wider">Net Total</span><span className="text-3xl font-black font-mono text-yellow-400">{netTotal.toFixed(2)}</span></div>
                  <div className="flex justify-between items-center pt-4"><span className="text-xs font-bold text-slate-400 uppercase">Amount Received</span><input type="number" value={formData.amountReceived} onChange={e => setFormData({...formData, amountReceived: Number(e.target.value)})} className="w-40 bg-white text-slate-900 border-none rounded px-3 py-2 text-right text-lg font-black font-mono outline-none" /></div>
                  <div className="flex justify-between items-center pt-2"><span className="text-xs font-bold text-slate-400 uppercase">Balance</span><span className={`text-xl font-black font-mono ${balanceAmount > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>{balanceAmount.toFixed(2)}</span></div>
