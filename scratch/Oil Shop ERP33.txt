@@ -1,0 +1,25 @@
+1
+0
+Rs. 0.0M
+OILSHOP
+CUSTOMER BAL ANCES REPORT
+GENERATED: 19/05/2026
+ACCOUNT CODE 	CUSTOMER NAME 	TYPE OPENING
+BALANCE DEBIT CREDIT CLOSING
+BALANCE STATUS
+CUST-1779200636864 Nasrullah Qasim 	CASH CUSTOMER Rs.896 	- 	- 	Rs.-304 	ACTIVE
+TOTAL PKR: Rs.896 	Rs.0 Rs.0 	Rs.-304 	-
+Active Accounts
+Inactive Accounts
+Total Outstanding Receivable
+19/05/2026, 22:36 	Oil Shop ERP
+https://oilshop-sigma.vercel.app/maintain/customer-balances 	1/2
+
+-- 1 of 2 --
+
+OPENING 	CLOSING
+19/05/2026, 22:36 	Oil Shop ERP
+https://oilshop-sigma.vercel.app/maintain/customer-balances 	2/2
+
+-- 2 of 2 --
+

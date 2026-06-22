@@ -22,7 +22,7 @@ export default function ReceivablesPage() {
   const [selectedSalesman, setSelectedSalesman] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const todayDate = new Date("2026-06-17");
+  const todayDate = new Date();
 
   const fetchData = async () => {
     setLoading(true);

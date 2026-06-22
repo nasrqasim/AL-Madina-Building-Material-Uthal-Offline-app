@@ -1,0 +1,27 @@
+Chart of Inventory
+Manage product categories, sub-categories and individual items
+0
+0
+PKR 0.00M
+Rs.0
+CATEGORIES
+SUB-CATEGORIES
+SELECT A CATEGORY FIRST
+ITEMS
+Total Items
+Low Stock
+Total Value
+Avg Purchase Rate
+Search...
+22/05/2026, 18:43 	Oil Shop ERP
+https://oilshop-sigma.vercel.app/maintain/items 	1/2
+
+-- 1 of 2 --
+
+CODE 	ITEM NAME 	PURCHASE RATE 	RETAIL RATE 	STOCK (CTNS)
+No records found
+22/05/2026, 18:43 	Oil Shop ERP
+https://oilshop-sigma.vercel.app/maintain/items 	2/2
+
+-- 2 of 2 --
+

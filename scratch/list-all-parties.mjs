@@ -4,21 +4,20 @@ const uri = "mongodb+srv://oilshop:Oil%233421@cluster0.68vjmln.mongodb.net/pos_s
 
 mongoose.connect(uri).then(async () => {
     try {
-        const allParties = await mongoose.connection.db.collection('parties').find().toArray();
-        console.log(`Total parties: ${allParties.length}`);
+        const parties = await mongoose.connection.db.collection('parties').find().toArray();
+        console.log(`Total parties in database: ${parties.length}`);
         
-        const counts = {};
-        allParties.forEach(p => {
-            const key = `${p.type || 'no-type'}-${p.category || 'no-category'}`;
-            counts[key] = (counts[key] || 0) + 1;
-        });
-        console.log('Party counts by Type & Category:', counts);
+        const customers = parties.filter(p => p.type === 'Customer');
+        const vendors = parties.filter(p => p.type === 'Vendor');
         
-        console.log('Sample of 10 parties:');
-        allParties.slice(0, 15).forEach(p => {
-            console.log(`Name: ${p.name} | Type: ${p.type} | Category: ${p.category}`);
+        console.log(`Customers: ${customers.length}`);
+        console.log(`Vendors: ${vendors.length}`);
+        
+        console.log("\n=== CUSTOMERS IN DB ===");
+        customers.forEach((c, i) => {
+            console.log(`${i + 1}. Code: ${c.code} | Name: ${c.name} | Opening: ${c.openingBalance}`);
         });
-
+        
         process.exit(0);
     } catch(e) {
         console.error(e);

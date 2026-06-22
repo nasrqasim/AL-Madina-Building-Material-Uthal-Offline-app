@@ -1,0 +1,24 @@
+AL HADEED TRADERS
+Tel: 03108444612
+SALE RECEIPT
+Receipt No. 	SI-597251
+Date 17/05/2026 	Time 05:00:00 AM
+Sales Person: 	-
+Customer Name: 	Walk-in Customer
+Payment Type: 	Cash
+Description 	Qty Price/Ctn Total
+petrol
+1 	190 	190
+Item(s) 1 	Total Qty 1.00
+Gross Total 	190.00
+Discount 	0.00
+NET TOTAL PKR 	190.00
+Amount Received 	190.00
+Cash Back PKR 	0.00
+*Thanks For Your Visit*
+Software By: Roonjha Developers : 03152914836
+18/05/2026, 01:38 	Oil Shop ERP
+https://oilshop-sigma.vercel.app/sales/sale-invoice 	1/1
+
+-- 1 of 1 --
+

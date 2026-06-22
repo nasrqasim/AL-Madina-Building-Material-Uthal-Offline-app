@@ -1,0 +1,8 @@
+OILSHOP
+VENDOR BAL ANCES REPORT
+GENERATED: 19/05/2026
+19/05/2026, 22:37 	Oil Shop ERP
+https://oilshop-sigma.vercel.app/maintain/vendors 	1/1
+
+-- 1 of 1 --
+

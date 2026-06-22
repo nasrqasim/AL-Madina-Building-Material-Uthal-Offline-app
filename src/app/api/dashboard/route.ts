@@ -17,7 +17,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const dateParam = searchParams.get("date"); // YYYY-MM-DD format
     
-    const targetDate = dateParam ? new Date(dateParam) : new Date("2026-06-17");
+    const targetDate = dateParam ? new Date(dateParam) : new Date();
     
     const startOfDay = new Date(targetDate);
     startOfDay.setHours(0, 0, 0, 0);
@@ -32,7 +32,7 @@ export async function GET(req: Request) {
     // Less: Sale Returns and POS Returns total amount
     const salesInvoicesTodayRes = await Invoice.aggregate([
       { $match: { type: { $in: ["sale", "non_tax_sale", "challan"] }, date: { $gte: startOfDay, $lte: endOfDay }, status: { $ne: "cancelled" } } },
-      { $group: { _id: null, total: { $sum: "$amountReceived" } } }
+      { $group: { _id: null, total: { $sum: "$totalAmount" } } }
     ]);
     const posSalesTodayRes = await Invoice.aggregate([
       { $match: { type: "pos", date: { $gte: startOfDay, $lte: endOfDay }, status: { $ne: "cancelled" } } },

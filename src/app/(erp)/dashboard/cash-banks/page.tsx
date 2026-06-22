@@ -12,14 +12,24 @@ export default function CashBanksPage() {
   const [journalEntries, setJournalEntries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Date Filters
   const [selectedPeriod, setSelectedPeriod] = useState<"today" | "yesterday" | "thisWeek" | "thisMonth" | "thisYear" | "custom">("thisMonth");
-  const [customFromDate, setCustomFromDate] = useState("2026-06-01");
-  const [customToDate, setCustomToDate] = useState("2026-06-30");
+  const [customFromDate, setCustomFromDate] = useState(() => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}-01`;
+  });
+  const [customToDate, setCustomToDate] = useState(() => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const lastDay = new Date(year, d.getMonth() + 1, 0).getDate();
+    return `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+  });
 
   const [activeViewTab, setActiveViewTab] = useState<"daily" | "monthly" | "yearly" | "overall">("daily");
 
-  const anchorDate = new Date("2026-06-17");
+  const anchorDate = new Date();
 
   const fetchData = async () => {
     setLoading(true);
