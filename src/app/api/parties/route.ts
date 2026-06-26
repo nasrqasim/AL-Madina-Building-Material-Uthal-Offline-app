@@ -2,16 +2,38 @@ import { fail, ok } from "@/lib/api";
 import dbConnect from "@/lib/db";
 import Party from "@/models/Party";
 import { recalculatePartyBalance } from "@/services/posting/invoicePostingHelper";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth";
 
 export async function GET() {
+  const session = await getServerSession(authOptions);
+  const role = session?.user?.role;
+  const normalizedRole = (role || "").toLowerCase().replace(/\s+/g, "");
+
+  const query: any = {};
+  if (normalizedRole === "sales_user" || normalizedRole === "salesuser") {
+    query.type = "Customer";
+  }
+
   await dbConnect();
-  const rows = await Party.find().sort({ createdAt: -1 }).lean();
+  const rows = await Party.find(query).sort({ createdAt: -1 }).lean();
   return ok(rows);
 }
 
 export async function POST(req: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    const role = session?.user?.role;
+    const normalizedRole = (role || "").toLowerCase().replace(/\s+/g, "");
+
     const body = await req.json();
+
+    if (normalizedRole === "sales_user" || normalizedRole === "salesuser") {
+      if (body.type !== "Customer") {
+        return fail("Permission denied (Restricted party type)", 403);
+      }
+    }
+
     await dbConnect();
     if (body.openingBalance && (!body.balance || body.balance === 0)) {
       body.balance = body.openingBalance;

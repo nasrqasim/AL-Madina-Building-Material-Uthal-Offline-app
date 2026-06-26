@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import ERPPageHeader from "@/components/erp/ui/ERPPageHeader";
 import ERPStatCard from "@/components/erp/ui/ERPStatCard";
 import ERPDataTable from "@/components/erp/ui/ERPDataTable";
@@ -10,6 +11,10 @@ import { exportToExcel, downloadTemplate, printPage, triggerFileInput, importFro
 import CategoryModal from "@/components/erp/maintain/CategoryModal";
 
 export default function ItemsPage() {
+  const { data: session } = useSession();
+  const role = session?.user?.role;
+  const isSalesUser = (role || "").toLowerCase().replace(/\s+/g, "") === "salesuser" || (role || "").toLowerCase().replace(/\s+/g, "") === "sales_user";
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCatModalOpen, setIsCatModalOpen] = useState(false);
   const [catModalType, setCatModalType] = useState<"main" | "sub">("main");
@@ -158,9 +163,11 @@ export default function ItemsPage() {
         actions={[
           { label: "Print", onClick: printPage, icon: Printer },
           { label: "Export", onClick: () => exportToExcel(items, "Items.xlsx"), icon: FileSpreadsheet },
-          { label: "Download Template", onClick: () => downloadTemplate(["Code", "Item Name", "Purchase Rate", "Wholesale Rate", "Retail Rate", "Stock"], "ItemsTemplate.xlsx"), icon: Download },
-          { label: "Import", onClick: handleImport, icon: FileText },
-          { label: "Add Item", onClick: handleAdd, icon: Plus, variant: "primary" },
+          ...(!isSalesUser ? [
+            { label: "Download Template", onClick: () => downloadTemplate(["Code", "Item Name", "Purchase Rate", "Wholesale Rate", "Retail Rate", "Stock"], "ItemsTemplate.xlsx"), icon: Download },
+            { label: "Import", onClick: handleImport, icon: FileText },
+            { label: "Add Item", onClick: handleAdd, icon: Plus, variant: "primary" as const },
+          ] : [])
         ]}
       />
 
@@ -177,12 +184,14 @@ export default function ItemsPage() {
           <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
             <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
               <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Categories</h3>
-              <button 
-                onClick={() => { setCatModalType("main"); setIsCatModalOpen(true); }}
-                className="p-1.5 text-maroon-800 hover:bg-maroon-50 rounded-lg transition-all"
-              >
-                <Plus size={16} />
-              </button>
+              {!isSalesUser && (
+                <button 
+                  onClick={() => { setCatModalType("main"); setIsCatModalOpen(true); }}
+                  className="p-1.5 text-maroon-800 hover:bg-maroon-50 rounded-lg transition-all"
+                >
+                  <Plus size={16} />
+                </button>
+              )}
             </div>
             <div className="p-4 max-h-[300px] overflow-y-auto">
               <div className="space-y-1">
@@ -203,11 +212,13 @@ export default function ItemsPage() {
                         {cat.name}
                       </div>
                       <div className="flex items-center gap-1">
-                        <Trash2 
-                          size={12} 
-                          className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-all" 
-                          onClick={(e) => handleDeleteCategory(String(cat._id), e)}
-                        />
+                        {!isSalesUser && (
+                          <Trash2 
+                            size={12} 
+                            className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-all" 
+                            onClick={(e) => handleDeleteCategory(String(cat._id), e)}
+                          />
+                        )}
                         <ChevronRight size={14} className={selectedCatId && String(selectedCatId) === String(cat._id) ? "opacity-100" : "opacity-0"} />
                       </div>
                     </button>
@@ -220,12 +231,14 @@ export default function ItemsPage() {
           <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
             <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
               <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Sub-Categories</h3>
-              <button 
-                onClick={() => { setCatModalType("sub"); setIsCatModalOpen(true); }}
-                className="p-1.5 text-maroon-800 hover:bg-maroon-50 rounded-lg transition-all"
-              >
-                <Plus size={16} />
-              </button>
+              {!isSalesUser && (
+                <button 
+                  onClick={() => { setCatModalType("sub"); setIsCatModalOpen(true); }}
+                  className="p-1.5 text-maroon-800 hover:bg-maroon-50 rounded-lg transition-all"
+                >
+                  <Plus size={16} />
+                </button>
+              )}
             </div>
             <div className="p-4 max-h-[300px] overflow-y-auto">
               {selectedCatId ? (
@@ -247,11 +260,13 @@ export default function ItemsPage() {
                           <div className="w-1.5 h-1.5 rounded-full bg-maroon-800" />
                           {sub.name}
                         </div>
-                        <Trash2 
-                          size={12} 
-                          className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-all" 
-                          onClick={(e) => handleDeleteCategory(String(sub._id), e)}
-                        />
+                        {!isSalesUser && (
+                          <Trash2 
+                            size={12} 
+                            className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-all" 
+                            onClick={(e) => handleDeleteCategory(String(sub._id), e)}
+                          />
+                        )}
                       </button>
                     </div>
                   ))}
@@ -277,10 +292,10 @@ export default function ItemsPage() {
           <ERPDataTable columns={columns} data={filteredItems}
             onSearch={setSearchTerm}
             searchPlaceholder="Search by item name or code..."
-            actions={[
+            actions={!isSalesUser ? [
               { label: "Edit", onClick: handleEdit, icon: Edit2 },
               { label: "Delete", onClick: (row: any) => handleDelete(row._id), icon: Trash2, variant: "danger" },
-            ]}
+            ] : undefined}
           />
         </div>
       </div>

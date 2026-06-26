@@ -104,9 +104,41 @@ export default function Sidebar({ user }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1 custom-scrollbar">
-        {erpModules.map((item) => (
-          <MenuItem key={item.title} item={item} pathname={pathname} />
-        ))}
+        {erpModules
+          .filter((item) => {
+            const r = (user?.role || "").toLowerCase().replace(/\s+/g, "");
+            const isSuperAdmin = r === "superadmin" || r === "admin";
+            const isSalesUser = r === "salesuser" || r === "sales_user";
+            
+            if (isSuperAdmin) return true;
+            if (isSalesUser) {
+              const allowedMainTitles = ["Sales", "Maintain", "WhatsApp Center"];
+              return allowedMainTitles.includes(item.title);
+            }
+            return !item.roles || item.roles.includes(user?.role as any);
+          })
+          .map((item) => {
+            const r = (user?.role || "").toLowerCase().replace(/\s+/g, "");
+            const isSalesUser = r === "salesuser" || r === "sales_user";
+            
+            if (isSalesUser && item.submenu) {
+              const filteredSubmenu = item.submenu.filter((sub) => {
+                const allowedSubTitles = [
+                  "Sale Invoice", "Sale Return", "POS Counter Sale",
+                  "Customers", "Customer Balances", "Items / Products"
+                ];
+                return allowedSubTitles.includes(sub.title);
+              });
+              return (
+                <MenuItem 
+                  key={item.title} 
+                  item={{ ...item, submenu: filteredSubmenu }} 
+                  pathname={pathname} 
+                />
+              );
+            }
+            return <MenuItem key={item.title} item={item} pathname={pathname} />;
+          })}
       </nav>
 
       {/* User Profile */}

@@ -7,11 +7,25 @@ import { generateInvoiceJournalEntries, recalculatePartyBalance } from "@/servic
 import { normalizeInvoicePayload } from "@/lib/invoicePayload";
 import { getPopulatedInvoice } from "@/lib/invoiceQueries";
 
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth";
+
 export async function GET(_: Request, { params }: { params: { id: string } }) {
   try {
     await dbConnect();
+    const session = await getServerSession(authOptions);
+    const role = session?.user?.role;
+    const normalizedRole = (role || "").toLowerCase().replace(/\s+/g, "");
+
     const row = await getPopulatedInvoice(params.id);
     if (!row) return fail("Invoice not found", 404);
+
+    if (normalizedRole === "sales_user" || normalizedRole === "salesuser") {
+      if ((row as any).type !== "sale" && (row as any).type !== "sale_return" && (row as any).type !== "pos") {
+        return fail("Permission denied", 403);
+      }
+    }
+
     return ok(row);
   } catch (e) {
     return fail((e as Error).message);
@@ -20,9 +34,27 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   try {
-    const body = await req.json();
+    const session = await getServerSession(authOptions);
+    const role = session?.user?.role;
+    const normalizedRole = (role || "").toLowerCase().replace(/\s+/g, "");
+
     await dbConnect();
+
+    if (normalizedRole === "sales_user" || normalizedRole === "salesuser") {
+      const existing = await Invoice.findById(params.id).lean();
+      if (!existing || ((existing as any).type !== "sale" && (existing as any).type !== "sale_return" && (existing as any).type !== "pos")) {
+        return fail("Permission denied", 403);
+      }
+    }
+
+    const body = await req.json();
     const payload = normalizeInvoicePayload(body);
+
+    if (normalizedRole === "sales_user" || normalizedRole === "salesuser") {
+      if (payload.type && payload.type !== "sale" && payload.type !== "sale_return" && payload.type !== "pos") {
+        return fail("Permission denied (Restricted invoice type)", 403);
+      }
+    }
 
     if (payload.partyId) {
       const party = await Party.findById(payload.partyId).lean() as any;
@@ -51,7 +83,18 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 
 export async function DELETE(_: Request, { params }: { params: { id: string } }) {
   try {
+    const session = await getServerSession(authOptions);
+    const role = session?.user?.role;
+    const normalizedRole = (role || "").toLowerCase().replace(/\s+/g, "");
+
     await dbConnect();
+
+    if (normalizedRole === "sales_user" || normalizedRole === "salesuser") {
+      const existing = await Invoice.findById(params.id).lean();
+      if (!existing || ((existing as any).type !== "sale" && (existing as any).type !== "sale_return" && (existing as any).type !== "pos")) {
+        return fail("Permission denied", 403);
+      }
+    }
     
     // Get the invoice to extract partyId before deletion
     const invoice = await Invoice.findById(params.id);

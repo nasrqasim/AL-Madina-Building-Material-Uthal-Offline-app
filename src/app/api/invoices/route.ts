@@ -37,12 +37,25 @@ export async function GET(req: Request) {
   }
 }
 
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth";
+
 export async function POST(req: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    const role = session?.user?.role;
+    const normalizedRole = (role || "").toLowerCase().replace(/\s+/g, "");
+
     const body = await req.json();
     await dbConnect();
 
     const payload = normalizeInvoicePayload(body);
+
+    if (normalizedRole === "sales_user" || normalizedRole === "salesuser") {
+      if (payload.type !== "sale" && payload.type !== "sale_return" && payload.type !== "pos") {
+        return fail("Permission denied (Restricted invoice type)", 403);
+      }
+    }
 
     if (payload.partyId) {
       const party = await Party.findById(payload.partyId).lean() as any;

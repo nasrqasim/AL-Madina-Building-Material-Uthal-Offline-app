@@ -78,7 +78,7 @@ export default function ERPLayout({ children, user }: ERPLayoutProps) {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex">
-      <CommandPalette isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
+      <CommandPalette isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} userRole={user.role} />
       <Sidebar user={{ name: user.name, role: user.role }} />
       
       <div className="flex-1 ml-64 flex flex-col min-h-screen">

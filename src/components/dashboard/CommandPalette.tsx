@@ -8,9 +8,10 @@ import { useRouter } from "next/navigation";
 interface CommandPaletteProps {
   isOpen: boolean;
   onClose: () => void;
+  userRole?: string;
 }
 
-export default function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
+export default function CommandPalette({ isOpen, onClose, userRole }: CommandPaletteProps) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const router = useRouter();
@@ -37,9 +38,26 @@ export default function CommandPalette({ isOpen, onClose }: CommandPaletteProps)
     return items;
   });
 
+  const isSalesUser = (userRole || "").toLowerCase().replace(/\s+/g, "") === "salesuser" || (userRole || "").toLowerCase().replace(/\s+/g, "") === "sales_user";
+
+  const allowedItems = isSalesUser
+    ? allItems.filter(item => {
+        const allowedPaths = [
+          /^\/sales\/sale-invoice(\/.*)?$/,
+          /^\/sales\/sale-return(\/.*)?$/,
+          /^\/sales\/pos-counter-sale(\/.*)?$/,
+          /^\/maintain\/customers(\/.*)?$/,
+          /^\/maintain\/customer-balances(\/.*)?$/,
+          /^\/maintain\/items(\/.*)?$/,
+          /^\/whatsapp(\/.*)?$/,
+        ];
+        return allowedPaths.some(regex => regex.test(item.href));
+      })
+    : allItems;
+
   const filteredItems = query === "" 
-    ? allItems.slice(0, 6) // Popular items
-    : allItems.filter(item => 
+    ? allowedItems.slice(0, 6) // Popular items
+    : allowedItems.filter(item => 
         item.title.toLowerCase().includes(query.toLowerCase()) || 
         item.category.toLowerCase().includes(query.toLowerCase())
       ).slice(0, 20); // Show more results

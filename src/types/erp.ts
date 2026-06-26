@@ -1,4 +1,4 @@
-export type UserRole = "superadmin" | "admin" | "salesman" | "dataentry";
+export type UserRole = "superadmin" | "admin" | "salesman" | "dataentry" | "sales_user";
 
 export type FinancialYear = string;
 
