@@ -26,6 +26,7 @@ export default withAuth(
             /^\/api\/bank-receipts(\/.*)?$/,
             /^\/api\/whatsapp(\/.*)?$/,
             /^\/api\/shop-profile(\/.*)?$/,
+            /^\/api\/settings\/print-formats(\/.*)?$/,
             /^\/api\/auth(\/.*)?$/,
           ];
 
