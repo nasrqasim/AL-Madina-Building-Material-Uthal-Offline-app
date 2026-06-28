@@ -164,7 +164,7 @@ export default function ProfitLossReportPage() {
           <div className="px-4">
             <div className="mb-8 text-center">
                 <h2 className="text-xl font-black text-maroon-800 uppercase tracking-widest">Income Statement</h2>
-                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1">Oilshop | {fromDate} to {toDate}</p>
+                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1">Al Hadeed Traders | {fromDate} to {toDate}</p>
             </div>
 
             <div className="max-w-4xl mx-auto space-y-8 bg-white dark:bg-slate-900 p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">

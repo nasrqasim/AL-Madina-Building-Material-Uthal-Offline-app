@@ -181,7 +181,7 @@ export default function BalanceSheetReportPage() {
           <div className="px-4">
             <div className="mb-8 text-center">
                 <h2 className="text-xl font-black text-maroon-800 uppercase tracking-widest">Balance Sheet Statement</h2>
-                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1">As of {asOfDate} | Oilshop</p>
+                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1">As of {asOfDate} | Al Hadeed Traders</p>
             </div>
 
             <div className="max-w-5xl mx-auto overflow-hidden border border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 shadow-sm">

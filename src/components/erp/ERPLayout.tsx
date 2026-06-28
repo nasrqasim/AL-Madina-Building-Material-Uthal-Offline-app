@@ -76,6 +76,9 @@ export default function ERPLayout({ children, user }: ERPLayoutProps) {
     }
   }, [visibility, isDashboard]);
 
+  const r = (user.role || "").toLowerCase().replace(/\s+/g, "");
+  const isSalesUser = r === "salesuser" || r === "sales_user";
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex">
       <CommandPalette isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} userRole={user.role} />
@@ -85,12 +88,12 @@ export default function ERPLayout({ children, user }: ERPLayoutProps) {
         <TopBar 
           title="Dashboard" 
           onSearchClick={() => setIsSearchOpen(true)}
-          widgetVisibility={isDashboard ? visibility : undefined}
-          onWidgetToggle={isDashboard ? toggle : undefined}
+          widgetVisibility={isDashboard && !isSalesUser ? visibility : undefined}
+          onWidgetToggle={isDashboard && !isSalesUser ? toggle : undefined}
           user={{ 
             name: user.name, 
             role: user.role,
-            oilshop: "Oilshop" 
+            oilshop: "Al Hadeed Traders" 
           }} 
         />
         

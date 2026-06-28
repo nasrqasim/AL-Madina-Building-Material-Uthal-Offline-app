@@ -309,7 +309,7 @@ export default function PrintFormatsPage() {
                   )
                 )}
                 <div>
-                  <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase">{companyInfo?.companyName || "Oil Shop ERP"}</h2>
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase">{companyInfo?.companyName || "Al Hadeed Traders"}</h2>
                   <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 font-medium">{companyInfo?.address || "Address Line 1"}, {companyInfo?.city || "City"}</p>
                   <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 font-medium">Ph: {companyInfo?.phone || "+92 000 0000000"} | NTN: {companyInfo?.ntn || "0000000-0"}</p>
                 </div>

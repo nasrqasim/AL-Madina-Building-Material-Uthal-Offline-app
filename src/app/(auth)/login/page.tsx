@@ -46,8 +46,8 @@ export default function LoginPage() {
           <div className="absolute inset-0 rounded-3xl bg-gradient-to-tr from-purple-500/5 to-transparent pointer-events-none" />
           
           <div className="flex items-center gap-3 mb-8 relative z-10">
-            <div className="w-10 h-10 bg-gradient-to-tr from-purple-600 to-indigo-600 rounded-xl flex items-center justify-center font-bold text-white text-xl shadow-lg shadow-purple-500/20">N</div>
-            <h1 className="text-2xl font-black text-white tracking-tight">Najeeb ERP</h1>
+            <div className="w-10 h-10 bg-gradient-to-tr from-purple-600 to-indigo-600 rounded-xl flex items-center justify-center font-bold text-white text-xl shadow-lg shadow-purple-500/20">A</div>
+            <h1 className="text-2xl font-black text-white tracking-tight">Al Hadeed Traders</h1>
           </div>
           
           <p className="mb-10 text-sm font-medium text-slate-400 relative z-10 leading-relaxed">
@@ -94,7 +94,7 @@ export default function LoginPage() {
 
           <div className="mt-10 pt-8 border-t border-white/5 text-center relative z-10">
             <p className="text-[10px] font-bold text-slate-600 uppercase tracking-[0.25em]">
-              © 2026 Najeeb ERP. All Rights Reserved.
+              © 2026 Al Hadeed Traders. All Rights Reserved.
             </p>
           </div>
         </form>

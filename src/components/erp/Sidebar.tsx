@@ -93,11 +93,11 @@ export default function Sidebar({ user }: SidebarProps) {
       <div className="p-6 border-b border-slate-800">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-maroon-800 rounded flex items-center justify-center text-white font-bold">
-            N
+            A
           </div>
           <div>
-            <h1 className="text-white font-bold leading-none uppercase">Najeeb</h1>
-            <p className="text-[10px] text-slate-500 tracking-tighter">Oil Shop ERP</p>
+            <h1 className="text-white font-bold leading-none uppercase">Al Hadeed</h1>
+            <p className="text-[10px] text-slate-500 tracking-tighter">Al Hadeed Traders</p>
           </div>
         </div>
       </div>
@@ -112,7 +112,7 @@ export default function Sidebar({ user }: SidebarProps) {
             
             if (isSuperAdmin) return true;
             if (isSalesUser) {
-              const allowedMainTitles = ["Sales", "Maintain", "WhatsApp Center"];
+              const allowedMainTitles = ["Dashboard", "Sales", "Maintain", "WhatsApp Center", "Reports"];
               return allowedMainTitles.includes(item.title);
             }
             return !item.roles || item.roles.includes(user?.role as any);
@@ -122,13 +122,34 @@ export default function Sidebar({ user }: SidebarProps) {
             const isSalesUser = r === "salesuser" || r === "sales_user";
             
             if (isSalesUser && item.submenu) {
-              const filteredSubmenu = item.submenu.filter((sub) => {
-                const allowedSubTitles = [
-                  "Sale Invoice", "Sale Return", "POS Counter Sale",
-                  "Customers", "Customer Balances", "Items / Products"
-                ];
-                return allowedSubTitles.includes(sub.title);
-              });
+              let filteredSubmenu = item.submenu;
+              if (item.title === "Maintain") {
+                filteredSubmenu = item.submenu.filter((sub) => 
+                  ["Customers", "Customer Balances"].includes(sub.title)
+                );
+              } else if (item.title === "Sales") {
+                filteredSubmenu = item.submenu.filter((sub) => 
+                  ["Sale Invoice", "Sale Return", "POS Counter Sale"].includes(sub.title)
+                );
+              } else if (item.title === "Reports") {
+                filteredSubmenu = item.submenu
+                  .filter((sub) => ["Sale Reports", "Inventory Reports"].includes(sub.title))
+                  .map((sub) => {
+                    if (sub.title === "Sale Reports" && sub.submenu) {
+                      return {
+                        ...sub,
+                        submenu: sub.submenu.filter((s) => s.title === "Customer Balances")
+                      };
+                    }
+                    if (sub.title === "Inventory Reports" && sub.submenu) {
+                      return {
+                        ...sub,
+                        submenu: sub.submenu.filter((s) => s.title === "Inventory Balances")
+                      };
+                    }
+                    return sub;
+                  });
+              }
               return (
                 <MenuItem 
                   key={item.title} 

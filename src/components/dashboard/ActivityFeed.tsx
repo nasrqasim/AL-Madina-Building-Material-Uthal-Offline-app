@@ -45,7 +45,7 @@ export default function ActivityFeed() {
   }, [activeTab]);
 
   const activities = [
-    { title: "System Ready", desc: "Najeeb ERP is online and connected to Atlas.", time: "Live", Icon: Database, iconBg: "bg-purple-50 text-purple-600" },
+    { title: "System Ready", desc: "Al Hadeed Traders ERP is online and connected to Atlas.", time: "Live", Icon: Database, iconBg: "bg-purple-50 text-purple-600" },
   ];
 
   const activeUsers = [

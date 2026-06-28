@@ -27,7 +27,7 @@ export default function UnderConstructionPage({ title, description, module }: Un
           
           <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight mb-4">Module Under Development</h2>
           <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500 font-medium max-w-lg mb-8">
-            The <strong className="text-slate-700 dark:text-slate-200">{title}</strong> module is currently being built and refined to match the premium Najeeb ERP standards. Check back soon for the complete release.
+            The <strong className="text-slate-700 dark:text-slate-200">{title}</strong> module is currently being built and refined to match the premium Al Hadeed Traders ERP standards. Check back soon for the complete release.
           </p>
           
           <div className="flex items-center gap-4">

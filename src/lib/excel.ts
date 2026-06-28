@@ -177,7 +177,7 @@ export const exportDOMTableToExcel = (filename: string = 'Report') => {
  */
 export const printListDocument = ({
   title,
-  companyName = "Najeeb Oil Shop",
+  companyName = "Al Hadeed Traders",
   companyAddress = "Bela, Balochistan, Pakistan",
   companyPhone = "",
   columns,

@@ -23,8 +23,8 @@ export default function CompanySettingsPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   const [formData, setFormData] = useState({
-    companyName: "Oilshop",
-    tradeName: "Nasr oil shop",
+    companyName: "Al Hadeed Traders",
+    tradeName: "Al Hadeed Traders",
     address: "Uthal Lasbela",
     city: "Bela",
     province: "Select Province",

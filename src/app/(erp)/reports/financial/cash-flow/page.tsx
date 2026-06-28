@@ -122,7 +122,7 @@ export default function CashFlowStatementReportPage() {
         <div className="px-4">
             <div className="mb-8">
                 <h2 className="text-xl font-black text-maroon-800 uppercase tracking-widest">Cash Flow Statement</h2>
-                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1">Oilshop | {fromDate} to {toDate} | {report?.details.operating.length || 0} transactions</p>
+                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1">Al Hadeed Traders | {fromDate} to {toDate} | {report?.details.operating.length || 0} transactions</p>
             </div>
 
             {isLoading ? (

@@ -46,7 +46,7 @@ export default function TopBar({ title, user, onSearchClick, widgetVisibility, o
   return (
     <header className="sticky top-0 h-16 bg-gradient-to-r from-maroon-900 to-maroon-800 border-b border-maroon-700/50 px-6 flex items-center justify-between z-40 shadow-lg shadow-maroon-900/10">
       <div className="flex items-center gap-4">
-        <h1 className="text-xl font-black text-white tracking-tighter uppercase">NAJEEB ERP</h1>
+        <h1 className="text-xl font-black text-white tracking-tighter uppercase">AL HADEED TRADERS</h1>
       </div>
 
       <div className="flex items-center gap-3">
@@ -88,7 +88,7 @@ export default function TopBar({ title, user, onSearchClick, widgetVisibility, o
         <div className="flex items-center gap-3 pl-4 border-l border-white/10">
             <div className="text-right">
               <p className="text-xs font-black text-white leading-none tracking-tight">{user.name}</p>
-              <p className="text-[10px] text-maroon-200 mt-1 uppercase font-bold tracking-widest">{user.oilshop || "Oilshop"} • {user.role}</p>
+              <p className="text-[10px] text-maroon-200 mt-1 uppercase font-bold tracking-widest">{user.oilshop || "Al Hadeed Traders"} • {user.role}</p>
             </div>
             <button 
               onClick={() => signOut()}

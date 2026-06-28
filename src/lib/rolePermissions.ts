@@ -1,10 +1,13 @@
 export const ALLOWED_PATHS_SALES_USER = [
+  /^\/dashboard(\/.*)?$/,
   /^\/sales\/sale-invoice(\/.*)?$/,
   /^\/sales\/sale-return(\/.*)?$/,
   /^\/sales\/pos-counter-sale(\/.*)?$/,
   /^\/maintain\/customers(\/.*)?$/,
   /^\/maintain\/customer-balances(\/.*)?$/,
-  /^\/maintain\/items(\/.*)?$/,
+  /^\/reports\/sales\/customer-balances(\/.*)?$/,
+  /^\/reports\/inventory\/balances(\/.*)?$/,
+  /^\/reports(\/sales|\/inventory)?$/,
   /^\/whatsapp(\/.*)?$/,
 ];
 

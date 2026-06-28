@@ -94,7 +94,7 @@ export default function WipeDataPage() {
               <p className="text-amber-700 dark:text-amber-300 font-medium leading-relaxed">
                 This action is **irreversible**. Once the data is wiped, it cannot be recovered. 
                 Please ensure you have a backup if you need to keep any information. 
-                This will reset the entire Oil Shop ERP to its initial state.
+                This will reset the entire Al Hadeed Traders ERP to its initial state.
               </p>
             </div>
           </div>
@@ -134,7 +134,7 @@ export default function WipeDataPage() {
                 </>
               )}
             </button>
-            <p className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pt-4">Oil Shop ERP Data Sanitization Protocol v2.0</p>
+            <p className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pt-4">Al Hadeed Traders ERP Data Sanitization Protocol v2.0</p>
           </div>
         </div>
       </div>

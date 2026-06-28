@@ -3,8 +3,8 @@ import { ReactNode } from "react";
 import { AuthProvider } from "@/components/providers/SessionProvider";
 
 export const metadata = {
-  title: "Oil Shop ERP",
-  description: "Oil shop management ERP",
+  title: "Al Hadeed Traders",
+  description: "Al Hadeed Traders ERP",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

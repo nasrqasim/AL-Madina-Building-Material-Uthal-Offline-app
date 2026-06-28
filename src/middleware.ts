@@ -28,6 +28,9 @@ export default withAuth(
             /^\/api\/shop-profile(\/.*)?$/,
             /^\/api\/settings\/print-formats(\/.*)?$/,
             /^\/api\/auth(\/.*)?$/,
+            /^\/api\/dashboard(\/.*)?$/,
+            /^\/api\/sales(\/.*)?$/,
+            /^\/api\/purchases(\/.*)?$/,
           ];
 
           const isAllowedApi = allowedApiRegexes.some(regex => regex.test(pathname));
@@ -38,8 +41,15 @@ export default withAuth(
             });
           }
 
-          // 2. HTTP Method constraints - items, categories, shop-profile are read-only
-          if (pathname.startsWith("/api/items") || pathname.startsWith("/api/categories") || pathname.startsWith("/api/shop-profile")) {
+          // 2. HTTP Method constraints - items, categories, shop-profile, dashboard, sales, purchases are read-only
+          if (
+            pathname.startsWith("/api/items") || 
+            pathname.startsWith("/api/categories") || 
+            pathname.startsWith("/api/shop-profile") ||
+            pathname.startsWith("/api/dashboard") ||
+            pathname.startsWith("/api/sales") ||
+            pathname.startsWith("/api/purchases")
+          ) {
             if (method !== "GET" && method !== "HEAD") {
               return new NextResponse(JSON.stringify({ ok: false, message: "Permission denied (Read-only module)" }), {
                 status: 403,

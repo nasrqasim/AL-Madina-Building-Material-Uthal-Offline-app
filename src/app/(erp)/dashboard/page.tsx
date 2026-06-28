@@ -7,5 +7,5 @@ export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect("/login");
 
-  return <DashboardClientContent userName={session.user.name || "User"} />;
+  return <DashboardClientContent userName={session.user.name || "User"} userRole={session.user.role} />;
 }

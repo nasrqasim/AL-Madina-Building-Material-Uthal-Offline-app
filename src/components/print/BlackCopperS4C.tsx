@@ -76,7 +76,7 @@ export default function BlackCopperS4C({
             {companyInfo?.name || "AL HADEED TRADERS"}
           </h2>
           <p className="text-[10px] text-slate-500 font-bold max-w-[320px] leading-tight">
-            {companyInfo?.address || "Main Road, Oil Shop Market"}
+            {companyInfo?.address || "Main Road, Al Hadeed Traders Market"}
           </p>
           <p className="text-[10px] text-slate-500 font-bold">
             Tel: {companyInfo?.phone || "03108444612"} {companyInfo?.city ? `| City: ${companyInfo.city}` : ""}
