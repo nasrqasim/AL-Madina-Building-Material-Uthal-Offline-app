@@ -8,29 +8,50 @@ import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 
 export default function LowStockAlertReportPage() {
   const [items, setItems] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [hasSearched, setHasSearched] = useState(true);
   const [showOnlyBelowReorder, setShowOnlyBelowReorder] = useState(true);
 
+  // Filters State
+  const [selectedDate, setSelectedDate] = useState(() => {
+    return new Date().toISOString().split("T")[0];
+  });
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [selectedSubCategory, setSelectedSubCategory] = useState("All");
+  const [selectedLocation, setSelectedLocation] = useState("All");
+  const [selectedLevel, setSelectedLevel] = useState("All");
+  const [searchQuery, setSearchQuery] = useState("");
+
   useEffect(() => {
-    async function fetchItems() {
+    async function fetchData() {
       setIsLoading(true);
       try {
-        const res = await fetch('/api/items');
-        const json = await res.json();
-        if (json.ok) {
-          setItems(json.data);
+        const [itemsRes, catsRes] = await Promise.all([
+          fetch('/api/items'),
+          fetch('/api/categories')
+        ]);
+        const itemsJson = await itemsRes.json();
+        const catsJson = await catsRes.json();
+        
+        if (itemsJson.ok) {
+          setItems(itemsJson.data);
+        }
+        if (catsJson.ok) {
+          setCategories(catsJson.data);
         }
       } catch (e) {
-        console.error("Error fetching items:", e);
+        console.error("Error fetching report data:", e);
       } finally {
         setIsLoading(false);
       }
     }
-    fetchItems();
+    fetchData();
   }, []);
 
-  const lowStockItems = items.map(item => {
+  const categoryMap = new Map(categories.map(c => [c._id, c]));
+
+  // 1. First calculate full items with category names and stock status
+  const mappedItems = items.map(item => {
     const stock = item.stockQtyCartons || 0;
     const reorder = item.reorderLevel || 0;
     const safety = Math.floor(reorder * 0.5); // Placeholder safety stock
@@ -41,57 +62,147 @@ export default function LowStockAlertReportPage() {
     else if (stock <= reorder) status = "Critical";
     else if (stock <= reorder * 1.2) status = "Warning";
 
+    const mainCategory = categoryMap.get(item.mainCategoryId);
+    const subCategory = categoryMap.get(item.subCategoryId);
+
     return {
       ...item,
       stock,
       reorder,
       safety,
       gap,
-      status
+      status,
+      mainCategoryName: mainCategory?.name || "",
+      subCategoryName: subCategory?.name || ""
     };
-  }).filter(item => !showOnlyBelowReorder || item.stock <= item.reorder);
+  });
+
+  // 2. Filter items based on selected criteria (excluding reorder toggle to calculate stats properly)
+  const filteredItems = mappedItems.filter(item => {
+    // Category filter
+    if (selectedCategory !== "All" && item.mainCategoryId !== selectedCategory) return false;
+
+    // Sub Category filter
+    if (selectedSubCategory !== "All" && item.subCategoryId !== selectedSubCategory) return false;
+
+    // Location filter
+    if (selectedLocation !== "All" && "Warehouse-1" !== selectedLocation) return false;
+
+    // Alert Level filter
+    if (selectedLevel !== "All") {
+      if (selectedLevel === "Out of Stock" && item.status !== "Out of Stock") return false;
+      if (selectedLevel === "Below Reorder" && item.status !== "Critical") return false;
+      if (selectedLevel === "Safety Stock Warning" && item.status !== "Warning") return false;
+    }
+
+    // Date Filter (show items updated/created on or before selected date)
+    if (selectedDate) {
+      const itemDate = new Date(item.updatedAt || item.createdAt || Date.now());
+      const filterDate = new Date(selectedDate);
+      filterDate.setHours(23, 59, 59, 999); // Include full day
+      if (itemDate > filterDate) return false;
+    }
+
+    // Search query matches code, name, category, subcategory
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      const matchesName = (item.name || "").toLowerCase().includes(query);
+      const matchesCode = (item.code || "").toLowerCase().includes(query);
+      const matchesCat = (item.mainCategoryName || "").toLowerCase().includes(query);
+      const matchesSubCat = (item.subCategoryName || "").toLowerCase().includes(query);
+      if (!matchesName && !matchesCode && !matchesCat && !matchesSubCat) return false;
+    }
+
+    return true;
+  });
+
+  // 3. Final display list filtered by reorder level toggle
+  const lowStockItems = filteredItems.filter(item => !showOnlyBelowReorder || item.stock <= item.reorder);
 
   const stats = [
-    { title: "Total Items", value: items.length.toString(), icon: Box, iconColor: "text-slate-600 dark:text-slate-300", iconBg: "bg-slate-50 dark:bg-slate-800/50" },
-    { title: "Items Below Reorder", value: items.filter(i => i.stockQtyCartons <= i.reorderLevel).length.toString(), icon: AlertTriangle, iconColor: "text-amber-600", iconBg: "bg-amber-50", wrapperClass: "border-l-4 border-l-amber-500" },
-    { title: "Items Out of Stock", value: items.filter(i => i.stockQtyCartons === 0).length.toString(), icon: XCircle, iconColor: "text-rose-600", iconBg: "bg-rose-50", wrapperClass: "border-l-4 border-l-rose-500" },
-    { title: "Warning / Critical", value: items.filter(i => i.stockQtyCartons <= i.reorderLevel * 1.2).length.toString(), icon: AlertCircle, iconColor: "text-orange-600", iconBg: "bg-orange-50", wrapperClass: "border-l-4 border-l-orange-500" },
+    { title: "Total Items", value: filteredItems.length.toString(), icon: Box, iconColor: "text-slate-600 dark:text-slate-300", iconBg: "bg-slate-50 dark:bg-slate-800/50" },
+    { title: "Items Below Reorder", value: filteredItems.filter(i => i.stock <= i.reorder).length.toString(), icon: AlertTriangle, iconColor: "text-amber-600", iconBg: "bg-amber-50", wrapperClass: "border-l-4 border-l-amber-500" },
+    { title: "Items Out of Stock", value: filteredItems.filter(i => i.stock === 0).length.toString(), icon: XCircle, iconColor: "text-rose-600", iconBg: "bg-rose-50", wrapperClass: "border-l-4 border-l-rose-500" },
+    { title: "Warning / Critical", value: filteredItems.filter(i => i.stock <= i.reorder * 1.2).length.toString(), icon: AlertCircle, iconColor: "text-orange-600", iconBg: "bg-orange-50", wrapperClass: "border-l-4 border-l-orange-500" },
   ];
 
   const Filters = (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <div className="space-y-1">
-          <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Category</label>
-          <select className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/20">
-            <option>All Categories</option>
+          <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Category</label>
+          <select 
+            value={selectedCategory}
+            onChange={e => {
+              setSelectedCategory(e.target.value);
+              setSelectedSubCategory("All");
+            }}
+            className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/20 dark:text-white"
+          >
+            <option value="All">All Categories</option>
+            {categories.filter(c => c.type === "main").map(c => (
+              <option key={c._id} value={c._id}>{c.name}</option>
+            ))}
           </select>
         </div>
         <div className="space-y-1">
-          <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Sub Category</label>
-          <select className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/20">
-            <option>All Sub Categories</option>
+          <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Sub Category</label>
+          <select 
+            value={selectedSubCategory}
+            onChange={e => setSelectedSubCategory(e.target.value)}
+            className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/20 dark:text-white"
+          >
+            <option value="All">All Sub Categories</option>
+            {categories
+              .filter(c => c.type === "sub" && (selectedCategory === "All" || c.parentId === selectedCategory))
+              .map(c => (
+                <option key={c._id} value={c._id}>{c.name}</option>
+              ))}
           </select>
         </div>
         <div className="space-y-1">
-          <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Location</label>
-          <select className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/20">
-            <option>All Locations</option>
+          <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Location</label>
+          <select 
+            value={selectedLocation}
+            onChange={e => setSelectedLocation(e.target.value)}
+            className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/20 dark:text-white"
+          >
+            <option value="All">All Locations</option>
+            <option value="Warehouse-1">Warehouse-1</option>
           </select>
         </div>
         <div className="space-y-1">
-          <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Alert Level</label>
-          <select className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/20">
-            <option>All Levels</option>
-            <option>Out of Stock</option>
-            <option>Below Reorder</option>
-            <option>Safety Stock Warning</option>
+          <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Alert Level</label>
+          <select 
+            value={selectedLevel}
+            onChange={e => setSelectedLevel(e.target.value)}
+            className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/20 dark:text-white"
+          >
+            <option value="All">All Levels</option>
+            <option value="Out of Stock">Out of Stock</option>
+            <option value="Below Reorder">Below Reorder</option>
+            <option value="Safety Stock Warning">Safety Stock Warning</option>
           </select>
+        </div>
+        <div className="space-y-1">
+          <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Date</label>
+          <input 
+            type="date"
+            value={selectedDate}
+            onChange={e => setSelectedDate(e.target.value)}
+            className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/20 dark:text-white"
+          />
         </div>
         <div className="space-y-1 flex items-end">
-           <div className="relative w-full">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500" size={12} />
-            <input type="text" placeholder="Search by item code or name..." className="w-full pl-7 pr-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-maroon-800/10 font-medium transition-all" />
+          <div className="relative w-full">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={12} />
+            <input 
+              type="text" 
+              placeholder="Search by code, name, category..." 
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-full pl-7 pr-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-maroon-800/10 font-medium transition-all dark:text-white" 
+            />
           </div>
         </div>
       </div>
