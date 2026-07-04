@@ -1,7 +1,7 @@
 import { fail, ok } from "@/lib/api";
 import dbConnect from "@/lib/db";
 import Party from "@/models/Party";
-import { recalculatePartyBalance } from "@/services/posting/invoicePostingHelper";
+import { recalculatePartyBalance, getCustomerAdvanceStats } from "@/services/posting/invoicePostingHelper";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 
@@ -17,7 +17,20 @@ export async function GET() {
 
   await dbConnect();
   const rows = await Party.find(query).sort({ createdAt: -1 }).lean();
-  return ok(rows);
+  
+  const rowsWithStats = await Promise.all(rows.map(async (r: any) => {
+    if (r.type === "Customer") {
+      try {
+        const stats = await getCustomerAdvanceStats(r._id.toString());
+        return { ...r, advanceStats: stats };
+      } catch (err) {
+        return r;
+      }
+    }
+    return r;
+  }));
+
+  return ok(rowsWithStats);
 }
 
 export async function POST(req: Request) {

@@ -73,7 +73,7 @@ export default function BlackCopperS4C({
             </div>
           )}
           <h2 className="text-lg font-black uppercase tracking-tight" style={{ color: config.themeColor || "#800000" }}>
-            {companyInfo?.name || "AL HADEED TRADERS"}
+            {companyInfo?.companyName || "AL HADEED TRADERS"}
           </h2>
           <p className="text-[10px] text-slate-500 font-bold max-w-[320px] leading-tight">
             {companyInfo?.address || "Main Road, Al Hadeed Traders Market"}

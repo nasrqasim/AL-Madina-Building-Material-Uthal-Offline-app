@@ -77,7 +77,7 @@ export default function ThermalReceipt({
       {/* Company Title */}
       <div className="text-center mb-1">
         <h2 className="font-black uppercase tracking-tight" style={{ fontSize: '16px', lineHeight: '1.2', color: '#000000' }}>
-          {companyInfo?.name || "AL HADEED TRADERS"}
+          {companyInfo?.companyName || "AL HADEED TRADERS"}
         </h2>
         {companyInfo?.address && (
           <p className="text-[11px] font-black leading-tight mb-0.5" style={{ color: '#000000' }}>{companyInfo.address}</p>

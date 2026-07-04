@@ -165,6 +165,7 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
   const [previewItemId, setPreviewItemId] = useState<string | null>(null);
   const [availableItems, setAvailableItems] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
+  const [allCustomers, setAllCustomers] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
 
@@ -192,12 +193,14 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
       if (itemsData.ok) setAvailableItems(itemsData.data);
       if (partiesData.ok) {
         // Exclude deleted/inactive customers
-        setCustomers(partiesData.data.filter((p: any) => 
+        const activeCustomers = partiesData.data.filter((p: any) => 
           p.type === "Customer" && 
           p.status?.toLowerCase() === "active" && 
           !p.isDeleted && 
           !p.deleted
-        ));
+        );
+        setCustomers(activeCustomers);
+        setAllCustomers(activeCustomers);
       }
       if (locsData.ok) setLocations(locsData.data);
       if (empsData.ok) setEmployees(empsData.data);
@@ -209,14 +212,40 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
     fetchData();
   }, [fetchData]);
 
+  // Debounced search for customers when user types
+  useEffect(() => {
+    if (!showCustomerSearch) return;
+    
+    const query = formData.customerName;
+    if (!query) {
+      setCustomers(allCustomers);
+      return;
+    }
+    const delay = 200;
+    
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/parties/search?q=${encodeURIComponent(query)}`);
+        const json = await res.json();
+        if (json.ok) {
+          setCustomers(json.data);
+        }
+      } catch (e) {
+        console.error("Error searching customers:", e);
+      }
+    }, delay);
+    
+    return () => clearTimeout(timer);
+  }, [formData.customerName, showCustomerSearch, allCustomers]);
+
   // Track currently edited invoice ID
   const [currentInvoiceId, setCurrentInvoiceId] = useState(initialData?._id || "");
 
   // Default customer loading & editing customer balance Sync
   useEffect(() => {
-    if (customers.length > 0) {
+    if (allCustomers.length > 0) {
       if (!formData.customerId && !currentInvoiceId) {
-        const defaultCust = customers.find(c => 
+        const defaultCust = allCustomers.find(c => 
           c.name.toLowerCase() === "walk-in cash customer" || 
           c.name.toLowerCase() === "walk-in(cash) customer" ||
           c.name.toLowerCase().includes("walk-in")
@@ -233,7 +262,7 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
           }));
         }
       } else if (formData.customerId) {
-        const currentCust = customers.find(c => c._id === formData.customerId);
+        const currentCust = allCustomers.find(c => c._id === formData.customerId);
         if (currentCust) {
           setFormData(prev => ({
             ...prev,
@@ -246,7 +275,7 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
         }
       }
     }
-  }, [customers, currentInvoiceId, formData.customerId]);
+  }, [allCustomers, currentInvoiceId, formData.customerId]);
 
   const [showPrevInvoicesModal, setShowPrevInvoicesModal] = useState(false);
   const [prevInvoices, setPrevInvoices] = useState<any[]>([]);
@@ -429,15 +458,8 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
 
   const displayedCustomers = useMemo(() => {
     if (!showCustomerSearch) return [];
-    if (formData.customerId && formData.customerName) {
-      return customers;
-    }
-    const q = formData.customerName.toLowerCase();
-    return customers.filter(c => 
-      c.name.toLowerCase().includes(q) || 
-      c.code.toLowerCase().includes(q)
-    );
-  }, [showCustomerSearch, customers, formData.customerId, formData.customerName]);
+    return customers;
+  }, [showCustomerSearch, customers]);
 
   useEffect(() => {
     setActiveCustomerIndex(0);

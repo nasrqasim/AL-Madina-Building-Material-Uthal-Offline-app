@@ -94,7 +94,10 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
     additionalDiscount: initialData?.discountAmount || 0,
     carService: initialData?.carService || 0,
     carServiceDiscount: initialData?.carServiceDiscount || 0,
-    amountReceived: initialData?.amountReceived || 0
+    amountReceived: initialData?.amountReceived || 0,
+    useAdvance: initialData?.useAdvance || false,
+    advanceAmountUsed: initialData?.advanceAmountUsed || 0,
+    customerAdvanceStats: initialData?.partyId?.advanceStats || null
   });
 
   const [printData, setPrintData] = useState<any>(null);
@@ -270,7 +273,6 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
     return () => clearTimeout(timer);
   }, [formData.customerName, showCustomerSearch, allCustomers]);
 
-  // Sync customer details when customerId changes (e.g. on selection)
   useEffect(() => {
     if (allCustomers.length > 0 && formData.customerId) {
       const currentCust = allCustomers.find(c => c._id === formData.customerId);
@@ -282,7 +284,8 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
           customerCode: currentCust.code || prev.customerCode,
           customerAddress: currentCust.address || prev.customerAddress,
           customerTelephone: currentCust.phone || prev.customerTelephone,
-          customerName: currentCust.name || prev.customerName
+          customerName: currentCust.name || prev.customerName,
+          customerAdvanceStats: currentCust.advanceStats || null
         }));
       }
     }
@@ -443,7 +446,10 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
       additionalDiscount: inv.discountAmount || 0,
       carService: inv.carService || 0,
       carServiceDiscount: inv.carServiceDiscount || 0,
-      amountReceived: inv.amountReceived || 0
+      amountReceived: inv.amountReceived || 0,
+      useAdvance: inv.useAdvance || false,
+      advanceAmountUsed: inv.advanceAmountUsed || 0,
+      customerAdvanceStats: inv.partyId?.advanceStats || null
     });
 
     if (inv.lines && inv.lines.length > 0) {
@@ -666,7 +672,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
     const calculated = subTotalAmount + serviceAmt - serviceDisc - addDisc;
     return Math.max(0, calculated);
   }, [subTotalAmount, formData.carService, formData.carServiceDiscount, formData.additionalDiscount]);
-  const balanceAmount = netTotal - Number(formData.amountReceived);
+  const balanceAmount = netTotal - Number(formData.amountReceived) - (formData.useAdvance ? Number(formData.advanceAmountUsed) : 0);
 
   const handleSave = useCallback(async (status: string) => {
     if (formData.isOnCredit && (!formData.customerId || formData.customerName.toLowerCase().includes("walk-in"))) {
@@ -674,7 +680,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
       return;
     }
 
-    const outstanding = netTotal - Number(formData.amountReceived);
+    const outstanding = netTotal - Number(formData.amountReceived) - (formData.useAdvance ? Number(formData.advanceAmountUsed) : 0);
     if (outstanding < 0) {
       alert("Payment cannot exceed the invoice amount. Outstanding cannot become negative.");
       return;
@@ -713,7 +719,9 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
       carServiceDiscount: Number(formData.carServiceDiscount) || 0,
       totalAmount: netTotal || 0,
       amountReceived: Number(formData.amountReceived) || 0,
-      status: status
+      status: status,
+      useAdvance: formData.useAdvance,
+      advanceAmountUsed: formData.useAdvance ? Number(formData.advanceAmountUsed) : 0
     };
 
     try {
@@ -1233,7 +1241,56 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                   <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-400 uppercase">Additional Discount</span><input type="number" value={formData.additionalDiscount} onChange={e => setFormData({...formData, additionalDiscount: Math.max(0, Number(e.target.value) || 0)})} className="w-32 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-right font-black font-mono text-rose-400 outline-none no-spinner" /></div>
                   <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-400 uppercase">Car Service</span><input type="number" value={formData.carService} onChange={e => setFormData({...formData, carService: Math.max(0, Number(e.target.value) || 0)})} className="w-32 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-right font-black font-mono text-blue-300 outline-none no-spinner" /></div>
                   <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-400 uppercase">Car Wash Discount</span><input type="number" value={formData.carServiceDiscount} onChange={e => setFormData({...formData, carServiceDiscount: Math.max(0, Number(e.target.value) || 0)})} className="w-32 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-right font-black font-mono text-rose-300 outline-none no-spinner" /></div>
-                 <div className="flex justify-between items-center bg-slate-700/50 p-3 rounded-lg border border-slate-600 mt-4"><span className="text-sm font-black text-white uppercase tracking-wider">Net Total</span><span className="text-3xl font-black font-mono text-yellow-400">{netTotal.toFixed(2)}</span></div>
+                  <div className="flex justify-between items-center bg-slate-700/50 p-3 rounded-lg border border-slate-600 mt-4"><span className="text-sm font-black text-white uppercase tracking-wider">Net Total</span><span className="text-3xl font-black font-mono text-yellow-400">{netTotal.toFixed(2)}</span></div>
+                  
+                  {formData.customerAdvanceStats && formData.customerAdvanceStats.remainingAdvance > 0 && (
+                    <div className="bg-slate-700/30 p-3 rounded-lg border border-slate-600 space-y-2 mt-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-300">Advance Balance:</span>
+                        <span className="text-sm font-black text-emerald-400 font-mono">
+                          PKR {Math.round(formData.customerAdvanceStats.remainingAdvance).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-white">
+                          <input
+                            type="checkbox"
+                            checked={formData.useAdvance}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              const toUse = checked ? Math.min(netTotal, formData.customerAdvanceStats.remainingAdvance) : 0;
+                              setFormData({
+                                ...formData,
+                                useAdvance: checked,
+                                advanceAmountUsed: toUse
+                              });
+                            }}
+                            className="rounded accent-emerald-500"
+                          />
+                          Use Advance
+                        </label>
+                        {formData.useAdvance && (
+                          <input
+                            type="number"
+                            value={formData.advanceAmountUsed}
+                            max={Math.min(netTotal, formData.customerAdvanceStats.remainingAdvance)}
+                            onChange={(e) => {
+                              const val = Math.min(
+                                Math.min(netTotal, formData.customerAdvanceStats.remainingAdvance),
+                                Math.max(0, Number(e.target.value) || 0)
+                              );
+                              setFormData({
+                                ...formData,
+                                advanceAmountUsed: val
+                              });
+                            }}
+                            className="w-28 bg-slate-700 text-emerald-400 border border-slate-600 rounded px-2 py-1 text-right font-black font-mono outline-none"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
                  <div className="flex justify-between items-center pt-4"><span className="text-xs font-bold text-slate-400 uppercase">Amount Received</span><input type="number" value={formData.amountReceived} onChange={e => setFormData({...formData, amountReceived: Number(e.target.value)})} className="w-40 bg-white text-slate-900 border-none rounded px-3 py-2 text-right text-lg font-black font-mono outline-none" /></div>
                  <div className="flex justify-between items-center pt-2"><span className="text-xs font-bold text-slate-400 uppercase">Balance</span><span className={`text-xl font-black font-mono ${balanceAmount > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>{balanceAmount.toFixed(2)}</span></div>
               </div>

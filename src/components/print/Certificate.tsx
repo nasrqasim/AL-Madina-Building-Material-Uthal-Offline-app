@@ -64,7 +64,7 @@ export default function Certificate({
           </div>
         )}
         <h2 className="text-lg font-bold tracking-widest uppercase mb-1" style={{ color: config.themeColor || "#800000" }}>
-          {companyInfo?.name || "AL HADEED TRADERS"}
+          {companyInfo?.companyName || "AL HADEED TRADERS"}
         </h2>
         <div className="w-24 h-0.5 bg-slate-300 my-1"></div>
       </div>

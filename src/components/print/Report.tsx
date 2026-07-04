@@ -28,7 +28,7 @@ export default function Report({
       <div className="flex justify-between items-center border-b pb-4 mb-6" style={{ borderColor: config.themeColor || "#800000" }}>
         <div>
           <h2 className="text-base font-black uppercase tracking-tight" style={{ color: config.themeColor || "#800000" }}>
-            {companyInfo?.name || "AL HADEED TRADERS"}
+            {companyInfo?.companyName || "AL HADEED TRADERS"}
           </h2>
           <p className="text-[10px] text-slate-500 font-bold leading-tight">
             {companyInfo?.address || "Main Road, Al Hadeed Traders Market"}

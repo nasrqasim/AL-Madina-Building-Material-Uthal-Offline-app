@@ -26,6 +26,9 @@ export default function CustomerProfileHistory({
   // Tabs State
   const [activeTab, setActiveTab] = useState<"sales" | "payments" | "products" | "outstanding" | "ledger" | "analytics">("sales");
   
+  // Current Customer State with latest advance stats
+  const [currentCustomer, setCurrentCustomer] = useState<any>(customer);
+
   // Data State
   const [sales, setSales] = useState<any[]>([]);
   const [receipts, setReceipts] = useState<any[]>([]);
@@ -34,6 +37,7 @@ export default function CustomerProfileHistory({
   // Ledger Dates State
   const [ledgerFromDate, setLedgerFromDate] = useState("");
   const [ledgerToDate, setLedgerToDate] = useState("");
+  const [filterByPeriod, setFilterByPeriod] = useState(false);
   
   // WhatsApp Share Modal
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
@@ -84,16 +88,22 @@ export default function CustomerProfileHistory({
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [salesRes, cashRes, bankRes] = await Promise.all([
+      const [salesRes, cashRes, bankRes, partyRes] = await Promise.all([
         fetch("/api/sales"),
         fetch("/api/cash-receipts"),
-        fetch("/api/bank-receipts")
+        fetch("/api/bank-receipts"),
+        fetch(`/api/parties/${customer._id}`)
       ]);
-      const [salesJson, cashJson, bankJson] = await Promise.all([
+      const [salesJson, cashJson, bankJson, partyJson] = await Promise.all([
         salesRes.json(),
         cashRes.json(),
-        bankRes.json()
+        bankRes.json(),
+        partyRes.json()
       ]);
+
+      if (partyJson.ok && partyJson.data) {
+        setCurrentCustomer(partyJson.data);
+      }
 
       let customerSales: any[] = [];
       let customerReceipts: any[] = [];
@@ -147,15 +157,18 @@ export default function CustomerProfileHistory({
   };
 
   useEffect(() => {
+    setCurrentCustomer(customer);
     fetchData();
   }, [customer]);
 
   // Recalculates transactions ledger when date range is applied
   const getProcessedLedger = () => {
-    const initialOpening = customer.openingBalance || 0;
-    const startRange = new Date(ledgerFromDate || "2000-01-01");
-    const endRange = new Date(ledgerToDate || "2100-01-01");
-    endRange.setHours(23, 59, 59, 999);
+    const initialOpening = currentCustomer.openingBalance || 0;
+    const startRange = filterByPeriod ? new Date(ledgerFromDate || "2000-01-01") : new Date("2000-01-01");
+    const endRange = filterByPeriod ? new Date(ledgerToDate || "2100-01-01") : new Date("2100-01-01");
+    if (filterByPeriod) {
+      endRange.setHours(23, 59, 59, 999);
+    }
 
     const txs: any[] = [];
 
@@ -228,7 +241,7 @@ export default function CustomerProfileHistory({
   const lastPurchaseTx = sales.find(s => s.type !== "sale_return" && s.type !== "non_tax_sale_return");
   const lastPaymentTx = receipts[0];
 
-  const outstandingAmount = Math.max(0, (customer.openingBalance || 0) + totalSales - totalReceived);
+  const outstandingAmount = Math.max(0, (currentCustomer.openingBalance || 0) + totalSales - totalReceived);
 
   // TAB 1: Filtered Sales
   const filteredSales = sales.filter(s => {
@@ -371,7 +384,7 @@ export default function CustomerProfileHistory({
           Back to List
         </button>
         <div className="flex gap-2">
-          {customer.phone && customer.phone.replace(/[^0-9]/g, "").length >= 10 && (
+          {currentCustomer.phone && currentCustomer.phone.replace(/[^0-9]/g, "").length >= 10 && (
             <button 
               onClick={() => {
                 setWaDocData(ledgerData);
@@ -402,34 +415,40 @@ export default function CustomerProfileHistory({
           <div className="space-y-3">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-maroon-800 text-white rounded-2xl flex items-center justify-center font-black text-lg shadow-md">
-                {customer.name?.substring(0, 2).toUpperCase() || "CU"}
+                {currentCustomer.name?.substring(0, 2).toUpperCase() || "CU"}
               </div>
               <div>
-                <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight uppercase">{customer.name}</h2>
+                <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight uppercase">{currentCustomer.name}</h2>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-full">{customer.code || "No Code"}</span>
-                  <span className="text-xs font-black text-maroon-800 bg-maroon-50 px-2 py-0.5 rounded-full uppercase tracking-wider">{customer.category || "Cash Customer"}</span>
+                  <span className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-full">{currentCustomer.code || "No Code"}</span>
+                  <span className="text-xs font-black text-maroon-800 bg-maroon-50 px-2 py-0.5 rounded-full uppercase tracking-wider">{currentCustomer.category || "Cash Customer"}</span>
                 </div>
               </div>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-y-1 gap-x-6 text-xs text-slate-500 font-bold">
-              <p>📱 <span className="text-slate-700 dark:text-slate-350 ml-1">{customer.phone || customer.mobile || "-"}</span></p>
-              <p>📍 <span className="text-slate-700 dark:text-slate-350 ml-1">{customer.address || "-"}</span></p>
-              <p>🌍 <span className="text-slate-700 dark:text-slate-350 ml-1">Region: {customer.region || customer.area || "-"}</span></p>
+              <p>📱 <span className="text-slate-700 dark:text-slate-350 ml-1">{currentCustomer.phone || currentCustomer.mobile || "-"}</span></p>
+              <p>📍 <span className="text-slate-700 dark:text-slate-350 ml-1">{currentCustomer.address || "-"}</span></p>
+              <p>🌍 <span className="text-slate-700 dark:text-slate-350 ml-1">Region: {currentCustomer.region || currentCustomer.area || "-"}</span></p>
             </div>
           </div>
 
           <div className="flex flex-wrap gap-4 border-t lg:border-t-0 lg:border-l border-slate-100 dark:border-slate-850 pt-4 lg:pt-0 lg:pl-8">
+            {currentCustomer.advanceStats && currentCustomer.advanceStats.remainingAdvance > 0 && (
+              <div className="text-left min-w-[120px] bg-emerald-55 border border-emerald-100 dark:border-emerald-950/20 px-3 py-1.5 rounded-xl">
+                <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Advance Bal</p>
+                <p className="text-lg font-black text-emerald-600 mt-0.5">PKR {Math.round(currentCustomer.advanceStats.remainingAdvance || 0).toLocaleString()}</p>
+              </div>
+            )}
             <div className="text-left min-w-[120px]">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Credit Limit</p>
-              <p className="text-lg font-black text-slate-800 dark:text-slate-200 mt-0.5">PKR {Math.round(customer.creditLimit || 0).toLocaleString()}</p>
+              <p className="text-lg font-black text-slate-800 dark:text-slate-200 mt-0.5">PKR {Math.round(currentCustomer.creditLimit || 0).toLocaleString()}</p>
             </div>
             <div className="text-left min-w-[120px]">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Current Balance</p>
-              <p className={`text-lg font-black mt-0.5 ${customer.balance < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                PKR {Math.round(customer.balance || 0).toLocaleString()}
-                <span className="text-xs ml-0.5 font-bold">{customer.balance < 0 ? ' (Dr)' : ' (Cr)'}</span>
+              <p className={`text-lg font-black mt-0.5 ${currentCustomer.balance < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                PKR {Math.round(currentCustomer.balance || 0).toLocaleString()}
+                <span className="text-xs ml-0.5 font-bold">{currentCustomer.balance < 0 ? ' (Dr)' : ' (Cr)'}</span>
               </p>
             </div>
             <div className="text-left min-w-[120px]">
@@ -588,6 +607,18 @@ export default function CustomerProfileHistory({
                       ) : (
                         <tr><td colSpan={10} className="px-4 py-8 text-center text-slate-400 italic font-bold">No sales invoices match this criteria.</td></tr>
                       )}
+                      {filteredSales.length > 0 && (
+                        <tr className="bg-slate-100 dark:bg-slate-800 font-black text-slate-950 dark:text-white border-t-2 border-slate-300 dark:border-slate-600">
+                          <td colSpan={3} className="px-4 py-3.5 text-right uppercase tracking-widest text-[9px]">Grand Total ({filteredSales.length} Invoices)</td>
+                          <td className="px-4 py-3.5 text-center">{filteredSales.reduce((a, s) => a + (s.lines || s.items || []).reduce((b: number, l: any) => b + (l.qty || l.cartons || 1), 0), 0)}</td>
+                          <td className="px-4 py-3.5 text-right">PKR {Math.round(filteredSales.reduce((a, s) => a + (s.totalAmount || 0), 0)).toLocaleString()}</td>
+                          <td className="px-4 py-3.5 text-right text-amber-600">PKR {Math.round(filteredSales.reduce((a, s) => a + (s.discountAmount || 0), 0)).toLocaleString()}</td>
+                          <td className="px-4 py-3.5 text-right text-emerald-600">PKR {Math.round(filteredSales.reduce((a, s) => a + (s.amountReceived || 0), 0)).toLocaleString()}</td>
+                          <td className="px-4 py-3.5 text-right text-rose-600">PKR {Math.round(filteredSales.reduce((a, s) => a + ((s.totalAmount || 0) - (s.amountReceived || 0)), 0)).toLocaleString()}</td>
+                          <td className="px-4 py-3.5"></td>
+                          <td className="px-4 py-3.5"></td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -680,6 +711,13 @@ export default function CustomerProfileHistory({
                       ) : (
                         <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-400 italic font-bold">No payments match this criteria.</td></tr>
                       )}
+                      {filteredPayments.length > 0 && (
+                        <tr className="bg-slate-100 dark:bg-slate-800 font-black text-slate-950 dark:text-white border-t-2 border-slate-300 dark:border-slate-600">
+                          <td colSpan={2} className="px-4 py-3.5 text-right uppercase tracking-widest text-[9px]">Grand Total ({filteredPayments.length} Receipts)</td>
+                          <td className="px-4 py-3.5 text-right text-emerald-600">PKR {Math.round(filteredPayments.reduce((a, r) => a + (r.amount || 0), 0)).toLocaleString()}</td>
+                          <td colSpan={4} className="px-4 py-3.5"></td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -751,6 +789,14 @@ export default function CustomerProfileHistory({
                         ))
                       ) : (
                         <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400 italic font-bold">No product purchases match this criteria.</td></tr>
+                      )}
+                      {productHistory.length > 0 && (
+                        <tr className="bg-slate-100 dark:bg-slate-800 font-black text-slate-950 dark:text-white border-t-2 border-slate-300 dark:border-slate-600">
+                          <td colSpan={2} className="px-4 py-3.5 text-right uppercase tracking-widest text-[9px]">Grand Total ({productHistory.length} Products)</td>
+                          <td className="px-4 py-3.5 text-center">{productHistory.reduce((a, p) => a + (p.count || 0), 0)}</td>
+                          <td className="px-4 py-3.5 text-center">{productHistory.reduce((a, p) => a + (p.qty || 0), 0)}</td>
+                          <td colSpan={2} className="px-4 py-3.5"></td>
+                        </tr>
                       )}
                     </tbody>
                   </table>
@@ -836,6 +882,15 @@ export default function CustomerProfileHistory({
                       ) : (
                         <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400 italic font-bold">No outstanding invoices match this criteria.</td></tr>
                       )}
+                      {outstandingInvoices.length > 0 && (
+                        <tr className="bg-slate-100 dark:bg-slate-800 font-black text-slate-950 dark:text-white border-t-2 border-slate-300 dark:border-slate-600">
+                          <td colSpan={2} className="px-4 py-3.5 text-right uppercase tracking-widest text-[9px]">Grand Total ({outstandingInvoices.length} Bills)</td>
+                          <td className="px-4 py-3.5 text-right">PKR {Math.round(outstandingInvoices.reduce((a, s) => a + (s.totalAmount || 0), 0)).toLocaleString()}</td>
+                          <td className="px-4 py-3.5 text-right text-emerald-600">PKR {Math.round(outstandingInvoices.reduce((a, s) => a + (s.amountReceived || 0), 0)).toLocaleString()}</td>
+                          <td className="px-4 py-3.5 text-right text-rose-600">PKR {Math.round(outstandingInvoices.reduce((a, s) => a + ((s.totalAmount || 0) - (s.amountReceived || 0)), 0)).toLocaleString()}</td>
+                          <td className="px-4 py-3.5"></td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -871,7 +926,19 @@ export default function CustomerProfileHistory({
                 
                 {/* Date Filter Panel */}
                 <div className="bg-slate-50 dark:bg-slate-800/40 rounded-2xl p-4 border border-slate-250/50 dark:border-slate-800 no-print">
-                  <div className="flex flex-col md:flex-row gap-4 items-end justify-between">
+                  <div className="flex items-center gap-2 mb-3">
+                    <input 
+                      type="checkbox" 
+                      id="filterByPeriod"
+                      checked={filterByPeriod} 
+                      onChange={(e) => setFilterByPeriod(e.target.checked)}
+                      className="rounded border-slate-300 text-maroon-805 focus:ring-maroon-800 h-4 w-4"
+                    />
+                    <label htmlFor="filterByPeriod" className="text-xs font-black uppercase tracking-widest text-slate-500 cursor-pointer select-none">
+                      Filter by Period
+                    </label>
+                  </div>
+                  <div className="flex flex-col md:flex-row gap-4 items-end justify-between transition-opacity" style={{ opacity: filterByPeriod ? 1 : 0.5, pointerEvents: filterByPeriod ? 'auto' : 'none' }}>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
@@ -923,12 +990,12 @@ export default function CustomerProfileHistory({
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-850 font-bold text-slate-700 dark:text-slate-350">
                       <tr className="bg-slate-50/50 dark:bg-slate-850/50 font-black">
-                        <td className="px-4 py-3 text-slate-400">{ledgerFromDate ? new Date(ledgerFromDate).toLocaleDateString() : "-"}</td>
+                        <td className="px-4 py-3 text-slate-400">{filterByPeriod && ledgerFromDate ? new Date(ledgerFromDate).toLocaleDateString() : "-"}</td>
                         <td className="px-4 py-3">-</td>
                         <td className="px-4 py-3">
                           <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-[9px] rounded font-black tracking-widest text-slate-500">OPEN</span>
                         </td>
-                        <td className="px-4 py-3 uppercase tracking-tighter text-slate-400">Opening Balance</td>
+                        <td className="px-4 py-3 uppercase tracking-tighter text-slate-400">{filterByPeriod ? "Opening Balance" : "Balance Brought Forward"}</td>
                         <td className="px-4 py-3 text-right">-</td>
                         <td className="px-4 py-3 text-right">-</td>
                         <td className="px-4 py-3 text-right text-slate-900 dark:text-white">Rs. {Math.round(ledgerData.opening).toLocaleString()}</td>

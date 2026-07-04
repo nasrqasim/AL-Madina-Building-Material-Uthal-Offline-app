@@ -28,7 +28,8 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
     employeeId: initialData?.employeeId?._id || initialData?.employeeId || "",
     jobId: initialData?.jobId?._id || initialData?.jobId || "",
     amount: initialData?.amount || 0,
-    notes: initialData?.notes || ""
+    notes: initialData?.notes || "",
+    partyReceiptType: initialData?.partyReceiptType || "Standard"
   });
 
   const [contraLines, setContraLines] = useState<any[]>(
@@ -247,7 +248,8 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
         notes: formData.notes,
         status,
         amount: totalAmount,
-        netAmount: totalAmount
+        netAmount: totalAmount,
+        partyReceiptType: formData.partyReceiptType
       };
 
       if (activeTab === "party") {
@@ -406,6 +408,22 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
                   label="Receive From (Customer / Vendor)"
                   required
                 />
+              </div>
+            )}
+
+            {activeTab === "party" && partyType === "Customer" && (
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Receipt Sub-Type</label>
+                <select
+                  value={formData.partyReceiptType}
+                  onChange={(e) => setFormData({ ...formData, partyReceiptType: e.target.value })}
+                  className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold focus:ring-4 focus:ring-maroon-800/10 transition-all outline-none"
+                >
+                  <option value="Standard">Standard Payment</option>
+                  <option value="Advance">Customer Advance</option>
+                  <option value="Deposit">Customer Deposit</option>
+                  <option value="Extra Cash">Extra Cash Received</option>
+                </select>
               </div>
             )}
 
@@ -617,6 +635,21 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
                       required
                     />
                   </div>
+                  {pettySubTab === "customer" && (
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Receipt Sub-Type</label>
+                      <select
+                        value={formData.partyReceiptType}
+                        onChange={(e) => setFormData({ ...formData, partyReceiptType: e.target.value })}
+                        className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold focus:ring-4 focus:ring-maroon-800/10 transition-all outline-none"
+                      >
+                        <option value="Standard">Standard Payment</option>
+                        <option value="Advance">Customer Advance</option>
+                        <option value="Deposit">Customer Deposit</option>
+                        <option value="Extra Cash">Extra Cash Received</option>
+                      </select>
+                    </div>
+                  )}
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Amount (PKR) *</label>
                     <input

@@ -278,6 +278,13 @@ export default function PurchaseReturnPage() {
                 </tr>
               )}
             </tbody>
+            <tfoot>
+              <tr className="bg-slate-800 dark:bg-slate-950 text-white">
+                <td colSpan={6} className="px-6 py-3 text-xs font-black uppercase tracking-widest">Grand Total ({filteredReturns.length} Returns)</td>
+                <td className="px-6 py-3 text-right text-xs font-black">{filteredReturns.reduce((s, r) => s + (r.totalAmount || r.amount || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                <td colSpan={2}></td>
+              </tr>
+            </tfoot>
           </table>
         </div>
 

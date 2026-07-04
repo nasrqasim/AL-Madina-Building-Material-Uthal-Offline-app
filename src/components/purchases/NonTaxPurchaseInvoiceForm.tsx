@@ -70,6 +70,7 @@ function buildFormState(
     jobId: resolveRefId(initialData, "jobId"),
     locationId: resolveRefId(initialData, "locationId"),
     amountPaid: Number(initialData?.amountReceived || 0),
+    paymentMethod: String(initialData?.paymentMethod || "Cash"),
     paymentAccountId: resolvePaymentAccountId(initialData),
     notes: String(initialData?.notes || ""),
   };
@@ -210,6 +211,7 @@ export default function NonTaxPurchaseInvoiceForm({ onClose, onSave, initialData
       totalAmount: totalPKR || subTotal - totalDiscount,
       balance: (totalPKR || subTotal - totalDiscount) - formData.amountPaid,
       amountReceived: formData.amountPaid,
+      paymentMethod: formData.paymentMethod,
       paymentAccountId: formData.paymentAccountId || null,
       status: balanceAfterPayment <= 0 && status === "Posted" ? "paid" : status.toLowerCase(),
       employeeId: formData.employeeId || null,
@@ -480,7 +482,15 @@ export default function NonTaxPurchaseInvoiceForm({ onClose, onSave, initialData
           <div className="flex items-center space-x-2 mb-8">
             <h2 className="text-sm font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Payment Information</h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Payment Method</label>
+              <select value={formData.paymentMethod} onChange={(e) => setFormData({...formData, paymentMethod: e.target.value})} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-black focus:border-maroon-800 transition-all outline-none">
+                <option value="Cash">Cash</option>
+                <option value="Bank">Bank</option>
+                <option value="Credit">Credit (On Account)</option>
+              </select>
+            </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Amount Paid</label>
               <input type="number" value={formData.amountPaid} onChange={(e) => setFormData({...formData, amountPaid: parseFloat(e.target.value) || 0})} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-black focus:border-maroon-800 transition-all outline-none" />

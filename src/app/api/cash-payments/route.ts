@@ -63,6 +63,8 @@ export async function POST(req: Request) {
       notes: body.notes || body.internalNotes || "",
       status: body.status || "Posted",
       mode: paymentType === "petty" ? "Petty" : "Party",
+      partyPaymentType: body.partyPaymentType || "",
+      isRefund: !!body.isRefund,
       contraLines: body.contraLines || [],
     };
 

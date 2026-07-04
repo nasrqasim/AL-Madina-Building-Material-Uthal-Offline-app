@@ -21,6 +21,24 @@ export default function CustomerBalancesReportPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [shopProfile, setShopProfile] = useState<any>(null);
 
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [rawParties, setRawParties] = useState<any[]>([]);
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [cashReceipts, setCashReceipts] = useState<any[]>([]);
+  const [bankReceipts, setBankReceipts] = useState<any[]>([]);
+  const [cashPayments, setCashPayments] = useState<any[]>([]);
+  const [bankPayments, setBankPayments] = useState<any[]>([]);
+
+  useEffect(() => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    setFromDate(`${year}-${month}-01`);
+    setToDate(`${year}-${month}-${day}`);
+  }, []);
+
   useEffect(() => {
     async function fetchShop() {
       try {
@@ -38,26 +56,37 @@ export default function CustomerBalancesReportPage() {
     async function fetchData() {
       setIsLoading(true);
       try {
-        const res = await fetch('/api/parties?type=customer');
-        const json = await res.json();
-        const parties = json.ok ? json.data : (Array.isArray(json) ? json : []);
+        const [partiesRes, invoicesRes, cashReceiptsRes, bankReceiptsRes, cashPaymentsRes, bankPaymentsRes] = await Promise.all([
+          fetch('/api/parties?type=customer'),
+          fetch('/api/invoices'),
+          fetch('/api/cash-receipts'),
+          fetch('/api/bank-receipts'),
+          fetch('/api/cash-payments'),
+          fetch('/api/bank-payments')
+        ]);
 
-        const result = parties
-          .map((p: any) => ({
-            id: p._id,
-            customer: p.name || p.companyName || "Unknown",
-            region: p.region || "-",
-            area: p.area || "-",
-            city: p.city || "-",
-            opening: Number(p.openingBalance) || 0,
-            debit: Number(p.debit) || 0,
-            credit: Number(p.credit) || 0,
-            closing: Number(p.balance) || 0,
-            rawParty: p
-          }));
+        const [partiesJson, invoicesJson, cashReceiptsJson, bankReceiptsJson, cashPaymentsJson, bankPaymentsJson] = await Promise.all([
+          partiesRes.json(),
+          invoicesRes.json(),
+          cashReceiptsRes.json(),
+          bankReceiptsRes.json(),
+          cashPaymentsRes.json(),
+          bankPaymentsRes.json()
+        ]);
 
-        setData(result);
-        setFilteredData(result);
+        const partiesList = partiesJson.ok ? partiesJson.data : (Array.isArray(partiesJson) ? partiesJson : []);
+        const invoicesList = invoicesJson.ok ? invoicesJson.data : (Array.isArray(invoicesJson) ? invoicesJson : []);
+        const cashReceiptsList = cashReceiptsJson.ok ? cashReceiptsJson.data : (Array.isArray(cashReceiptsJson) ? cashReceiptsJson : []);
+        const bankReceiptsList = bankReceiptsJson.ok ? bankReceiptsJson.data : (Array.isArray(bankReceiptsJson) ? bankReceiptsJson : []);
+        const cashPaymentsList = cashPaymentsJson.ok ? cashPaymentsJson.data : (Array.isArray(cashPaymentsJson) ? cashPaymentsJson : []);
+        const bankPaymentsList = bankPaymentsJson.ok ? bankPaymentsJson.data : (Array.isArray(bankPaymentsJson) ? bankPaymentsJson : []);
+
+        setRawParties(partiesList);
+        setInvoices(invoicesList);
+        setCashReceipts(cashReceiptsList);
+        setBankReceipts(bankReceiptsList);
+        setCashPayments(cashPaymentsList);
+        setBankPayments(bankPaymentsList);
       } catch (error) {
         console.error("Error fetching customer balances:", error);
       } finally {
@@ -66,6 +95,109 @@ export default function CustomerBalancesReportPage() {
     }
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (rawParties.length === 0) return;
+
+    const startRange = fromDate ? new Date(fromDate) : new Date("2000-01-01");
+    const endRange = toDate ? new Date(toDate) : new Date("2100-01-01");
+    endRange.setHours(23, 59, 59, 999);
+
+    const result = rawParties.map((p: any) => {
+      const partyId = p._id;
+      const initialOpening = Number(p.openingBalance) || 0;
+
+      // Filter transactions for this customer
+      const pInvoices = invoices.filter((inv: any) => inv.partyId?._id === partyId || inv.partyId === partyId);
+      const pCashReceipts = cashReceipts.filter((r: any) => r.partyId?._id === partyId || r.partyId === partyId);
+      const pBankReceipts = bankReceipts.filter((r: any) => r.partyId?._id === partyId || r.partyId === partyId || r.party === partyId);
+      const pCashPayments = cashPayments.filter((py: any) => py.partyId?._id === partyId || py.partyId === partyId || py.vendor === partyId);
+      const pBankPayments = bankPayments.filter((py: any) => py.vendor === partyId);
+
+      // Collect all transactions into a single list
+      const txs: any[] = [];
+
+      pInvoices.forEach((s: any) => {
+        const isReturn = s.type === "sale_return" || s.type === "non_tax_sale_return";
+        if (["sale", "non_tax_sale", "pos", "challan", "sale_return", "non_tax_sale_return"].includes(s.type)) {
+          txs.push({
+            date: new Date(s.date || s.createdAt),
+            debit: isReturn ? 0 : s.totalAmount || 0,
+            credit: isReturn ? s.totalAmount || 0 : 0
+          });
+        }
+      });
+
+      pCashReceipts.forEach((r: any) => {
+        txs.push({
+          date: new Date(r.date || r.createdAt),
+          debit: 0,
+          credit: r.amount || 0
+        });
+      });
+
+      pBankReceipts.forEach((r: any) => {
+        txs.push({
+          date: new Date(r.date || r.createdAt),
+          debit: 0,
+          credit: r.amount || 0
+        });
+      });
+
+      pCashPayments.forEach((py: any) => {
+        txs.push({
+          date: new Date(py.date || py.createdAt),
+          debit: py.amount || 0,
+          credit: 0
+        });
+      });
+
+      pBankPayments.forEach((py: any) => {
+        txs.push({
+          date: new Date(py.date || py.createdAt),
+          debit: py.amount || 0,
+          credit: 0
+        });
+      });
+
+      // Calculate Opening Balance (before startRange)
+      let opening = initialOpening;
+      txs.forEach((t) => {
+        if (t.date.getTime() < startRange.getTime()) {
+          opening += t.debit - t.credit;
+        }
+      });
+
+      // Calculate Debit and Credit during the selected date range
+      let debit = 0;
+      let credit = 0;
+      txs.forEach((t) => {
+        if (t.date.getTime() >= startRange.getTime() && t.date.getTime() <= endRange.getTime()) {
+          debit += t.debit;
+          credit += t.credit;
+        }
+      });
+
+      // Closing Balance
+      const closing = opening + debit - credit;
+
+      return {
+        id: partyId,
+        customer: p.name || p.companyName || "Unknown",
+        region: p.region || "-",
+        area: p.area || "-",
+        city: p.city || "-",
+        opening,
+        debit,
+        credit,
+        closing,
+        rawParty: p
+      };
+    });
+
+    setData(result);
+    setFilteredData(result);
+  }, [rawParties, invoices, cashReceipts, bankReceipts, cashPayments, bankPayments, fromDate, toDate]);
 
   useEffect(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -106,11 +238,11 @@ export default function CustomerBalancesReportPage() {
         </div>
         <div className="space-y-1 lg:col-span-1">
           <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Date From</label>
-          <input type="date" className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/20" />
+          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/20" />
         </div>
         <div className="space-y-1 lg:col-span-1">
           <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Date To</label>
-          <input type="date" className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/20" defaultValue="2026-04-29" />
+          <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/20" />
         </div>
         <div className="space-y-1 lg:col-span-1">
           <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Customer</label>

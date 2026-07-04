@@ -252,6 +252,32 @@ export async function generateInvoiceJournalEntries(invoice: any) {
       });
     }
 
+    // Customer advance usage entries
+    if (invoice.useAdvance && invoice.advanceAmountUsed > 0) {
+      entries.push({
+        invoiceId: invoice._id,
+        voucherNo,
+        date,
+        accountCode: "2120",
+        accountTitle: "Customer Advance Liability",
+        debit: invoice.advanceAmountUsed,
+        credit: 0,
+        remarks: `Customer advance used against invoice`,
+        partyId: invoice.partyId || null
+      });
+      entries.push({
+        invoiceId: invoice._id,
+        voucherNo,
+        date,
+        accountCode: "1100",
+        accountTitle: "Accounts Receivable",
+        debit: 0,
+        credit: invoice.advanceAmountUsed,
+        remarks: `Customer advance used against invoice`,
+        partyId: invoice.partyId || null
+      });
+    }
+
     await JournalEntry.create(entries);
   } else if (invoice.type === "sale_return" || invoice.type === "non_tax_sale_return") {
     await JournalEntry.create([
@@ -278,7 +304,7 @@ export async function generateInvoiceJournalEntries(invoice: any) {
         partyId: invoice.partyId || null
       }
     ]);
-  } else if (invoice.type === "purchase" || invoice.type === "non_tax_purchase") {
+  } else if (invoice.type === "purchase" || invoice.type === "non_tax_purchase" || invoice.type === "import_purchase") {
     const taxAmount = Number(invoice.taxAmount) || 0;
     const subTotal = Number(invoice.subTotal) || 0;
     const discountAmount = Number(invoice.discountAmount) || 0;
@@ -335,7 +361,64 @@ export async function generateInvoiceJournalEntries(invoice: any) {
       partyId: invoice.partyId || null
     });
 
+    // 4. If Accounts Payable but amountReceived > 0, post payment
+    if (liabilityCode === "2100" && invoice.amountReceived > 0) {
+      const payMethod = invoice.paymentMethod === "Bank" ? "1110" : "1111";
+      const payTitle = invoice.paymentMethod === "Bank" ? "Bank" : "Cash";
+      entries.push({
+        invoiceId: invoice._id,
+        voucherNo,
+        date,
+        accountCode: "2100",
+        accountTitle: "Accounts Payable",
+        debit: invoice.amountReceived,
+        credit: 0,
+        remarks: `Payment made at purchase`,
+        partyId: invoice.partyId || null
+      });
+      entries.push({
+        invoiceId: invoice._id,
+        voucherNo,
+        date,
+        accountCode: payMethod,
+        accountTitle: payTitle,
+        debit: 0,
+        credit: invoice.amountReceived,
+        remarks: `Payment made at purchase`,
+        partyId: null
+      });
+    }
+
     await JournalEntry.create(entries);
+  } else if (invoice.type === "purchase_order" || invoice.type === "grn") {
+    if (invoice.amountReceived > 0) {
+      const payMethod = invoice.paymentMethod === "Bank" ? "1110" : "1111";
+      const payTitle = invoice.paymentMethod === "Bank" ? "Bank" : "Cash";
+      await JournalEntry.create([
+        {
+          invoiceId: invoice._id,
+          voucherNo,
+          date,
+          accountCode: "2100",
+          accountTitle: "Accounts Payable",
+          debit: invoice.amountReceived,
+          credit: 0,
+          remarks: `Payment made at ${invoice.type === "grn" ? "GRN" : "PO"}`,
+          partyId: invoice.partyId || null
+        },
+        {
+          invoiceId: invoice._id,
+          voucherNo,
+          date,
+          accountCode: payMethod,
+          accountTitle: payTitle,
+          debit: 0,
+          credit: invoice.amountReceived,
+          remarks: `Payment made at ${invoice.type === "grn" ? "GRN" : "PO"}`,
+          partyId: null
+        }
+      ]);
+    }
   } else if (invoice.type === "purchase_return" || invoice.type === "non_tax_purchase_return") {
     await JournalEntry.create([
       {
@@ -368,6 +451,42 @@ export async function generateInvoiceJournalEntries(invoice: any) {
   }
 }
 
+export async function getCustomerAdvanceStats(customerId: string) {
+  const entries = await JournalEntry.find({ accountCode: "2120" }).lean();
+  // Filter entries linked to this customer's cash/bank receipts and payments
+  const customerReceipts = await CashReceipt.find({ partyId: customerId, status: { $ne: "Cancelled" }, partyReceiptType: { $in: ["Advance", "Deposit", "Extra Cash"] } }).lean();
+  const receiptVouchers = new Set(customerReceipts.map((r: any) => r.receiptNumber));
+  
+  let totalAdvance = 0;
+  let totalUsed = 0;
+  let totalRefunded = 0;
+
+  for (const entry of entries) {
+    const e = entry as any;
+    if (receiptVouchers.has(e.voucherNo)) {
+      totalAdvance += e.credit || 0;
+    }
+    // Debits to 2120 = advance used or refunded
+    if (e.debit > 0 && e.partyId && String(e.partyId) === String(customerId)) {
+      totalRefunded += e.debit;
+    }
+  }
+
+  // Also check invoice-linked advance usage
+  const invoices = await Invoice.find({ partyId: customerId, useAdvance: true, advanceAmountUsed: { $gt: 0 } }).lean();
+  totalUsed = invoices.reduce((sum: number, inv: any) => sum + (Number(inv.advanceAmountUsed) || 0), 0);
+  
+  // Total refunded from cash/bank payments marked as refund
+  const cashPaymentRefunds = await CashPayment.find({ partyId: customerId, isRefund: true, status: "Posted" }).lean();
+  const bankPaymentRefunds = await BankPayment.find({ vendor: customerId, isRefund: true, status: "Posted" }).lean();
+  totalRefunded = cashPaymentRefunds.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) +
+                  bankPaymentRefunds.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
+
+  const remainingAdvance = Math.max(0, totalAdvance - totalUsed - totalRefunded);
+
+  return { totalAdvance, totalUsed, totalRefunded, remainingAdvance };
+}
+
 export async function postCashReceiptJournalEntries(receipt: any) {
   await JournalEntry.deleteMany({ voucherNo: receipt.receiptNumber });
 
@@ -390,11 +509,19 @@ export async function postCashReceiptJournalEntries(receipt: any) {
   const amount = Number(receipt.amount) || 0;
   const remarks = receipt.narration || receipt.notes || "Cash Receipt";
 
-  if (receiptType === "party" && receipt.partyId) {
+  if (receipt.partyId) {
     const party = await Party.findById(receipt.partyId).lean() as any;
     const isCustomer = party ? party.type === "Customer" : true;
-    const accountCode = isCustomer ? "1100" : "2100";
-    const accountTitle = isCustomer ? "Accounts Receivable" : "Accounts Payable";
+    const isAdvance = ["Advance", "Deposit", "Extra Cash"].includes(receipt.partyReceiptType);
+    
+    let accountCode = isCustomer ? "1100" : "2100";
+    let accountTitle = isCustomer ? "Accounts Receivable" : "Accounts Payable";
+    
+    // For advance/deposit receipts from customers, use Customer Advance Liability account
+    if (isAdvance && isCustomer) {
+      accountCode = "2120";
+      accountTitle = "Customer Advance Liability";
+    }
     const partyType = isCustomer ? "customer" : "vendor";
 
     entries.push({
@@ -404,7 +531,7 @@ export async function postCashReceiptJournalEntries(receipt: any) {
       accountTitle: cashTitle,
       debit: amount,
       credit: 0,
-      remarks,
+      remarks: isAdvance ? `Customer Advance/Deposit received` : remarks,
       partyId: null,
       partyType: ""
     });
@@ -415,7 +542,7 @@ export async function postCashReceiptJournalEntries(receipt: any) {
       accountTitle,
       debit: 0,
       credit: amount,
-      remarks,
+      remarks: isAdvance ? `Customer Advance/Deposit received` : remarks,
       partyId: receipt.partyId,
       partyType
     });
@@ -516,8 +643,16 @@ export async function postCashPaymentJournalEntries(payment: any) {
   if (paymentType === "party" && payment.partyId) {
     const party = await Party.findById(payment.partyId).lean() as any;
     const isCustomer = party ? party.type === "Customer" : false;
-    const accountCode = isCustomer ? "1100" : "2100";
-    const accountTitle = isCustomer ? "Accounts Receivable" : "Accounts Payable";
+    const isAdvanceRefund = isCustomer && (payment.isRefund || payment.partyPaymentType === "Refund");
+    
+    let accountCode = isCustomer ? "1100" : "2100";
+    let accountTitle = isCustomer ? "Accounts Receivable" : "Accounts Payable";
+    
+    // For advance refunds to customers, use Customer Advance Liability account
+    if (isAdvanceRefund) {
+      accountCode = "2120";
+      accountTitle = "Customer Advance Liability";
+    }
     const partyType = isCustomer ? "customer" : "vendor";
 
     entries.push({
@@ -527,7 +662,7 @@ export async function postCashPaymentJournalEntries(payment: any) {
       accountTitle,
       debit: amount,
       credit: 0,
-      remarks,
+      remarks: isAdvanceRefund ? `Customer Advance Refunded` : remarks,
       partyId: payment.partyId,
       partyType
     });
@@ -538,7 +673,7 @@ export async function postCashPaymentJournalEntries(payment: any) {
       accountTitle: cashTitle,
       debit: 0,
       credit: amount,
-      remarks,
+      remarks: isAdvanceRefund ? `Customer Advance Refunded` : remarks,
       partyId: null,
       partyType: ""
     });

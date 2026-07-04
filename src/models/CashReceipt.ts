@@ -31,6 +31,7 @@ const CashReceiptSchema = new Schema(
     netAmount: { type: Number, default: 0 },
     notes: { type: String, default: "" },
     status: { type: String, enum: ["Draft", "Posted"], default: "Draft" },
+    partyReceiptType: { type: String, enum: ["Standard", "Advance", "Deposit", "Extra Cash"], default: "Standard" },
     // Petty Receipt
     contraLines: { type: [ContraLineSchema], default: [] },
     // Multi-Party Receipt

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from "react";
 import ItemSearchInput from "@/components/erp/ui/ItemSearchInput";
@@ -69,7 +69,9 @@ export default function NonTaxSaleInvoiceForm({ onClose, initialData }: NonTaxSa
     locationId: initialData?.locationId?._id || initialData?.locationId || "",
     amountReceived: initialData?.amountReceived || 0,
     paymentAccountId: initialData?.paymentAccountId || "",
-    notes: initialData?.notes || ""
+    notes: initialData?.notes || "",
+    useAdvance: initialData?.useAdvance || false,
+    advanceAmountUsed: initialData?.advanceAmountUsed || 0
   });
 
   const [availableItems, setAvailableItems] = useState<any[]>([]);
@@ -211,9 +213,11 @@ export default function NonTaxSaleInvoiceForm({ onClose, initialData }: NonTaxSa
       subTotal,
       discountAmount: totalDiscount,
       totalAmount: grandTotal,
-      balance: grandTotal - formData.amountReceived,
+      balance: grandTotal - formData.amountReceived - (formData.useAdvance ? Number(formData.advanceAmountUsed) : 0),
       paymentAccountId: formData.paymentAccountId || undefined,
-      status: status.toLowerCase()
+      status: status.toLowerCase(),
+      useAdvance: formData.useAdvance,
+      advanceAmountUsed: formData.useAdvance ? Number(formData.advanceAmountUsed) : 0
     };
 
     try {
@@ -239,6 +243,7 @@ export default function NonTaxSaleInvoiceForm({ onClose, initialData }: NonTaxSa
   const subTotal = items.reduce((sum, i) => sum + ((i.cartons || 0) * (i.unitPrice || 0)), 0);
   const totalDiscount = items.reduce((sum, i) => sum + (((i.cartons || 0) * (i.unitPrice || 0)) * (i.discPercent || 0) / 100), 0);
   const grandTotal = subTotal - totalDiscount;
+  const selectedCustObj = customers.find(c => c._id === formData.customerId);
 
   return (
     <div className="bg-slate-50 dark:bg-slate-800/50 min-h-screen font-sans">
@@ -432,6 +437,54 @@ export default function NonTaxSaleInvoiceForm({ onClose, initialData }: NonTaxSa
                   <input type="number" value={formData.amountReceived} onChange={(e) => setFormData({...formData, amountReceived: parseFloat(e.target.value) || 0})} className="w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-2xl text-xl font-black focus:bg-white dark:focus:bg-slate-900 dark:bg-slate-900 focus:border-emerald-600 outline-none transition-all" />
                 </div>
               </div>
+
+              {selectedCustObj?.advanceStats && selectedCustObj.advanceStats.remainingAdvance > 0 && (
+                <div className="bg-slate-100 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2 mt-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-500">Advance Balance:</span>
+                    <span className="text-sm font-black text-emerald-600 font-mono">
+                      PKR {Math.round(selectedCustObj.advanceStats.remainingAdvance).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-slate-800 dark:text-white">
+                      <input
+                        type="checkbox"
+                        checked={formData.useAdvance}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          const toUse = checked ? Math.min(grandTotal, selectedCustObj.advanceStats.remainingAdvance) : 0;
+                          setFormData({
+                            ...formData,
+                            useAdvance: checked,
+                            advanceAmountUsed: toUse
+                          });
+                        }}
+                        className="rounded accent-emerald-500"
+                      />
+                      Use Advance Balance
+                    </label>
+                    {formData.useAdvance && (
+                      <input
+                        type="number"
+                        value={formData.advanceAmountUsed}
+                        max={Math.min(grandTotal, selectedCustObj.advanceStats.remainingAdvance)}
+                        onChange={(e) => {
+                          const val = Math.min(
+                            Math.min(grandTotal, selectedCustObj.advanceStats.remainingAdvance),
+                            Math.max(0, Number(e.target.value) || 0)
+                          );
+                          setFormData({
+                            ...formData,
+                            advanceAmountUsed: val
+                          });
+                        }}
+                        className="w-28 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-right font-black font-mono outline-none"
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Payment Account</label>
                 <select value={formData.paymentAccountId} onChange={(e) => setFormData({...formData, paymentAccountId: e.target.value})} className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-2xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 dark:bg-slate-900 focus:border-emerald-600 outline-none transition-all">

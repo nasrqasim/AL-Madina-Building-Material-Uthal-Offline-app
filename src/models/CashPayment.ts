@@ -32,6 +32,8 @@ const CashPaymentSchema = new Schema(
     notes: { type: String, default: "" },
     status: { type: String, enum: ["Draft", "Posted"], default: "Posted" },
     mode: { type: String, default: "Party" },
+    partyPaymentType: { type: String, default: "" },
+    isRefund: { type: Boolean, default: false },
     contraLines: { type: [ContraLineSchema], default: [] },
   },
   { timestamps: true }

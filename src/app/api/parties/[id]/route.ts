@@ -1,7 +1,7 @@
 import { fail, ok } from "@/lib/api";
 import dbConnect from "@/lib/db";
 import Party from "@/models/Party";
-import { recalculatePartyBalance } from "@/services/posting/invoicePostingHelper";
+import { recalculatePartyBalance, getCustomerAdvanceStats } from "@/services/posting/invoicePostingHelper";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 
@@ -28,7 +28,13 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       }
     }
 
-    return ok(row);
+    // Calculate advance stats for customers
+    let advanceStats = null;
+    if ((row as any).type === "Customer") {
+      advanceStats = await getCustomerAdvanceStats(params.id);
+    }
+
+    return ok({ ...(row as any), advanceStats });
   } catch (e) {
     return fail((e as Error).message);
   }

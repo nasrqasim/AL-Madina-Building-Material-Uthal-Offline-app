@@ -190,7 +190,7 @@ export default function POSViewModal({ isOpen, onClose, sale }: POSViewModalProp
           {/* Logo / Company Title */}
           <div className="text-center mb-1">
             <h2 className="text-lg font-black uppercase tracking-tight" style={{ fontSize: '14px' }}>
-              {companyInfo?.name || "AL HADEED TRADERS"}
+              {companyInfo?.companyName || "AL HADEED TRADERS"}
             </h2>
             <p className="text-[11px] font-bold">Tel: {companyInfo?.phone || "03108444612"}</p>
           </div>

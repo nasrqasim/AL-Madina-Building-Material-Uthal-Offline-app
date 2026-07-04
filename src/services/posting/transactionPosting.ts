@@ -20,6 +20,8 @@ type TransactionInput = {
   netAmount: number;
   narration?: string;
   reference?: string;
+  partyPaymentType?: string;
+  isRefund?: boolean;
 };
 
 export async function postCashPayment(input: TransactionInput) {

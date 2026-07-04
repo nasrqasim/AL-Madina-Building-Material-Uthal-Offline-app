@@ -19,6 +19,10 @@ export default function CashReceiptPage() {
   const [waParty, setWaParty] = useState<any>(null);
   const [waDocData, setWaDocData] = useState<any>(null);
   const [shopProfile, setShopProfile] = useState<any>(null);
+  const [rangeType, setRangeType] = useState("all");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [receiptFilter, setReceiptFilter] = useState("all");
 
   useEffect(() => {
     if (printReceipt) {
@@ -32,7 +36,14 @@ export default function CashReceiptPage() {
   const fetchReceipts = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/cash-receipts");
+      let url = `/api/cash-receipts?search=${encodeURIComponent(searchQuery)}`;
+      if (rangeType !== "all") {
+        url += `&rangeType=${rangeType}`;
+        if (rangeType === "custom" && fromDate && toDate) {
+          url += `&fromDate=${fromDate}&toDate=${toDate}`;
+        }
+      }
+      const res = await fetch(url);
       const json = await res.json();
       if (json.ok) setReceipts(json.data);
     } catch (e) {
@@ -53,9 +64,12 @@ export default function CashReceiptPage() {
   };
 
   useEffect(() => {
-    fetchReceipts();
     fetchShopProfile();
-  }, [showForm]);
+  }, []);
+
+  useEffect(() => {
+    fetchReceipts();
+  }, [searchQuery, rangeType, fromDate, toDate, showForm]);
 
   const deleteReceipt = async (id: string) => {
     if (confirm("Are you sure you want to delete this cash receipt?")) {
@@ -95,10 +109,30 @@ export default function CashReceiptPage() {
     const ref = p.reference || "";
     const narr = p.narration || "";
     
-    return num.toLowerCase().includes(searchQuery.toLowerCase()) ||
-           partyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-           ref.toLowerCase().includes(searchQuery.toLowerCase()) ||
-           narr.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = num.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          partyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          ref.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          narr.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    if (!matchesSearch) return false;
+
+    if (receiptFilter === "customer") {
+      return p.receiptType === "party" && p.partyId?.type === "Customer";
+    }
+    if (receiptFilter === "vendor") {
+      return p.receiptType === "party" && p.partyId?.type === "Vendor";
+    }
+    if (receiptFilter === "advance") {
+      return ["Advance", "Deposit", "Extra Cash"].includes(p.partyReceiptType);
+    }
+    if (receiptFilter === "petty") {
+      return p.receiptType === "petty";
+    }
+    if (receiptFilter === "multi") {
+      return p.receiptType === "multi";
+    }
+    
+    return true;
   });
 
   return (
@@ -122,17 +156,75 @@ export default function CashReceiptPage() {
       </div>
 
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex flex-col md:flex-row gap-4 items-center justify-between bg-slate-50 dark:bg-slate-800/50">
-          <div className="relative w-full md:w-96">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input
-              type="text"
-              placeholder="Search receipts..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-maroon-800/10 transition-all font-medium"
-            />
+        <div className="p-4 border-b border-slate-100 dark:border-slate-800 space-y-4 bg-slate-50 dark:bg-slate-800/50">
+          <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+            <div className="relative w-full md:w-80">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <input
+                type="text"
+                placeholder="Search receipts..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-maroon-800/10 transition-all font-medium"
+              />
+            </div>
+            
+            <div className="flex flex-wrap gap-3 items-center w-full md:w-auto">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Filter:</span>
+                <select
+                  value={receiptFilter}
+                  onChange={(e) => setReceiptFilter(e.target.value)}
+                  className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-bold outline-none"
+                >
+                  <option value="all">All Receipts</option>
+                  <option value="customer">Customer Receipts</option>
+                  <option value="vendor">Vendor Receipts</option>
+                  <option value="advance">Advances & Deposits</option>
+                  <option value="petty">Petty Receipts</option>
+                  <option value="multi">Multi-Party</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Period:</span>
+                <select
+                  value={rangeType}
+                  onChange={(e) => setRangeType(e.target.value)}
+                  className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-bold outline-none"
+                >
+                  <option value="all">All Time</option>
+                  <option value="today">Today</option>
+                  <option value="week">This Week</option>
+                  <option value="month">This Month</option>
+                  <option value="custom">Custom Date</option>
+                </select>
+              </div>
+            </div>
           </div>
+
+          {rangeType === "custom" && (
+            <div className="flex flex-wrap gap-4 items-center p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">From:</span>
+                <input
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => setFromDate(e.target.value)}
+                  className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold outline-none"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">To:</span>
+                <input
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => setToDate(e.target.value)}
+                  className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold outline-none"
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="overflow-x-auto">

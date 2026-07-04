@@ -63,6 +63,7 @@ function buildReturnFormState(
     jobId: resolveRefId(initialData, "jobId"),
     locationId: resolveRefId(initialData, "locationId"),
     refundAmount: Number(initialData?.amountReceived || 0),
+    paymentMethod: String(initialData?.paymentMethod || "Cash"),
     refundAccountId: String(initialData?.refundAccountId || ""),
     notes: String(initialData?.notes || ""),
   };
@@ -186,6 +187,7 @@ export default function NonTaxPurchaseReturnForm({ onClose, onSave, initialData 
       linkedInvoiceId: formData.nonTaxPurchaseInvoiceId || null,
       totalAmount,
       amountReceived: formData.refundAmount,
+      paymentMethod: formData.paymentMethod,
       status: status.toLowerCase(),
       employeeId: formData.employeeId || null,
       jobId: formData.jobId || null,
@@ -428,7 +430,15 @@ export default function NonTaxPurchaseReturnForm({ onClose, onSave, initialData 
           <div className="flex items-center space-x-2 mb-8">
             <h2 className="text-sm font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Refund Information</h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Payment Method</label>
+              <select value={formData.paymentMethod} onChange={(e) => setFormData({...formData, paymentMethod: e.target.value})} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-black focus:border-maroon-800 transition-all outline-none">
+                <option value="Cash">Cash</option>
+                <option value="Bank">Bank</option>
+                <option value="Credit">Credit (On Account)</option>
+              </select>
+            </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Refund Amount</label>
               <input type="number" value={formData.refundAmount} onChange={(e) => setFormData({...formData, refundAmount: parseFloat(e.target.value) || 0})} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-black focus:border-maroon-800 transition-all outline-none" />

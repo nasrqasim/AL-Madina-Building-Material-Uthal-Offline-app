@@ -71,6 +71,8 @@ export default function PurchaseOrderForm({ onClose, onSave, initialData }: Purc
     employeeId: initialData?.employeeId || "",
     jobId: initialData?.jobId || "",
     locationId: initialData?.locationId || "",
+    amountPaid: initialData?.amountReceived || 0,
+    paymentMethod: initialData?.paymentMethod || "Cash",
     notes: initialData?.notes || "",
     termsAndConditions: initialData?.termsAndConditions || ""
   });
@@ -227,6 +229,7 @@ export default function PurchaseOrderForm({ onClose, onSave, initialData }: Purc
 
   const handleSave = async (status: "Draft" | "Approved") => {
     const isEdit = initialData && initialData._id;
+    const balance = grandTotal - formData.amountPaid;
     const payload = {
       invoiceNo: formData.poNumber === "Auto-generated" ? `PO-${Date.now().toString().slice(-6)}` : formData.poNumber,
       type: "purchase_order",
@@ -249,7 +252,10 @@ export default function PurchaseOrderForm({ onClose, onSave, initialData }: Purc
       discountAmount: totalDiscount,
       taxAmount: totalTax,
       totalAmount: grandTotal,
-      status: status.toLowerCase(),
+      balance,
+      amountReceived: formData.amountPaid,
+      paymentMethod: formData.paymentMethod,
+      status: balance <= 0 && status === "Approved" ? "paid" : status.toLowerCase(),
       employeeId: formData.employeeId || null,
       jobId: formData.jobId || null,
       locationId: formData.locationId || null,
@@ -507,6 +513,34 @@ export default function PurchaseOrderForm({ onClose, onSave, initialData }: Purc
               <div className="pt-6 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center">
                 <span className="text-xs font-black text-maroon-800 uppercase tracking-[0.2em]">Total (PKR)</span>
                 <span className="text-3xl font-black text-maroon-800 tracking-tighter">{grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Section Payment Details */}
+        <section className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-2 h-full bg-emerald-600" />
+          <div className="flex items-center space-x-2 mb-8">
+            <h2 className="text-sm font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Payment Information</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Payment Method</label>
+              <select value={formData.paymentMethod} onChange={(e) => setFormData({...formData, paymentMethod: e.target.value})} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-black focus:border-maroon-800 transition-all outline-none">
+                <option value="Cash">Cash</option>
+                <option value="Bank">Bank</option>
+                <option value="Credit">Credit (On Account)</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Amount Paid (PKR)</label>
+              <input type="number" value={formData.amountPaid} onChange={(e) => setFormData({...formData, amountPaid: parseFloat(e.target.value) || 0})} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-black focus:border-maroon-800 transition-all outline-none" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Remaining Balance (PKR)</label>
+              <div className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-2xl text-sm font-black text-maroon-800">
+                {(grandTotal - formData.amountPaid).toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </div>
             </div>
           </div>

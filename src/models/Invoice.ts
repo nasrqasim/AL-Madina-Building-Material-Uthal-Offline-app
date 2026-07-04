@@ -98,7 +98,8 @@ const InvoiceSchema = new Schema(
     plannedQty: { type: Number, default: 0 },
     actualQty: { type: Number, default: 0 },
     bomId: { type: Schema.Types.ObjectId, ref: "Invoice" },
-
+    useAdvance: { type: Boolean, default: false },
+    advanceAmountUsed: { type: Number, default: 0 },
     status: { type: String, enum: ["draft", "posted", "approved", "cancelled", "paid", "received", "accepted", "sent", "delivered", "dispatched", "completed", "invoiced", "Submitted", "Approved", "Rejected", "Draft", "Verified", "Pending", "Dispatched", "Active", "Planned", "In-Progress", "Completed", "Cancelled", "Posted", "Received"], default: "posted" },
   },
   { timestamps: true }

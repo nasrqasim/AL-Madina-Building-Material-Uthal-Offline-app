@@ -566,6 +566,15 @@ export default function VendorProfileHistory({
                       ) : (
                         <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-400 italic font-bold">No purchase records found.</td></tr>
                       )}
+                      {filteredPurchases.length > 0 && (
+                        <tr className="bg-slate-100 dark:bg-slate-800 font-black text-slate-950 dark:text-white border-t-2 border-slate-300 dark:border-slate-600">
+                          <td colSpan={3} className="px-4 py-3.5 text-right uppercase tracking-widest text-[9px]">Grand Total ({filteredPurchases.length} Purchases)</td>
+                          <td className="px-4 py-3.5 text-center">{filteredPurchases.reduce((a, p) => a + (p.lines || p.items || []).reduce((b: number, l: any) => b + (l.qty || l.cartons || 1), 0), 0)}</td>
+                          <td className="px-4 py-3.5 text-right">PKR {Math.round(filteredPurchases.reduce((a, p) => a + (p.totalAmount || 0), 0)).toLocaleString()}</td>
+                          <td className="px-4 py-3.5 text-right text-emerald-600">PKR {Math.round(filteredPurchases.reduce((a, p) => a + (p.amountReceived || 0), 0)).toLocaleString()}</td>
+                          <td className="px-4 py-3.5 text-right text-rose-600">PKR {Math.round(filteredPurchases.reduce((a, p) => a + ((p.totalAmount || 0) - (p.amountReceived || 0)), 0)).toLocaleString()}</td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -658,6 +667,13 @@ export default function VendorProfileHistory({
                       ) : (
                         <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-400 italic font-bold">No payment records match this criteria.</td></tr>
                       )}
+                      {filteredPayments.length > 0 && (
+                        <tr className="bg-slate-100 dark:bg-slate-800 font-black text-slate-950 dark:text-white border-t-2 border-slate-300 dark:border-slate-600">
+                          <td colSpan={2} className="px-4 py-3.5 text-right uppercase tracking-widest text-[9px]">Grand Total ({filteredPayments.length} Payments)</td>
+                          <td className="px-4 py-3.5 text-right text-rose-600">PKR {Math.round(filteredPayments.reduce((a, p) => a + (p.amount || 0), 0)).toLocaleString()}</td>
+                          <td colSpan={4} className="px-4 py-3.5"></td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -727,6 +743,13 @@ export default function VendorProfileHistory({
                         ))
                       ) : (
                         <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400 italic font-bold">No item purchases recorded.</td></tr>
+                      )}
+                      {productHistory.length > 0 && (
+                        <tr className="bg-slate-100 dark:bg-slate-800 font-black text-slate-950 dark:text-white border-t-2 border-slate-300 dark:border-slate-600">
+                          <td colSpan={2} className="px-4 py-3.5 text-right uppercase tracking-widest text-[9px]">Grand Total ({productHistory.length} Items)</td>
+                          <td className="px-4 py-3.5 text-center">{productHistory.reduce((a, p) => a + (p.qty || 0), 0)}</td>
+                          <td colSpan={2} className="px-4 py-3.5"></td>
+                        </tr>
                       )}
                     </tbody>
                   </table>
@@ -811,6 +834,15 @@ export default function VendorProfileHistory({
                         })
                       ) : (
                         <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400 italic font-bold">No outstanding bills found.</td></tr>
+                      )}
+                      {outstandingBills.length > 0 && (
+                        <tr className="bg-slate-100 dark:bg-slate-800 font-black text-slate-950 dark:text-white border-t-2 border-slate-300 dark:border-slate-600">
+                          <td colSpan={2} className="px-4 py-3.5 text-right uppercase tracking-widest text-[9px]">Grand Total ({outstandingBills.length} Bills)</td>
+                          <td className="px-4 py-3.5 text-right">PKR {Math.round(outstandingBills.reduce((a, b) => a + (b.totalAmount || 0), 0)).toLocaleString()}</td>
+                          <td className="px-4 py-3.5 text-right text-emerald-600">PKR {Math.round(outstandingBills.reduce((a, b) => a + (b.amountReceived || 0), 0)).toLocaleString()}</td>
+                          <td className="px-4 py-3.5 text-right text-rose-600">PKR {Math.round(outstandingBills.reduce((a, b) => a + ((b.totalAmount || 0) - (b.amountReceived || 0)), 0)).toLocaleString()}</td>
+                          <td className="px-4 py-3.5"></td>
+                        </tr>
                       )}
                     </tbody>
                   </table>

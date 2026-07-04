@@ -67,6 +67,7 @@ export default function PurchaseReturnForm({ onClose, onSave, initialData }: Pur
     locationId: initialData?.locationId?._id || initialData?.locationId || "",
     jobId: initialData?.jobId?._id || initialData?.jobId || "",
     amountReceived: initialData?.amountReceived || 0,
+    paymentMethod: initialData?.paymentMethod || "Cash",
     notes: initialData?.notes || ""
   });
 
@@ -167,7 +168,7 @@ export default function PurchaseReturnForm({ onClose, onSave, initialData }: Pur
       return;
     }
 
-    const isEdit = initialData && initialData._id;
+    const isEdit = !!(initialData && initialData._id);
     const payload = {
       invoiceNo: formData.returnNumber === "Auto-generated" ? `PR-${Date.now().toString().slice(-6)}` : formData.returnNumber,
       type: "purchase_return",
@@ -188,6 +189,7 @@ export default function PurchaseReturnForm({ onClose, onSave, initialData }: Pur
       subTotal: totalAmount,
       totalAmount,
       amountReceived: Number(formData.amountReceived) || 0,
+      paymentMethod: formData.paymentMethod,
       status: status === "Posted" ? "posted" : "draft",
       jobId: formData.jobId || null,
       locationId: formData.locationId || null,
@@ -423,6 +425,18 @@ export default function PurchaseReturnForm({ onClose, onSave, initialData }: Pur
               <div className="flex justify-between items-center">
                 <span className="text-xs font-black text-slate-500 uppercase">Total Return (PKR)</span>
                 <span className="text-2xl font-black text-maroon-800">{totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              </div>
+              <div className="flex justify-between items-center pt-2">
+                <span className="text-xs font-black text-slate-500 uppercase">Payment Method</span>
+                <select
+                  value={formData.paymentMethod}
+                  onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
+                  className="w-40 px-3 py-2 text-sm font-bold border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-maroon-800 bg-white dark:bg-slate-900 dark:text-white"
+                >
+                  <option value="Cash">Cash</option>
+                  <option value="Bank">Bank</option>
+                  <option value="Credit">Credit (On Account)</option>
+                </select>
               </div>
               <div className="flex justify-between items-center pt-2 border-t border-slate-200 dark:border-slate-800">
                 <span className="text-xs font-black text-slate-500 uppercase">Refund Received</span>

@@ -75,6 +75,8 @@ export async function POST(req: Request) {
       wht: body.whtAmount,
       netAmount: body.totalAmount - (body.whtAmount || 0),
       narration: body.narration,
+      partyPaymentType: body.partyPaymentType,
+      isRefund: body.isRefund,
     });
 
     if (body.vendorId) await recalculatePartyBalance(String(body.vendorId));

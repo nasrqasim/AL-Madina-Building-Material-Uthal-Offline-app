@@ -99,6 +99,7 @@ export default function PurchaseInvoiceForm({ onClose, onSave, initialData }: Pu
     vendorInvoiceDate: initialData?.vendorInvoiceDate ? new Date(initialData.vendorInvoiceDate).toISOString().split("T")[0] : "",
     dueDate: initialData?.dueDate ? new Date(initialData.dueDate).toISOString().split("T")[0] : "",
     paymentTerms: initialData?.paymentTerms || "",
+    paymentMethod: initialData?.paymentMethod || "Cash",
     currency: initialData?.currency || "PKR",
     employeeId: initialData?.employeeId?._id || initialData?.employeeId || "",
     jobId: initialData?.jobId?._id || initialData?.jobId || "",
@@ -186,6 +187,7 @@ export default function PurchaseInvoiceForm({ onClose, onSave, initialData }: Pu
         currency: formData.currency,
         dueDate: formData.dueDate || undefined,
         paymentTerms: formData.paymentTerms,
+        paymentMethod: formData.paymentMethod,
         employeeId: formData.employeeId || null,
         jobId: formData.jobId || null,
         locationId: formData.locationId || null,
@@ -496,6 +498,18 @@ export default function PurchaseInvoiceForm({ onClose, onSave, initialData }: Pu
             <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Payment Information</h3>
           </div>
           <div className="p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Payment Method</label>
+              <select
+                value={formData.paymentMethod}
+                onChange={e => setFormData({ ...formData, paymentMethod: e.target.value })}
+                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-black focus:border-emerald-500 outline-none"
+              >
+                <option value="Cash">Cash</option>
+                <option value="Bank">Bank</option>
+                <option value="Credit">Credit (On Account)</option>
+              </select>
+            </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount Paid</label>
               <input

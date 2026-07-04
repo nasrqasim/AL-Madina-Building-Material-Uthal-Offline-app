@@ -13,6 +13,8 @@ const BankPaymentSchema = new Schema(
     wht: { type: Number, default: 0 },
     netPaid: { type: Number, default: 0 },
     status: { type: String, enum: ["Draft", "Posted", "Cleared"], default: "Draft" },
+    partyPaymentType: { type: String, default: "" },
+    isRefund: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
