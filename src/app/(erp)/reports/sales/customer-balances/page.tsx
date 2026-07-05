@@ -117,6 +117,21 @@ export default function CustomerBalancesReportPage() {
       // Collect all transactions into a single list
       const txs: any[] = [];
 
+      if (p.manualDebit) {
+        txs.push({
+          date: new Date("2000-01-01T00:00:00.000Z"),
+          debit: Number(p.manualDebit) || 0,
+          credit: 0
+        });
+      }
+      if (p.manualCredit) {
+        txs.push({
+          date: new Date("2000-01-01T00:00:00.000Z"),
+          debit: 0,
+          credit: Number(p.manualCredit) || 0
+        });
+      }
+
       pInvoices.forEach((s: any) => {
         const isReturn = s.type === "sale_return" || s.type === "non_tax_sale_return";
         if (["sale", "non_tax_sale", "pos", "challan", "sale_return", "non_tax_sale_return"].includes(s.type)) {

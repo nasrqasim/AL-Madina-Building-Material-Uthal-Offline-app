@@ -29,8 +29,8 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
     creditLimit: 0,
     creditDays: 30,
     openingBalance: 0,
-    debit: 0,
-    credit: 0,
+    manualDebit: 0,
+    manualCredit: 0,
     status: "Active",
     notes: "",
   });
@@ -74,8 +74,8 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
         creditLimit: customer.creditLimit || 0,
         creditDays: customer.creditDays || 30,
         openingBalance: Math.abs(op),
-        debit: customer.debit || 0,
-        credit: customer.credit || 0,
+        manualDebit: customer.manualDebit || customer.debit || 0,
+        manualCredit: customer.manualCredit || customer.credit || 0,
         status: customer.status || "Active",
         notes: customer.notes || "",
       });
@@ -97,8 +97,8 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
         creditLimit: 0,
         creditDays: 30,
         openingBalance: 0,
-        debit: 0,
-        credit: 0,
+        manualDebit: 0,
+        manualCredit: 0,
         status: "Active",
         notes: "",
       });
@@ -430,8 +430,8 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
             </label>
             <input
               type="number"
-              value={formData.debit}
-              onChange={(e) => setFormData({ ...formData, debit: Number(e.target.value) })}
+              value={formData.manualDebit}
+              onChange={(e) => setFormData({ ...formData, manualDebit: Number(e.target.value) })}
               className="w-full px-4 py-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 rounded-xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all dark:text-white"
               placeholder="0"
             />
@@ -443,8 +443,8 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
             </label>
             <input
               type="number"
-              value={formData.credit}
-              onChange={(e) => setFormData({ ...formData, credit: Number(e.target.value) })}
+              value={formData.manualCredit}
+              onChange={(e) => setFormData({ ...formData, manualCredit: Number(e.target.value) })}
               className="w-full px-4 py-3 bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-800 rounded-xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-rose-500/10 outline-none transition-all dark:text-white"
               placeholder="0"
             />

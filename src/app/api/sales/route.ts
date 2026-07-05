@@ -10,7 +10,7 @@ export async function GET() {
     await dbConnect();
     // Fetch Sale Orders, Sale Invoices, etc.
     const rows = await Invoice.find({ 
-      type: { $in: ["sale", "sale_order", "quotation", "non_tax_sale", "pos_counter_sale"] } 
+      type: { $in: ["sale", "sale_order", "quotation", "non_tax_sale", "pos_counter_sale", "sale_return", "non_tax_sale_return"] } 
     })
     .populate("partyId", "name companyName")
     .populate("employeeId", "name")

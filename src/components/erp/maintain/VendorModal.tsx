@@ -31,8 +31,8 @@ export default function VendorModal({ isOpen, onClose, vendor, onSave }: VendorM
     branch: "",
     paymentTerms: 30,
     openingBalance: 0,
-    debit: 0,
-    credit: 0,
+    manualDebit: 0,
+    manualCredit: 0,
     status: "Active",
     notes: "",
   });
@@ -78,8 +78,8 @@ export default function VendorModal({ isOpen, onClose, vendor, onSave }: VendorM
         branch: vendor.branch || "",
         paymentTerms: vendor.paymentTerms || 30,
         openingBalance: Math.abs(op),
-        debit: vendor.debit || 0,
-        credit: vendor.credit || 0,
+        manualDebit: vendor.manualDebit || vendor.debit || 0,
+        manualCredit: vendor.manualCredit || vendor.credit || 0,
         status: vendor.status || "Active",
         notes: vendor.notes || "",
       });
@@ -103,8 +103,8 @@ export default function VendorModal({ isOpen, onClose, vendor, onSave }: VendorM
         branch: "",
         paymentTerms: 30,
         openingBalance: 0,
-        debit: 0,
-        credit: 0,
+        manualDebit: 0,
+        manualCredit: 0,
         status: "Active",
         notes: "",
       });
@@ -419,8 +419,8 @@ export default function VendorModal({ isOpen, onClose, vendor, onSave }: VendorM
               <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Debit (Payments Made)</label>
               <input
                 type="number"
-                value={formData.debit}
-                onChange={(e) => setFormData({ ...formData, debit: Number(e.target.value) })}
+                value={formData.manualDebit}
+                onChange={(e) => setFormData({ ...formData, manualDebit: Number(e.target.value) })}
                 className="w-full px-4 py-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 rounded-xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all"
                 placeholder="0"
               />
@@ -430,8 +430,8 @@ export default function VendorModal({ isOpen, onClose, vendor, onSave }: VendorM
               <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Credit (Purchased)</label>
               <input
                 type="number"
-                value={formData.credit}
-                onChange={(e) => setFormData({ ...formData, credit: Number(e.target.value) })}
+                value={formData.manualCredit}
+                onChange={(e) => setFormData({ ...formData, manualCredit: Number(e.target.value) })}
                 className="w-full px-4 py-3 bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-800 rounded-xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-rose-500/10 outline-none transition-all"
                 placeholder="0"
               />

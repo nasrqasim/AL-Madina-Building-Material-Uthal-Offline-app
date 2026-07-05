@@ -23,6 +23,8 @@ export interface IParty extends mongoose.Document {
   openingBalance: number;
   debit: number;
   credit: number;
+  manualDebit?: number;
+  manualCredit?: number;
   category?: string;
   vendorType?: string;
   bankName?: string;
@@ -58,6 +60,8 @@ const PartySchema = new Schema<IParty>(
     openingBalance: { type: Number, default: 0 },
     debit: { type: Number, default: 0 },
     credit: { type: Number, default: 0 },
+    manualDebit: { type: Number, default: 0 },
+    manualCredit: { type: Number, default: 0 },
     category: { type: String, default: "Cash Customer" },
     vendorType: String,
     bankName: String,

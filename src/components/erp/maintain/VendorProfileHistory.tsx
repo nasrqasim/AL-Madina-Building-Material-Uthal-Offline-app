@@ -32,6 +32,7 @@ export default function VendorProfileHistory({
   // Ledger Dates State
   const [ledgerFromDate, setLedgerFromDate] = useState("");
   const [ledgerToDate, setLedgerToDate] = useState("");
+  const [filterByPeriod, setFilterByPeriod] = useState(false);
   
   // WhatsApp Share Modal
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
@@ -151,11 +152,34 @@ export default function VendorProfileHistory({
   // Recalculates transactions ledger when date range is applied
   const getProcessedLedger = () => {
     const initialOpening = vendor.openingBalance || 0;
-    const startRange = new Date(ledgerFromDate || "2000-01-01");
-    const endRange = new Date(ledgerToDate || "2100-01-01");
-    endRange.setHours(23, 59, 59, 999);
+    const startRange = filterByPeriod ? new Date(ledgerFromDate || "2000-01-01") : new Date("2000-01-01");
+    const endRange = filterByPeriod ? new Date(ledgerToDate || "2100-01-01") : new Date("2100-01-01");
+    if (filterByPeriod) {
+      endRange.setHours(23, 59, 59, 999);
+    }
 
     const txs: any[] = [];
+
+    if (vendor.manualDebit) {
+      txs.push({
+        date: new Date("2000-01-01T00:00:00.000Z"),
+        voucherNo: "-",
+        type: "Adjustment",
+        remarks: "Opening Debit Adjustment",
+        debit: Number(vendor.manualDebit) || 0,
+        credit: 0
+      });
+    }
+    if (vendor.manualCredit) {
+      txs.push({
+        date: new Date("2000-01-01T00:00:00.000Z"),
+        voucherNo: "-",
+        type: "Adjustment",
+        remarks: "Opening Credit Adjustment",
+        debit: 0,
+        credit: Number(vendor.manualCredit) || 0
+      });
+    }
 
     // Process Purchases & Returns (Purchases increase credit (payable), Returns increase debit (receivable))
     purchases.forEach((p: any) => {
@@ -877,9 +901,20 @@ export default function VendorProfileHistory({
             {activeTab === "ledger" && (
               <div className="space-y-6">
                 
-                {/* Date Filter Panel */}
                 <div className="bg-slate-50 dark:bg-slate-800/40 rounded-2xl p-4 border border-slate-250/50 dark:border-slate-800 no-print">
-                  <div className="flex flex-col md:flex-row gap-4 items-end justify-between">
+                  <div className="flex items-center gap-2 mb-3">
+                    <input 
+                      type="checkbox" 
+                      id="filterByPeriod"
+                      checked={filterByPeriod} 
+                      onChange={(e) => setFilterByPeriod(e.target.checked)}
+                      className="rounded border-slate-300 text-maroon-805 focus:ring-maroon-800 h-4 w-4"
+                    />
+                    <label htmlFor="filterByPeriod" className="text-xs font-black uppercase tracking-widest text-slate-500 cursor-pointer select-none">
+                      Filter by Period
+                    </label>
+                  </div>
+                  <div className="flex flex-col md:flex-row gap-4 items-end justify-between transition-opacity" style={{ opacity: filterByPeriod ? 1 : 0.5, pointerEvents: filterByPeriod ? 'auto' : 'none' }}>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
@@ -931,12 +966,12 @@ export default function VendorProfileHistory({
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-850 font-bold text-slate-700 dark:text-slate-350">
                       <tr className="bg-slate-50/50 dark:bg-slate-850/50 font-black">
-                        <td className="px-4 py-3 text-slate-400">{ledgerFromDate ? new Date(ledgerFromDate).toLocaleDateString() : "-"}</td>
+                        <td className="px-4 py-3 text-slate-400">{filterByPeriod && ledgerFromDate ? new Date(ledgerFromDate).toLocaleDateString() : "-"}</td>
                         <td className="px-4 py-3">-</td>
                         <td className="px-4 py-3">
                           <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-[9px] rounded font-black tracking-widest text-slate-500">OPEN</span>
                         </td>
-                        <td className="px-4 py-3 uppercase tracking-tighter text-slate-400">Opening Balance</td>
+                        <td className="px-4 py-3 uppercase tracking-tighter text-slate-400">{filterByPeriod ? "Opening Balance" : "Balance Brought Forward"}</td>
                         <td className="px-4 py-3 text-right">-</td>
                         <td className="px-4 py-3 text-right">-</td>
                         <td className="px-4 py-3 text-right text-slate-900 dark:text-white">Rs. {Math.round(ledgerData.opening).toLocaleString()}</td>

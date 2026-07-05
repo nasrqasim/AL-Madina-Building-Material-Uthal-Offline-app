@@ -147,17 +147,17 @@ export async function recalculatePartyBalance(partyId: string) {
   let balance = 0;
 
   if (isCustomer) {
-    // Debit side = period sales + period payments to customer
-    debit = totalInvoices + totalAdjustments;
-    // Credit side = period returns + period receipts from customer
-    credit = totalReturns + totalReceiptsPayments;
+    // Debit side = manual debit + period sales + period payments to customer
+    debit = (party.manualDebit || 0) + totalInvoices + totalAdjustments;
+    // Credit side = manual credit + period returns + period receipts from customer
+    credit = (party.manualCredit || 0) + totalReturns + totalReceiptsPayments;
     // Closing balance = opening balance (natural Debit) + debits - credits
     balance = openingBalance + debit - credit;
   } else {
-    // Credit side = period purchases + period receipts from vendor
-    credit = totalInvoices + totalAdjustments;
-    // Debit side = period returns + period payments to vendor
-    debit = totalReturns + totalReceiptsPayments;
+    // Credit side = manual credit + period purchases + period receipts from vendor
+    credit = (party.manualCredit || 0) + totalInvoices + totalAdjustments;
+    // Debit side = manual debit + period returns + period payments to vendor
+    debit = (party.manualDebit || 0) + totalReturns + totalReceiptsPayments;
     // Closing balance = opening balance (natural Credit) + credits - debits
     balance = openingBalance + credit - debit;
   }

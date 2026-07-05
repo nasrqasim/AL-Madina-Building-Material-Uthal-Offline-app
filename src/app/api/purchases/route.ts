@@ -10,7 +10,7 @@ export async function GET() {
     await dbConnect();
     // Fetch both Purchase Orders and regular Purchases
     const rows = await Invoice.find({ 
-      type: { $in: ["purchase", "purchase_order", "grn", "non_tax_purchase", "import_purchase"] } 
+      type: { $in: ["purchase", "purchase_order", "grn", "non_tax_purchase", "import_purchase", "purchase_return", "non_tax_purchase_return"] } 
     })
     .populate("partyId", "name companyName")
     .populate("employeeId", "name")

@@ -172,6 +172,27 @@ export default function CustomerProfileHistory({
 
     const txs: any[] = [];
 
+    if (currentCustomer.manualDebit) {
+      txs.push({
+        date: new Date("2000-01-01T00:00:00.000Z"),
+        voucherNo: "-",
+        type: "Adjustment",
+        remarks: "Opening Debit Adjustment",
+        debit: Number(currentCustomer.manualDebit) || 0,
+        credit: 0
+      });
+    }
+    if (currentCustomer.manualCredit) {
+      txs.push({
+        date: new Date("2000-01-01T00:00:00.000Z"),
+        voucherNo: "-",
+        type: "Adjustment",
+        remarks: "Opening Credit Adjustment",
+        debit: 0,
+        credit: Number(currentCustomer.manualCredit) || 0
+      });
+    }
+
     // Process Sales & Returns
     sales.forEach((s: any) => {
       const isReturn = s.type === "sale_return" || s.type === "non_tax_sale_return";
