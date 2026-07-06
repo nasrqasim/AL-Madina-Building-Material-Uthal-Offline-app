@@ -36,10 +36,10 @@ export default function CustomerBalancesPage() {
   const fetchCustomers = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/parties");
+      const res = await fetch("/api/parties?type=customer");
       const json = await res.json();
       if (json.ok) {
-        setCustomers(json.data.filter((p: any) => p.type === "Customer"));
+        setCustomers(json.data);
       }
     } catch (e) {
       console.error(e);

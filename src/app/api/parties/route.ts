@@ -5,14 +5,21 @@ import { recalculatePartyBalance, getCustomerAdvanceStats } from "@/services/pos
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 
-export async function GET() {
+export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   const role = session?.user?.role;
   const normalizedRole = (role || "").toLowerCase().replace(/\s+/g, "");
 
+  const { searchParams } = new URL(req.url);
+  const typeParam = searchParams.get("type");
+
   const query: any = {};
   if (normalizedRole === "sales_user" || normalizedRole === "salesuser") {
     query.type = "Customer";
+  } else if (typeParam === "customer") {
+    query.type = "Customer";
+  } else if (typeParam === "vendor") {
+    query.type = "Vendor";
   }
 
   await dbConnect();

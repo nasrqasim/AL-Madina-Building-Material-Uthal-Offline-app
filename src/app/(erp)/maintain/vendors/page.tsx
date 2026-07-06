@@ -27,10 +27,10 @@ export default function VendorsPage() {
   const fetchVendors = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/parties");
+      const res = await fetch("/api/parties?type=vendor");
       const json = await res.json();
       if (json.ok) {
-        setVendors(json.data.filter((p: any) => p.type === "Vendor"));
+        setVendors(json.data);
       }
     } catch (e) {
       console.error(e);

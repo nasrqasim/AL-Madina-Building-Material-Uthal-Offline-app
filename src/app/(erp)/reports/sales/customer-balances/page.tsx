@@ -30,6 +30,8 @@ export default function CustomerBalancesReportPage() {
   const [cashPayments, setCashPayments] = useState<any[]>([]);
   const [bankPayments, setBankPayments] = useState<any[]>([]);
 
+  const [selectedCategory, setSelectedCategory] = useState<string>("All");
+
   useEffect(() => {
     const today = new Date();
     const year = today.getFullYear();
@@ -211,23 +213,35 @@ export default function CustomerBalancesReportPage() {
     });
 
     setData(result);
-    setFilteredData(result);
   }, [rawParties, invoices, cashReceipts, bankReceipts, cashPayments, bankPayments, fromDate, toDate]);
 
   useEffect(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) {
-      setFilteredData(data);
-      return;
+    let result = data;
+
+    if (selectedCategory !== "All") {
+      result = result.filter(r => {
+        const cat = (r.rawParty?.category || "").toLowerCase().trim();
+        const sel = selectedCategory.toLowerCase().trim();
+        if (sel === "credit customer") {
+          return cat.includes("credit");
+        }
+        if (sel === "cash customer") {
+          return cat === "cash customer";
+        }
+        return cat === sel;
+      });
     }
-    setFilteredData(
-      data.filter((r) =>
+
+    if (q) {
+      result = result.filter((r) =>
         String(r.customer || "").toLowerCase().includes(q) ||
         String(r.region || "").toLowerCase().includes(q) ||
         String(r.area || "").toLowerCase().includes(q)
-      )
-    );
-  }, [searchQuery, data]);
+      );
+    }
+    setFilteredData(result);
+  }, [searchQuery, selectedCategory, data]);
 
   const totalDebit = filteredData.reduce((s, r) => s + r.debit, 0);
   const totalCredit = filteredData.reduce((s, r) => s + r.credit, 0);
@@ -330,6 +344,34 @@ export default function CustomerBalancesReportPage() {
       ]}
     >
       <div className="space-y-6">
+        {/* Category Filter Buttons */}
+        <div className="no-print bg-slate-50 dark:bg-slate-800/40 rounded-[2rem] p-4 border border-slate-200 dark:border-slate-800 flex flex-wrap gap-2 items-center mx-4">
+          <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mr-2">Categories:</span>
+          {[
+            "All",
+            "Cash Customer",
+            "Credit Customer",
+            "Cash Customer (Jama)",
+            "Credit Customer (Counter)",
+            "Credit Customer Max",
+            "Credit Customer (Haji Gul)",
+            "Credit Customer (Makkah)",
+            "Credit Customer (Radbook)"
+          ].map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={`px-3 py-1.5 rounded-full text-[10px] font-bold transition-all ${
+                selectedCategory === cat
+                  ? "bg-maroon-800 text-white shadow-sm shadow-maroon-800/20"
+                  : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-24 text-slate-400">
             <div className="w-8 h-8 border-4 border-maroon-800 border-t-transparent rounded-full animate-spin mb-4"></div>
