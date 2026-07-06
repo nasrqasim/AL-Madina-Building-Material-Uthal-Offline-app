@@ -23,6 +23,7 @@ export default function CustomerBalancesPage() {
   const [waParty, setWaParty] = useState<any>(null);
   const [waDocData, setWaDocData] = useState<any>(null);
   const [waType, setWaType] = useState<"Statement" | "Reminder">("Reminder");
+  const [selectedCategory, setSelectedCategory] = useState<string>("All");
 
   // Ledger state variables
   const [selectedLedgerCustomer, setSelectedLedgerCustomer] = useState<any>(null);
@@ -402,16 +403,18 @@ export default function CustomerBalancesPage() {
     "Credit Customer (Radbook)"
   ];
 
-  // Filter customers by search term
+  // Filter customers by search term and category
   const filteredCustomers = customers.filter(c => {
     const term = searchTerm.toLowerCase();
-    return (
+    const matchesSearch = (
       c.name?.toLowerCase().includes(term) ||
       c.contactPerson?.toLowerCase().includes(term) ||
       c.phone?.toLowerCase().includes(term) ||
       c.area?.toLowerCase().includes(term) ||
       c.ntn?.toLowerCase().includes(term)
     );
+    const matchesCategory = selectedCategory === "All" || c.category === selectedCategory;
+    return matchesSearch && matchesCategory;
   });
 
   // LEDGER / COMPLETE CUSTOMER PROFILE HISTORY VIEW
@@ -582,6 +585,34 @@ export default function CustomerBalancesPage() {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Category Filter Buttons */}
+      <div className="no-print bg-slate-50 dark:bg-slate-800/40 rounded-[2rem] p-4 border border-slate-200 dark:border-slate-800 flex flex-wrap gap-2 items-center">
+        <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mr-2">Filter Category:</span>
+        <button
+          onClick={() => setSelectedCategory("All")}
+          className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${
+            selectedCategory === "All"
+              ? "bg-maroon-800 text-white shadow-md shadow-maroon-900/20"
+              : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800"
+          }`}
+        >
+          All
+        </button>
+        {categories.map((cat) => (
+          <button
+            key={cat}
+            onClick={() => setSelectedCategory(cat)}
+            className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${
+              selectedCategory === cat
+                ? "bg-maroon-800 text-white shadow-md shadow-maroon-900/20"
+                : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800"
+            }`}
+          >
+            {cat}
+          </button>
+        ))}
       </div>
 
       {/* Single Table for all Customers */}
