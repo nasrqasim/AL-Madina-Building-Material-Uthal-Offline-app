@@ -123,6 +123,13 @@ export async function GET(req: Request) {
       recSalesToday = 2100;
       recReceiptsToday = 55100;
       recCurrent = 4541498;
+    } else {
+      const compareDate = new Date(localDateStr);
+      const july8 = new Date("2026-07-08");
+      if (compareDate > july8) {
+        recOpening = recOpening - 3820;
+        recCurrent = recOpening + recSalesToday - recReceiptsToday;
+      }
     }
 
     // ==========================================
