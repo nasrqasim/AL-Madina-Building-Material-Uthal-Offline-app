@@ -2,13 +2,15 @@
 
 import ERPReportLayout from "@/components/erp/reports/ERPReportLayout";
 import SearchableItemSelect from "@/components/erp/ui/SearchableItemSelect";
-import { Download, Printer, Play, Clock, Box, ArrowUpRight, ArrowDownRight, FileSpreadsheet } from "lucide-react";
+import { Download, Printer, Play, Clock, Box, ArrowUpRight, ArrowDownRight, FileSpreadsheet, Eye } from "lucide-react";
 import { exportToExcel, printPage } from "@/lib/excel";
 import { useState, useEffect } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 
 export default function InventoryLedgerReportPage() {
   const [items, setItems] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectedItemId, setSelectedItemId] = useState("");
   const [fromDate, setFromDate] = useState(() => {
     const d = new Date();
@@ -28,14 +30,20 @@ export default function InventoryLedgerReportPage() {
       .then(r => r.json())
       .then(json => { if (json.ok) setItems(json.data); })
       .catch(console.error);
+
+    fetch('/api/categories')
+      .then(r => r.json())
+      .then(json => { if (json.ok) setCategories(json.data.filter((c: any) => c.type === "main")); })
+      .catch(console.error);
   }, []);
 
-  const handleGenerate = async () => {
-    if (!selectedItemId) return alert("Please select an item");
+  const handleGenerate = async (itemIdOverride?: string) => {
+    const id = itemIdOverride || selectedItemId;
+    if (!id) return alert("Please select an item");
     setIsLoading(true);
     setHasSearched(true);
     try {
-      const params = new URLSearchParams({ itemId: selectedItemId });
+      const params = new URLSearchParams({ itemId: id });
       if (fromDate) params.set("from", fromDate);
       if (toDate) params.set("to", toDate);
       const res = await fetch(`/api/reports/inventory-ledger?${params}`);
@@ -73,7 +81,19 @@ export default function InventoryLedgerReportPage() {
     }
   };
 
-  
+  const handleViewLedger = (itemId: string) => {
+    setSelectedItemId(itemId);
+    handleGenerate(itemId);
+  };
+
+  const filteredItems = items.filter(item => {
+    if (selectedCategory === "All") return true;
+    const catObj = categories.find(c => c.name.toLowerCase() === selectedCategory.toLowerCase());
+    if (!catObj) return false;
+    return item.mainCategoryId === catObj.id || item.mainCategoryId === catObj._id;
+  });
+
+  const selectedItemObj = items.find(i => i._id === selectedItemId);
 
   const stats = [
     { title: "Opening Balance", value: summary.openingBalance.toLocaleString(), icon: Box, iconColor: "text-slate-600 dark:text-slate-300", iconBg: "bg-slate-50 dark:bg-slate-800/50" },
@@ -90,10 +110,18 @@ export default function InventoryLedgerReportPage() {
             Item <span className="text-rose-500">*</span>
           </label>
           <SearchableItemSelect
-            items={items}
+            items={filteredItems}
             value={selectedItemId}
-            onChange={setSelectedItemId}
-            placeholder="Type 170, code, or name..."
+            onChange={(val) => {
+              setSelectedItemId(val);
+              if (val) {
+                handleGenerate(val);
+              } else {
+                setHasSearched(false);
+                setData([]);
+              }
+            }}
+            placeholder="Type code or name..."
           />
         </div>
         <div className="space-y-1">
@@ -107,6 +135,18 @@ export default function InventoryLedgerReportPage() {
       </div>
       
       <div className="flex justify-end gap-2 mt-2">
+        {selectedItemId && (
+          <button 
+            onClick={() => {
+              setSelectedItemId("");
+              setHasSearched(false);
+              setData([]);
+            }}
+            className="px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg text-[10px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200"
+          >
+            Show Whole Stock
+          </button>
+        )}
         <button className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-[10px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 flex items-center justify-center gap-1.5">
           <Download size={14} /> Export CSV
         </button>
@@ -115,7 +155,7 @@ export default function InventoryLedgerReportPage() {
         </button>
         <button 
           className="px-3 py-2 bg-maroon-800 text-white rounded-lg text-[10px] font-bold hover:bg-maroon-900 flex items-center justify-center gap-1.5 shadow-sm shadow-maroon-900/20"
-          onClick={handleGenerate}
+          onClick={() => handleGenerate()}
         >
           <Play size={14} /> Generate Report
         </button>
@@ -130,85 +170,182 @@ export default function InventoryLedgerReportPage() {
 
   return (
     <ERPReportLayout
-      title="Inventory Ledger"
-      description="Detailed historical tracking of all stock movements (In and Out) for a specific item."
-      stats={stats}
+      title={selectedItemId ? `Inventory Ledger - ${selectedItemObj?.name || ""}` : "Inventory Ledger"}
+      description={selectedItemId ? `Detailed historical tracking of all stock movements for ${selectedItemObj?.name || ""}.` : "Overview of current stock for all items."}
+      stats={selectedItemId ? stats : undefined}
       filters={Filters}
       actions={[
         { label: "Print Ledger", onClick: printPage, icon: Printer },
-        { label: "Export Excel", onClick: () => exportToExcel(data, "InventoryLedger.xlsx"), icon: FileSpreadsheet },
+        { label: "Export Excel", onClick: () => exportToExcel(selectedItemId ? data : filteredItems, "InventoryLedger.xlsx"), icon: FileSpreadsheet },
       ]}
     >
       <div className="space-y-6">
+        {/* Category Filter Buttons */}
+        <div className="no-print bg-slate-50 dark:bg-slate-800/40 rounded-[2rem] p-4 border border-slate-200 dark:border-slate-800 flex flex-wrap gap-2 items-center mx-4">
+          <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mr-2">Categories:</span>
+          <button
+            onClick={() => {
+              setSelectedCategory("All");
+              setSelectedItemId("");
+              setHasSearched(false);
+              setData([]);
+            }}
+            className={`px-3 py-1.5 rounded-full text-[10px] font-bold transition-all ${
+              selectedCategory === "All"
+                ? "bg-maroon-800 text-white shadow-sm shadow-maroon-800/20"
+                : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+            }`}
+          >
+            All
+          </button>
+          {categories.map((cat: any) => (
+            <button
+              key={cat.id || cat._id}
+              onClick={() => {
+                setSelectedCategory(cat.name);
+                setSelectedItemId("");
+                setHasSearched(false);
+                setData([]);
+              }}
+              className={`px-3 py-1.5 rounded-full text-[10px] font-bold transition-all ${
+                selectedCategory.toLowerCase() === cat.name.toLowerCase()
+                  ? "bg-maroon-800 text-white shadow-sm shadow-maroon-800/20"
+                  : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+              }`}
+            >
+              {cat.name}
+            </button>
+          ))}
+        </div>
+
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-24 text-slate-400">
             <div className="w-8 h-8 border-4 border-maroon-800 border-t-transparent rounded-full animate-spin mb-4"></div>
             <p className="text-sm font-bold">Generating inventory ledger...</p>
           </div>
-        ) : !hasSearched ? (
-          <div className="flex flex-col items-center justify-center py-24 text-slate-400 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-800/50 mx-4">
-            <Clock size={48} className="mb-4 opacity-30" />
-            <p className="text-sm font-bold text-slate-600 dark:text-slate-300">Select an item and date range to view the ledger</p>
-          </div>
-        ) : data.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 text-slate-400 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-800/50 mx-4">
-            <Box size={48} className="mb-4 opacity-30" />
-            <p className="text-sm font-bold text-slate-600 dark:text-slate-300">No transactions found for this item</p>
-          </div>
-        ) : (
-          <>
-            <div className="px-4">
-              <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-lg">
-                <table className="w-full text-left border-collapse min-w-max">
-                  <thead className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                    <tr>
-                      <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Date</th>
-                      <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Type</th>
-                      <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Ref No</th>
-                      <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Location</th>
-                      <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">In (+)</th>
-                      <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Out (-)</th>
-                      <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Balance</th>
-                      <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Rate</th>
-                      <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {data.map((row, i) => (
-                      <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                        <td className="px-4 py-3 text-[11px] font-medium text-slate-600 dark:text-slate-300">{new Date(row.date).toLocaleDateString()}</td>
-                        <td className="px-4 py-3 text-[11px] font-bold text-slate-700 dark:text-slate-200">{row.type}</td>
-                        <td className="px-4 py-3 text-[11px] font-bold text-blue-600">{row.refNo}</td>
-                        <td className="px-4 py-3 text-[11px] font-medium text-slate-600 dark:text-slate-300">{row.location}</td>
-                        <td className="px-4 py-3 text-[11px] font-black text-emerald-600 text-right">{row.in > 0 ? row.in : "-"}</td>
-                        <td className="px-4 py-3 text-[11px] font-black text-rose-600 text-right">{row.out > 0 ? row.out : "-"}</td>
-                        <td className="px-4 py-3 text-sm font-black text-slate-800 dark:text-slate-100 text-right">{row.balance}</td>
-                        <td className="px-4 py-3 text-[11px] font-medium text-slate-500 text-right">{row.rate?.toLocaleString?.() ?? row.rate}</td>
-                        <td className="px-4 py-3 text-[11px] font-bold text-slate-700 text-right">{row.total?.toLocaleString?.() ?? row.total}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+        ) : selectedItemId ? (
+          // DETAILED ITEM LEDGER VIEW (Switcher Techno Style)
+          data.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-24 text-slate-400 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-800/50 mx-4">
+              <Box size={48} className="mb-4 opacity-30" />
+              <p className="text-sm font-bold text-slate-600 dark:text-slate-300">No transactions found for this item</p>
             </div>
-            {trendData.length > 1 && (
-              <div className="px-4 h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={trendData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 10 }} />
-                    <RechartsTooltip />
-                    <Line type="monotone" dataKey="balance" stroke="#881337" strokeWidth={2} dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
+          ) : (
+            <>
+              <div className="px-4">
+                <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 shadow-sm">
+                  <table className="w-full text-left border-collapse min-w-max">
+                    <thead className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                      <tr>
+                        <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                        <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Tran. No.</th>
+                        <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Party Name</th>
+                        <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Qty In</th>
+                        <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Qty Out</th>
+                        <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Unit</th>
+                        <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Rate</th>
+                        <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Gross Amount</th>
+                        <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Discount</th>
+                        <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Amt. Excl. Tax</th>
+                        <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">G.S.T.</th>
+                        <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Amt. Incl. Tax</th>
+                        <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Balance Qty</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {data.map((row, i) => {
+                        const qty = row.in > 0 ? row.in : row.out;
+                        const grossAmt = qty * row.rate;
+                        return (
+                          <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                            <td className="px-4 py-3 text-[11px] font-medium text-slate-600 dark:text-slate-300">{new Date(row.date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '-')}</td>
+                            <td className="px-4 py-3 text-[11px] font-bold text-blue-600">{row.refNo}</td>
+                            <td className="px-4 py-3 text-[11px] font-medium text-slate-700 dark:text-slate-200">{row.partyName || "Walk-in (Cash) Customer"}</td>
+                            <td className="px-4 py-3 text-[11px] font-black text-emerald-600 text-right">{row.in > 0 ? row.in.toFixed(2) : ""}</td>
+                            <td className="px-4 py-3 text-[11px] font-black text-rose-600 text-right">{row.out > 0 ? row.out.toFixed(2) : ""}</td>
+                            <td className="px-4 py-3 text-[11px] font-medium text-slate-400">-</td>
+                            <td className="px-4 py-3 text-[11px] font-medium text-slate-500 text-right">{row.rate.toFixed(2)}</td>
+                            <td className="px-4 py-3 text-[11px] font-medium text-slate-600 text-right">{grossAmt.toFixed(2)}</td>
+                            <td className="px-4 py-3 text-[11px] font-medium text-slate-400 text-right">0.00</td>
+                            <td className="px-4 py-3 text-[11px] font-medium text-slate-600 text-right">{grossAmt.toFixed(2)}</td>
+                            <td className="px-4 py-3 text-[11px] font-medium text-slate-400 text-right">0.00</td>
+                            <td className="px-4 py-3 text-[11px] font-bold text-slate-700 text-right">{row.total.toFixed(2)}</td>
+                            <td className="px-4 py-3 text-sm font-black text-slate-800 dark:text-slate-100 text-right">{row.balance.toFixed(2)}</td>
+                          </tr>
+                        );
+                      })}
+                      {/* Footer Row */}
+                      <tr className="bg-slate-50 dark:bg-slate-800/50 font-black">
+                        <td colSpan={3} className="px-4 py-3 text-[10px] uppercase tracking-widest text-slate-800 dark:text-slate-100">Totals</td>
+                        <td className="px-4 py-3 text-[11px] text-right text-emerald-600">{summary.totalIn.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-[11px] text-right text-rose-600">{summary.totalOut.toFixed(2)}</td>
+                        <td colSpan={7} className="px-4 py-3 text-right text-[10px] uppercase tracking-widest text-slate-800 dark:text-slate-100">Balance</td>
+                        <td className="px-4 py-3 text-sm text-right text-blue-600">{summary.closingBalance.toFixed(2)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            )}
-          </>
+              {trendData.length > 1 && (
+                <div className="px-4 h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={trendData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                      <YAxis tick={{ fontSize: 10 }} />
+                      <RechartsTooltip />
+                      <Line type="monotone" dataKey="balance" stroke="#881337" strokeWidth={2} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </>
+          )
+        ) : (
+          // WHOLE STOCK DEFAULT LIST VIEW
+          <div className="px-4">
+            <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 shadow-sm">
+              <table className="w-full text-left border-collapse min-w-max">
+                <thead className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                  <tr>
+                    <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest w-8">#</th>
+                    <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Item Code</th>
+                    <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Item Name</th>
+                    <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Purchase Rate</th>
+                    <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Retail Rate</th>
+                    <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Ltr / Pcs per Ctn</th>
+                    <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Stock (Cartons)</th>
+                    <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Reorder Level</th>
+                    <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center w-24">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredItems.map((item, i) => (
+                    <tr key={item._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                      <td className="px-4 py-3 text-[11px] font-medium text-slate-400 dark:text-slate-500">{i + 1}</td>
+                      <td className="px-4 py-3 text-[11px] font-bold text-slate-700 dark:text-slate-200">{item.code}</td>
+                      <td className="px-4 py-3 text-[11px] font-bold text-slate-900 dark:text-white uppercase">{item.name}</td>
+                      <td className="px-4 py-3 text-[11px] font-medium text-slate-600 dark:text-slate-300 text-right">Rs. {(item.purchaseRate || 0).toLocaleString()}</td>
+                      <td className="px-4 py-3 text-[11px] font-medium text-slate-600 dark:text-slate-300 text-right">Rs. {(item.retailRate || 0).toLocaleString()}</td>
+                      <td className="px-4 py-3 text-[11px] font-medium text-slate-500 text-right">{(item.litersInCtn || item.liters || 0)}</td>
+                      <td className="px-4 py-3 text-sm font-black text-slate-800 dark:text-slate-100 text-right">{(item.stockQtyCartons || 0).toFixed(2)}</td>
+                      <td className="px-4 py-3 text-[11px] font-medium text-slate-500 text-right">{(item.reorderLevel || 0).toFixed(2)}</td>
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          onClick={() => handleViewLedger(item._id)}
+                          className="px-2 py-1 bg-maroon-800 text-white rounded text-[10px] font-bold hover:bg-maroon-900 flex items-center justify-center gap-1 mx-auto"
+                        >
+                          <Eye size={10} /> View Ledger
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
       </div>
     </ERPReportLayout>
   );
 }
-
-

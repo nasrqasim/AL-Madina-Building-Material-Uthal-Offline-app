@@ -63,8 +63,9 @@ export async function GET(req: Request) {
       status: { $nin: ["cancelled", "Cancelled"] },
       "lines.itemId": { $in: [itemOid, itemId] },
     })
-      .select("invoiceNo type date lines locationId reference createdAt")
+      .select("invoiceNo type date lines locationId reference partyId createdAt")
       .populate("locationId", "name")
+      .populate("partyId", "name companyName type")
       .sort({ date: 1, createdAt: 1 })
       .lean();
 
@@ -73,6 +74,7 @@ export async function GET(req: Request) {
       refNo: string;
       type: string;
       location: string;
+      partyName: string;
       in: number;
       out: number;
       rate: number;
@@ -84,6 +86,12 @@ export async function GET(req: Request) {
       const isIn = IN_TYPES.has(invType);
       const isOut = OUT_TYPES.has(invType);
       if (!isIn && !isOut) continue;
+
+      const partyObj = inv.partyId as any;
+      let partyName = invType.toLowerCase().includes("sale") ? "Walk-in (Cash) Customer" : "Cash Vendor";
+      if (partyObj) {
+        partyName = partyObj.name || partyObj.companyName || partyName;
+      }
 
       for (const line of inv.lines || []) {
         if (resolveLineItemId(line) !== itemId) continue;
@@ -102,6 +110,7 @@ export async function GET(req: Request) {
           refNo: inv.invoiceNo || "",
           type: invType.replace(/_/g, " ").toUpperCase(),
           location: (inv.locationId as { name?: string })?.name || "Main Warehouse",
+          partyName,
           in: isIn ? qty : 0,
           out: isOut ? qty : 0,
           rate: Number(line.rate) || 0,
