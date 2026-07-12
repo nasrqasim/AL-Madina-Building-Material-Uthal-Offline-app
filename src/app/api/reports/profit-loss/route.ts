@@ -2,6 +2,20 @@ import { ok } from "@/lib/api";
 import dbConnect from "@/lib/db";
 import Account from "@/models/Account";
 import JournalEntry from "@/models/JournalEntry";
+import Invoice from "@/models/Invoice";
+import Item from "@/models/Item";
+
+function getLineQty(line: any): number {
+  const cartons = Number(line.cartons) || 0;
+  const qty = Number(line.qty) || 0;
+  if (cartons > 0) return cartons;
+  if (qty > 0) return qty;
+  const liters = Number(line.liters) || 0;
+  const gallons = Number(line.gallons) || 0;
+  if (liters > 0) return liters;
+  if (gallons > 0) return gallons;
+  return 0;
+}
 
 export async function GET(req: Request) {
   try {
@@ -12,10 +26,23 @@ export async function GET(req: Request) {
     await dbConnect();
 
     const match: any = {};
+    const invoiceMatch: any = { status: { $nin: ["cancelled", "Cancelled"] } };
+
     if (fromDate || toDate) {
       match.date = {};
-      if (fromDate) match.date.$gte = new Date(fromDate);
-      if (toDate) match.date.$lte = new Date(toDate);
+      invoiceMatch.date = {};
+      if (fromDate) {
+        const fromD = new Date(fromDate);
+        fromD.setHours(0, 0, 0, 0);
+        match.date.$gte = fromD;
+        invoiceMatch.date.$gte = fromD;
+      }
+      if (toDate) {
+        const toD = new Date(toDate);
+        toD.setHours(23, 59, 59, 999);
+        match.date.$lte = toD;
+        invoiceMatch.date.$lte = toD;
+      }
     }
 
     const journalBalances = await JournalEntry.aggregate([
@@ -38,6 +65,40 @@ export async function GET(req: Request) {
     const accountMap = new Map();
     accounts.forEach(a => accountMap.set(a.code, a));
 
+    // Calculate COGS dynamically for the period
+    const items = await Item.find().lean();
+    const invoices = await Invoice.find(invoiceMatch).lean();
+
+    const OUT_TYPES = new Set([
+      "sale", "non_tax_sale", "pos", "pos_counter_sale", "reduce_stock", "challan"
+    ]);
+    const OUT_RETURN_TYPES = new Set([
+      "purchase_return", "non_tax_purchase_return"
+    ]);
+
+    let totalCogs = 0;
+    items.forEach(item => {
+      let qtyOut = 0;
+      invoices.forEach(inv => {
+        const invType = String(inv.type || "");
+        const isOut = OUT_TYPES.has(invType);
+        const isOutReturn = OUT_RETURN_TYPES.has(invType);
+        if (!isOut && !isOutReturn) return;
+
+        (inv.lines || []).forEach((line: any) => {
+          const lineItemId = line.itemId?._id || line.itemId;
+          if (String(lineItemId) !== String(item._id)) return;
+
+          const qty = getLineQty(line);
+          if (qty > 0) {
+            if (isOut) qtyOut += qty;
+            if (isOutReturn) qtyOut -= qty;
+          }
+        });
+      });
+      totalCogs += qtyOut * (item.purchaseRate || 0);
+    });
+
     const report = {
       revenue: [] as any[],
       expenses: [] as any[],
@@ -54,6 +115,9 @@ export async function GET(req: Request) {
     const titleMap = new Map(journalTitles.map((t: any) => [t._id, t.title]));
 
     balanceMap.forEach((journal, code) => {
+      // Skip Purchases (code 5100) since we replace it with COGS
+      if (code === "5100") return;
+
       const acc = accountMap.get(code);
       let type = acc ? acc.type.toLowerCase() : "";
       
@@ -82,6 +146,12 @@ export async function GET(req: Request) {
         }
       }
     });
+
+    // Add COGS to expenses if it is non-zero
+    if (totalCogs > 0) {
+      report.expenses.push({ title: "Cost of Goods Sold (COGS)", amount: totalCogs });
+      report.totalExpenses += totalCogs;
+    }
 
     report.netProfit = report.totalRevenue - report.totalExpenses;
 

@@ -4,7 +4,8 @@ import ERPReportLayout from "@/components/erp/reports/ERPReportLayout";
 import SearchableItemSelect from "@/components/erp/ui/SearchableItemSelect";
 import { Download, Printer, Play, Clock, Box, ArrowUpRight, ArrowDownRight, FileSpreadsheet, Eye } from "lucide-react";
 import { exportToExcel, printPage } from "@/lib/excel";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { lineStockQty } from "@/lib/itemUnits";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 
 export default function InventoryLedgerReportPage() {
@@ -24,6 +25,7 @@ export default function InventoryLedgerReportPage() {
   const [summary, setSummary] = useState({ openingBalance: 0, totalIn: 0, totalOut: 0, closingBalance: 0 });
   const [isLoading, setIsLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [invoices, setInvoices] = useState<any[]>([]);
 
   useEffect(() => {
     fetch('/api/items')
@@ -34,6 +36,11 @@ export default function InventoryLedgerReportPage() {
     fetch('/api/categories')
       .then(r => r.json())
       .then(json => { if (json.ok) setCategories(json.data.filter((c: any) => c.type === "main")); })
+      .catch(console.error);
+
+    fetch('/api/invoices')
+      .then(r => r.json())
+      .then(json => { if (json.ok) setInvoices(json.data); })
       .catch(console.error);
   }, []);
 
@@ -92,6 +99,58 @@ export default function InventoryLedgerReportPage() {
     if (!catObj) return false;
     return item.mainCategoryId === catObj.id || item.mainCategoryId === catObj._id;
   });
+
+  const itemsWithOpening = useMemo(() => {
+    const startRange = fromDate ? new Date(fromDate) : new Date("2000-01-01");
+    
+    return filteredItems.map(item => {
+      let qtyIn = 0;
+      let qtyOut = 0;
+      
+      const IN_TYPES = new Set([
+        "purchase", "import_purchase", "non_tax_purchase", "sale_return", "non_tax_sale_return", "add_stock", "grn"
+      ]);
+      const OUT_TYPES = new Set([
+        "sale", "non_tax_sale", "pos", "pos_counter_sale", "purchase_return", "non_tax_purchase_return", "reduce_stock", "challan"
+      ]);
+      
+      invoices.forEach((inv: any) => {
+        if (inv.status === "cancelled" || inv.status === "Cancelled") return;
+        const invDate = new Date(inv.date || inv.createdAt);
+        if (invDate < startRange) return;
+        
+        const invType = String(inv.type || "");
+        const isIn = IN_TYPES.has(invType);
+        const isOut = OUT_TYPES.has(invType);
+        if (!isIn && !isOut) return;
+        
+        (inv.lines || []).forEach((line: any) => {
+          const lineItemId = line.itemId?._id || line.itemId;
+          if (String(lineItemId) !== String(item._id)) return;
+          
+          let qty = lineStockQty(line);
+          if (qty <= 0) {
+            const liters = Number(line.liters) || 0;
+            const gallons = Number(line.gallons) || 0;
+            if (liters > 0) qty = liters;
+            else if (gallons > 0) qty = gallons;
+          }
+          if (qty > 0) {
+            if (isIn) qtyIn += qty;
+            if (isOut) qtyOut += qty;
+          }
+        });
+      });
+      
+      const closing = item.stockQtyCartons || 0;
+      const opening = closing - qtyIn + qtyOut;
+      
+      return {
+        ...item,
+        openingStock: opening
+      };
+    });
+  }, [filteredItems, invoices, fromDate]);
 
   const selectedItemObj = items.find(i => i._id === selectedItemId);
 
@@ -314,13 +373,14 @@ export default function InventoryLedgerReportPage() {
                     <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Purchase Rate</th>
                     <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Retail Rate</th>
                     <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Ltr / Pcs per Ctn</th>
+                    <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Opening Balance</th>
                     <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Stock (Cartons)</th>
                     <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Reorder Level</th>
                     <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center w-24">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredItems.map((item, i) => (
+                  {itemsWithOpening.map((item, i) => (
                     <tr key={item._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                       <td className="px-4 py-3 text-[11px] font-medium text-slate-400 dark:text-slate-500">{i + 1}</td>
                       <td className="px-4 py-3 text-[11px] font-bold text-slate-700 dark:text-slate-200">{item.code}</td>
@@ -328,6 +388,7 @@ export default function InventoryLedgerReportPage() {
                       <td className="px-4 py-3 text-[11px] font-medium text-slate-600 dark:text-slate-300 text-right">Rs. {(item.purchaseRate || 0).toLocaleString()}</td>
                       <td className="px-4 py-3 text-[11px] font-medium text-slate-600 dark:text-slate-300 text-right">Rs. {(item.retailRate || 0).toLocaleString()}</td>
                       <td className="px-4 py-3 text-[11px] font-medium text-slate-500 text-right">{(item.litersInCtn || item.liters || 0)}</td>
+                      <td className="px-4 py-3 text-sm font-black text-slate-800 dark:text-slate-100 text-right">{(item.openingStock || 0).toFixed(2)}</td>
                       <td className="px-4 py-3 text-sm font-black text-slate-800 dark:text-slate-100 text-right">{(item.stockQtyCartons || 0).toFixed(2)}</td>
                       <td className="px-4 py-3 text-[11px] font-medium text-slate-500 text-right">{(item.reorderLevel || 0).toFixed(2)}</td>
                       <td className="px-4 py-3 text-center">
