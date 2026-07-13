@@ -1,4 +1,5 @@
 "use client";
+import { APP_NAME, COMPANY_NAME, COMPANY_SHORT, COMPANY_TAGLINE, DEFAULT_COMPANY_ADDRESS_LINE, DEFAULT_COMPANY_FORM } from "@/lib/company";
 
 import { useState, useEffect } from "react";
 import { Activity, ExternalLink, Package, ShoppingCart, User, Shield, Info, CheckCircle2, Clock, LogIn, Database } from "lucide-react";
@@ -45,7 +46,7 @@ export default function ActivityFeed() {
   }, [activeTab]);
 
   const activities = [
-    { title: "System Ready", desc: "Al Hadeed Traders ERP is online and connected to Atlas.", time: "Live", Icon: Database, iconBg: "bg-purple-50 text-purple-600" },
+    { title: "System Ready", desc: "APP_NAME is online and connected to Atlas.", time: "Live", Icon: Database, iconBg: "bg-purple-50 text-purple-600" },
   ];
 
   const activeUsers = [

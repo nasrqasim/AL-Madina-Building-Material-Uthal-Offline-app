@@ -1,4 +1,5 @@
 "use client";
+import { APP_NAME, COMPANY_NAME, COMPANY_SHORT, COMPANY_TAGLINE, DEFAULT_COMPANY_ADDRESS_LINE, DEFAULT_COMPANY_FORM } from "@/lib/company";
 
 import React from "react";
 import Image from "next/image";
@@ -64,7 +65,7 @@ export default function Certificate({
           </div>
         )}
         <h2 className="text-lg font-bold tracking-widest uppercase mb-1" style={{ color: config.themeColor || "#800000" }}>
-          {companyInfo?.companyName || "AL HADEED TRADERS"}
+          {companyInfo?.companyName || COMPANY_NAME}
         </h2>
         <div className="w-24 h-0.5 bg-slate-300 my-1"></div>
       </div>

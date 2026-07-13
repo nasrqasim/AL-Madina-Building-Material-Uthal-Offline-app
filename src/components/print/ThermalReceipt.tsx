@@ -1,4 +1,5 @@
 "use client";
+import { APP_NAME, COMPANY_NAME, COMPANY_SHORT, COMPANY_TAGLINE, DEFAULT_COMPANY_ADDRESS_LINE, DEFAULT_COMPANY_FORM } from "@/lib/company";
 
 import React from "react";
 import Image from "next/image";
@@ -77,7 +78,7 @@ export default function ThermalReceipt({
       {/* Company Title */}
       <div className="text-center mb-1">
         <h2 className="font-black uppercase tracking-tight" style={{ fontSize: '16px', lineHeight: '1.2', color: '#000000' }}>
-          {companyInfo?.companyName || "AL HADEED TRADERS"}
+          {companyInfo?.companyName || COMPANY_NAME}
         </h2>
         {companyInfo?.address && (
           <p className="text-[11px] font-black leading-tight mb-0.5" style={{ color: '#000000' }}>{companyInfo.address}</p>

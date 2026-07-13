@@ -6,6 +6,7 @@ import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
 import CommandPalette from "../dashboard/CommandPalette";
 import { useWidgetVisibility, WidgetKey } from "@/components/dashboard/WidgetVisibilityPanel";
+import { COMPANY_NAME } from "@/lib/company";
 
 interface ERPLayoutProps {
   children: ReactNode;
@@ -93,7 +94,7 @@ export default function ERPLayout({ children, user }: ERPLayoutProps) {
           user={{ 
             name: user.name, 
             role: user.role,
-            oilshop: "Al Hadeed Traders" 
+            companyName: COMPANY_NAME
           }} 
         />
         

@@ -1,4 +1,5 @@
 "use client";
+import { COMPANY_NAME, COMPANY_SHORT, COMPANY_TAGLINE } from "@/lib/company";
 
 import { FormEvent, useState } from "react";
 import { signIn } from "next-auth/react";
@@ -46,12 +47,15 @@ export default function LoginPage() {
           <div className="absolute inset-0 rounded-3xl bg-gradient-to-tr from-purple-500/5 to-transparent pointer-events-none" />
           
           <div className="flex items-center gap-3 mb-8 relative z-10">
-            <div className="w-10 h-10 bg-gradient-to-tr from-purple-600 to-indigo-600 rounded-xl flex items-center justify-center font-bold text-white text-xl shadow-lg shadow-purple-500/20">A</div>
-            <h1 className="text-2xl font-black text-white tracking-tight">Al Hadeed Traders</h1>
+            <div className="w-10 h-10 bg-gradient-to-tr from-purple-600 to-indigo-600 rounded-xl flex items-center justify-center font-bold text-white text-xl shadow-lg shadow-purple-500/20">{COMPANY_SHORT.charAt(0)}</div>
+            <div>
+              <h1 className="text-2xl font-black text-white tracking-tight">{COMPANY_SHORT}</h1>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{COMPANY_TAGLINE}</p>
+            </div>
           </div>
           
           <p className="mb-10 text-sm font-medium text-slate-400 relative z-10 leading-relaxed">
-            Secure access for <span className="text-purple-400 font-bold">AL HADEED TRADERS</span>. <br />
+            Secure access for <span className="text-purple-400 font-bold">{COMPANY_NAME}</span>. <br />
             Enter your credentials to continue to the dashboard.
           </p>
           
@@ -94,7 +98,7 @@ export default function LoginPage() {
 
           <div className="mt-10 pt-8 border-t border-white/5 text-center relative z-10">
             <p className="text-[10px] font-bold text-slate-600 uppercase tracking-[0.25em]">
-              © 2026 Al Hadeed Traders. All Rights Reserved.
+              © 2026 {COMPANY_NAME}. All Rights Reserved.
             </p>
           </div>
         </form>

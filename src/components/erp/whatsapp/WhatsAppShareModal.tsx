@@ -1,4 +1,5 @@
 "use client";
+import { APP_NAME, COMPANY_NAME, COMPANY_SHORT, COMPANY_TAGLINE, DEFAULT_COMPANY_ADDRESS_LINE, DEFAULT_COMPANY_FORM } from "@/lib/company";
 
 import { useState, useRef, useEffect } from "react";
 import { X, Send, Phone, MessageCircle, FileText, CheckCircle, AlertTriangle, RefreshCw, Download, Printer } from "lucide-react";
@@ -45,7 +46,7 @@ export default function WhatsAppShareModal({
       setCopySuccess(false);
       
       const customerName = party?.name || party?.companyName || party?.vendor || "Customer";
-      const shopName = shopProfile?.companyName || "AL HADEED TRADERS";
+      const shopName = shopProfile?.companyName || COMPANY_NAME;
       
       let docNo = "-";
       let amountVal = 0;
@@ -250,7 +251,7 @@ Thank you.`;
   const customerName = party?.name || party?.companyName || party?.vendor || "Walk-in Cash Customer";
   const customerPhone = party?.phone || party?.mobile || "-";
   const customerAddress = party?.address || "-";
-  const shopName = shopProfile?.companyName || "AL HADEED TRADERS";
+  const shopName = shopProfile?.companyName || COMPANY_NAME;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">

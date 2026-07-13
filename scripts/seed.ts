@@ -1,8 +1,11 @@
-import bcrypt from "bcryptjs";
+﻿import bcrypt from "bcryptjs";
 import dbConnect from "@/lib/db";
 import { User } from "@/models/User";
 import ShopProfile from "@/models/ShopProfile";
 import Account from "@/models/Account";
+import Category from "@/models/Category";
+import { BUILDING_CATEGORIES } from "@/lib/buildingMaterial";
+import { COMPANY_NAME, COMPANY_ADDRESS, DEFAULT_COMPANY_FORM } from "@/lib/company";
 
 async function seed() {
   await dbConnect();
@@ -26,7 +29,18 @@ async function seed() {
     });
   }
   if (!(await ShopProfile.findOne())) {
-    await ShopProfile.create({ name: "AL HADEED TRADERS", address: "Main Bazar", ntn: "0000000-0" });
+    await ShopProfile.create({
+      ...DEFAULT_COMPANY_FORM,
+      companyName: COMPANY_NAME,
+      tradeName: COMPANY_NAME,
+      address: COMPANY_ADDRESS,
+      ntn: "0000000-0",
+    });
+  }
+  if ((await Category.countDocuments()) === 0) {
+    for (const name of BUILDING_CATEGORIES) {
+      await Category.create({ name, type: "main", code: name.toUpperCase().replace(/\s+/g, "_") });
+    }
   }
   if ((await Account.countDocuments()) === 0) {
     await Account.insertMany([

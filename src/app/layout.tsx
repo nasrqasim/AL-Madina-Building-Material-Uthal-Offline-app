@@ -1,10 +1,11 @@
-import "@/app/globals.css";
+﻿import "@/app/globals.css";
 import { ReactNode } from "react";
 import { AuthProvider } from "@/components/providers/SessionProvider";
+import { APP_NAME } from "@/lib/company";
 
 export const metadata = {
-  title: "Al Hadeed Traders",
-  description: "Al Hadeed Traders ERP",
+  title: APP_NAME,
+  description: `${APP_NAME} — Building Construction Material`,
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

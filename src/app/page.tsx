@@ -1,4 +1,5 @@
 "use client";
+import { APP_NAME, COMPANY_NAME, COMPANY_SHORT, COMPANY_TAGLINE, DEFAULT_COMPANY_ADDRESS_LINE, DEFAULT_COMPANY_FORM } from "@/lib/company";
 
 import Link from "next/link";
 import Image from "next/image";
@@ -16,8 +17,8 @@ export default function LandingPage() {
       {/* Navigation */}
       <nav className="relative z-50 flex items-center justify-between px-6 py-6 max-w-7xl mx-auto">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-gradient-to-tr from-purple-600 to-indigo-600 rounded-lg flex items-center justify-center font-bold text-lg">A</div>
-          <span className="text-xl font-bold tracking-tight">Al Hadeed Traders</span>
+          <div className="w-8 h-8 bg-gradient-to-tr from-purple-600 to-indigo-600 rounded-lg flex items-center justify-center font-bold text-lg">{COMPANY_SHORT.charAt(0)}</div>
+          <span className="text-xl font-bold tracking-tight">{COMPANY_SHORT}</span>
         </div>
         
         <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-400">
@@ -54,7 +55,7 @@ export default function LandingPage() {
           </h1>
           
           <p className="text-lg md:text-xl text-slate-400 mb-10 max-w-2xl mx-auto leading-relaxed">
-            Al Hadeed Traders combines advanced financial reporting, inventory intelligence, 
+            {COMPANY_NAME} combines advanced financial reporting, inventory intelligence, 
             and automated workflows to transform your business operations into a high-performance machine.
           </p>
 
@@ -84,7 +85,7 @@ export default function LandingPage() {
               </div>
               <Image 
                 src="/hero-mockup.png" 
-                alt="Al Hadeed Traders Dashboard" 
+                alt={`${COMPANY_NAME} Dashboard`} 
                 width={1200}
                 height={675}
                 priority
@@ -123,12 +124,12 @@ export default function LandingPage() {
       <footer className="relative z-10 py-12">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-gradient-to-tr from-purple-600 to-indigo-600 rounded flex items-center justify-center font-bold text-xs text-white">A</div>
-            <span className="text-sm font-bold tracking-tight text-white">Al Hadeed Traders</span>
+            <div className="w-6 h-6 bg-gradient-to-tr from-purple-600 to-indigo-600 rounded flex items-center justify-center font-bold text-xs text-white">{COMPANY_SHORT.charAt(0)}</div>
+            <span className="text-sm font-bold tracking-tight text-white">{COMPANY_SHORT}</span>
           </div>
           
           <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] text-center">
-            © 2026 Al Hadeed Traders. All Rights Reserved. Powered by Roonjha Developer.
+            © 2026 {COMPANY_NAME}. All Rights Reserved. Powered by Roonjha Developer.
           </div>
 
           <div className="flex items-center gap-6 text-slate-500">

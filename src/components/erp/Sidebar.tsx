@@ -1,10 +1,12 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronRight, LogOut } from "lucide-react";
 import { ERPNavItem } from "@/types/erp";
 import { erpModules } from "./nav";
+import { COMPANY_SHORT, COMPANY_TAGLINE } from "@/lib/company";
+import CompanyLogo from "./CompanyLogo";
 import { useState, memo, useMemo, useEffect } from "react";
 
 // Move utility function outside to prevent re-creation
@@ -92,12 +94,10 @@ export default function Sidebar({ user }: SidebarProps) {
       {/* Logo */}
       <div className="p-6 border-b border-slate-800">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-maroon-800 rounded flex items-center justify-center text-white font-bold">
-            A
-          </div>
+          <CompanyLogo size={32} />
           <div>
-            <h1 className="text-white font-bold leading-none uppercase">Al Hadeed</h1>
-            <p className="text-[10px] text-slate-500 tracking-tighter">Al Hadeed Traders</p>
+            <h1 className="text-white font-bold leading-none uppercase">{COMPANY_SHORT}</h1>
+            <p className="text-[10px] text-slate-500 tracking-tighter">{COMPANY_TAGLINE}</p>
           </div>
         </div>
       </div>
@@ -182,4 +182,3 @@ export default function Sidebar({ user }: SidebarProps) {
     </aside>
   );
 }
-

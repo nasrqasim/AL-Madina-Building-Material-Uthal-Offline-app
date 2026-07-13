@@ -1,11 +1,12 @@
 import { fail, ok } from "@/lib/api";
 import dbConnect from "@/lib/db";
+import { DEFAULT_COMPANY_FORM } from "@/lib/company";
 import ShopProfile from "@/models/ShopProfile";
 
 export async function GET() {
   await dbConnect();
   const profile = await ShopProfile.findOne().lean();
-  return ok(profile);
+  return ok(profile ?? DEFAULT_COMPANY_FORM);
 }
 
 export async function POST(req: Request) {

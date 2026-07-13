@@ -1,4 +1,5 @@
 "use client";
+import { APP_NAME, COMPANY_NAME, COMPANY_SHORT, COMPANY_TAGLINE, DEFAULT_COMPANY_ADDRESS_LINE, DEFAULT_COMPANY_FORM } from "@/lib/company";
 
 import { useState, useEffect } from "react";
 import ERPPageHeader from "@/components/erp/ui/ERPPageHeader";
@@ -488,7 +489,7 @@ export default function CustomerBalancesPage() {
             { label: "Export Excel", onClick: () => exportToExcel(customers, "CustomerBalances.xlsx"), icon: FileSpreadsheet },
             { label: "Print List", onClick: () => printListDocument({
                 title: "Customer Balances Report",
-                companyName: shopProfile?.companyName || "Al Hadeed Traders",
+                companyName: shopProfile?.companyName || COMPANY_NAME,
                 companyAddress: shopProfile?.address || "Bela, Balochistan, Pakistan",
                 companyPhone: shopProfile?.phone || "",
                 columns: [
@@ -547,7 +548,7 @@ export default function CustomerBalancesPage() {
             <button 
               onClick={() => printListDocument({
                 title: "Customer Balances Report",
-                companyName: shopProfile?.companyName || "Al Hadeed Traders",
+                companyName: shopProfile?.companyName || COMPANY_NAME,
                 companyAddress: shopProfile?.address || "Bela, Balochistan, Pakistan",
                 companyPhone: shopProfile?.phone || "",
                 columns: [
@@ -620,7 +621,7 @@ export default function CustomerBalancesPage() {
         
         {/* Print Header (Visible only when printing) */}
         <div className="hidden print-header p-6 pb-0">
-          <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">{shopProfile?.companyName || "Al Hadeed Traders"}</h2>
+          <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">{shopProfile?.companyName || COMPANY_NAME}</h2>
           <h3 className="text-sm font-bold text-maroon-800 uppercase tracking-widest mt-1">Customer Balances Report</h3>
           <p className="text-[10px] text-slate-500 font-bold uppercase mt-1">Generated: {new Date().toLocaleDateString()}</p>
         </div>

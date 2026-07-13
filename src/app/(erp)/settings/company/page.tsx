@@ -1,4 +1,5 @@
 "use client";
+import { APP_NAME, COMPANY_NAME, COMPANY_SHORT, COMPANY_TAGLINE, DEFAULT_COMPANY_ADDRESS_LINE, DEFAULT_COMPANY_FORM } from "@/lib/company";
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
@@ -23,24 +24,24 @@ export default function CompanySettingsPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   const [formData, setFormData] = useState({
-    companyName: "Al Hadeed Traders",
-    tradeName: "Al Hadeed Traders",
-    address: "Uthal Lasbela",
-    city: "Bela",
-    province: "Select Province",
+    companyName: COMPANY_NAME,
+    tradeName: COMPANY_NAME,
+    address: DEFAULT_COMPANY_FORM.address,
+    city: DEFAULT_COMPANY_FORM.city,
+    province: DEFAULT_COMPANY_FORM.province,
     country: "Pakistan",
     postalCode: "",
-    phone: "03152914836",
-    mobile: "03152914836",
-    email: "nasrqasimroonjha10@gmail.com",
+    phone: DEFAULT_COMPANY_FORM.phone,
+    mobile: DEFAULT_COMPANY_FORM.mobile,
+    email: DEFAULT_COMPANY_FORM.email,
     website: "",
-    ntn: "1234567-8",
+    ntn: DEFAULT_COMPANY_FORM.ntn,
     gstRegistration: "",
     stn: "",
-    fiscalYearStart: "July",
-    currency: "PKR (Rs.)",
-    amountDecimalPlaces: "2 - Standard (0.00)",
-    quantityDecimalPlaces: "2 - Standard (0.00)",
+    fiscalYearStart: DEFAULT_COMPANY_FORM.fiscalYearStart,
+    currency: DEFAULT_COMPANY_FORM.currency,
+    amountDecimalPlaces: DEFAULT_COMPANY_FORM.amountDecimalPlaces,
+    quantityDecimalPlaces: DEFAULT_COMPANY_FORM.quantityDecimalPlaces,
   });
 
   useEffect(() => {

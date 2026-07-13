@@ -1,4 +1,5 @@
 "use client";
+import { APP_NAME, COMPANY_NAME, COMPANY_SHORT, COMPANY_TAGLINE, DEFAULT_COMPANY_ADDRESS_LINE, DEFAULT_COMPANY_FORM } from "@/lib/company";
 
 import ERPReportLayout from "@/components/erp/reports/ERPReportLayout";
 import { Download, Printer, Play, Calculator, ArrowUpRight, ArrowDownRight, Scale, Percent, FileSpreadsheet } from "lucide-react";
@@ -137,7 +138,7 @@ export default function TaxReportsPage() {
             <div className="px-4">
               <div className="mb-6">
                 <h3 className="text-sm font-black text-maroon-800 uppercase tracking-widest mb-1">Tax Summary - GST & WHT</h3>
-                <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Al Hadeed Traders | {fromDate} to {toDate}</p>
+                <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">{COMPANY_NAME} | {fromDate} to {toDate}</p>
               </div>
 
               <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 shadow-sm">

@@ -1,4 +1,5 @@
 "use client";
+import { APP_NAME, COMPANY_NAME, COMPANY_SHORT, COMPANY_TAGLINE, DEFAULT_COMPANY_ADDRESS_LINE, DEFAULT_COMPANY_FORM } from "@/lib/company";
 
 import ERPReportLayout from "@/components/erp/reports/ERPReportLayout";
 import { Download, Printer, RefreshCw, Wallet, ArrowUpRight, ArrowDownRight, Activity, ChevronDown, ChevronRight, FileSpreadsheet } from "lucide-react";
@@ -122,7 +123,7 @@ export default function CashFlowStatementReportPage() {
         <div className="px-4">
             <div className="mb-8">
                 <h2 className="text-xl font-black text-maroon-800 uppercase tracking-widest">Cash Flow Statement</h2>
-                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1">Al Hadeed Traders | {fromDate} to {toDate} | {report?.details.operating.length || 0} transactions</p>
+                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1">{COMPANY_NAME} | {fromDate} to {toDate} | {report?.details.operating.length || 0} transactions</p>
             </div>
 
             {isLoading ? (

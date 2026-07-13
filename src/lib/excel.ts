@@ -1,4 +1,5 @@
-import * as XLSX from 'xlsx';
+﻿import * as XLSX from 'xlsx';
+import { APP_NAME, COMPANY_NAME, COMPANY_SHORT, COMPANY_TAGLINE, DEFAULT_COMPANY_ADDRESS_LINE, DEFAULT_COMPANY_FORM } from "@/lib/company";
 
 /**
  * Trigger a hidden file input to allow the user to select a file.
@@ -166,7 +167,7 @@ export const exportDOMTableToExcel = (filename: string = 'Report') => {
 };
 
 /**
- * Print a clean list document in a new window — like a professional printable report.
+ * Print a clean list document in a new window â€” like a professional printable report.
  * @param title - Report title e.g. "Customer Balances Report"
  * @param companyName - Company name for the header
  * @param companyAddress - Company address
@@ -177,8 +178,8 @@ export const exportDOMTableToExcel = (filename: string = 'Report') => {
  */
 export const printListDocument = ({
   title,
-  companyName = "Al Hadeed Traders",
-  companyAddress = "Bela, Balochistan, Pakistan",
+  companyName = COMPANY_NAME,
+  companyAddress = DEFAULT_COMPANY_ADDRESS_LINE,
   companyPhone = "",
   columns,
   rows,

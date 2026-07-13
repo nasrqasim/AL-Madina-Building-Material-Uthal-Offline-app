@@ -1,4 +1,5 @@
 "use client";
+import { APP_NAME, COMPANY_NAME, COMPANY_SHORT, COMPANY_TAGLINE, DEFAULT_COMPANY_ADDRESS_LINE, DEFAULT_COMPANY_FORM } from "@/lib/company";
 
 import React from "react";
 import Image from "next/image";
@@ -73,10 +74,10 @@ export default function BlackCopperS4C({
             </div>
           )}
           <h2 className="text-lg font-black uppercase tracking-tight" style={{ color: config.themeColor || "#800000" }}>
-            {companyInfo?.companyName || "AL HADEED TRADERS"}
+            {companyInfo?.companyName || COMPANY_NAME}
           </h2>
           <p className="text-[10px] text-slate-500 font-bold max-w-[320px] leading-tight">
-            {companyInfo?.address || "Main Road, Al Hadeed Traders Market"}
+            {companyInfo?.address || DEFAULT_COMPANY_ADDRESS_LINE}
           </p>
           <p className="text-[10px] text-slate-500 font-bold">
             Tel: {companyInfo?.phone || "03108444612"} {companyInfo?.city ? `| City: ${companyInfo.city}` : ""}

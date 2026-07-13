@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import ERPModal from "../ui/ERPModal";
@@ -156,7 +156,7 @@ export default function ItemModal({ isOpen, onClose, item, onSave }: ItemModalPr
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">Liters in Ctn</label>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">Pieces per Pack</label>
             <input
               type="number"
               step="any"
@@ -166,7 +166,7 @@ export default function ItemModal({ isOpen, onClose, item, onSave }: ItemModalPr
             />
           </div>
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">Gallons in Ctn</label>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">Units per Pack</label>
             <input
               type="number"
               step="any"
@@ -212,7 +212,7 @@ export default function ItemModal({ isOpen, onClose, item, onSave }: ItemModalPr
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">Opening Stock (Ctns)</label>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">Opening Stock (Qty)</label>
             <input
               type="number"
               step="any"

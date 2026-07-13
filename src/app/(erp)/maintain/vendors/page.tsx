@@ -1,4 +1,5 @@
 "use client";
+import { APP_NAME, COMPANY_NAME, COMPANY_SHORT, COMPANY_TAGLINE, DEFAULT_COMPANY_ADDRESS_LINE, DEFAULT_COMPANY_FORM } from "@/lib/company";
 
 import { useState, useEffect } from "react";
 import ERPPageHeader from "@/components/erp/ui/ERPPageHeader";
@@ -326,7 +327,7 @@ export default function VendorsPage() {
             { label: "Export Excel", onClick: () => exportToExcel(vendors, "Vendors.xlsx"), icon: FileSpreadsheet },
             { label: "Print List", onClick: () => printListDocument({
                 title: "Vendor Balances Report",
-                companyName: shopProfile?.companyName || "Al Hadeed Traders",
+                companyName: shopProfile?.companyName || COMPANY_NAME,
                 companyAddress: shopProfile?.address || "Bela, Balochistan, Pakistan",
                 companyPhone: shopProfile?.phone || "",
                 columns: [
@@ -379,7 +380,7 @@ export default function VendorsPage() {
             <button 
               onClick={() => printListDocument({
                 title: "Vendor Balances Report",
-                companyName: shopProfile?.companyName || "Al Hadeed Traders",
+                companyName: shopProfile?.companyName || COMPANY_NAME,
                 companyAddress: shopProfile?.address || "Bela, Balochistan, Pakistan",
                 companyPhone: shopProfile?.phone || "",
                 columns: [
@@ -422,7 +423,7 @@ export default function VendorsPage() {
       <div className="print-container bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-all hover:shadow-xl hover:shadow-maroon-900/5 min-h-[100px]">
         {/* Print Header (Visible only when printing) */}
         <div className="hidden print-header p-6 pb-0">
-          <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">{shopProfile?.companyName || "Al Hadeed Traders"}</h2>
+          <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">{shopProfile?.companyName || COMPANY_NAME}</h2>
           <h3 className="text-sm font-bold text-maroon-800 uppercase tracking-widest mt-1">Vendor Balances Report</h3>
           <p className="text-[10px] text-slate-500 font-bold uppercase mt-1">Generated: {new Date().toLocaleDateString()}</p>
         </div>
