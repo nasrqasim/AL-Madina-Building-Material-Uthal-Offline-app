@@ -152,6 +152,22 @@ export default function InventoryLedgerReportPage() {
     });
   }, [filteredItems, invoices, fromDate]);
 
+  const totalOpening = useMemo(() => {
+    return itemsWithOpening.reduce((sum, item) => sum + (item.openingStock || 0), 0);
+  }, [itemsWithOpening]);
+
+  const totalStock = useMemo(() => {
+    return itemsWithOpening.reduce((sum, item) => sum + (item.stockQtyCartons || 0), 0);
+  }, [itemsWithOpening]);
+
+  const totalStockValue = useMemo(() => {
+    return itemsWithOpening.reduce((sum, item) => sum + (item.stockQtyCartons || 0) * (item.purchaseRate || 0), 0);
+  }, [itemsWithOpening]);
+
+  const totalRetailValue = useMemo(() => {
+    return itemsWithOpening.reduce((sum, item) => sum + (item.stockQtyCartons || 0) * (item.retailRate || 0), 0);
+  }, [itemsWithOpening]);
+
   const selectedItemObj = items.find(i => i._id === selectedItemId);
 
   const stats = [
@@ -415,6 +431,28 @@ export default function InventoryLedgerReportPage() {
                       </td>
                     </tr>
                   ))}
+                  {/* Totals Row for Whole Stock List */}
+                  <tr className="bg-slate-100 dark:bg-slate-800 border-t-2 border-slate-300 dark:border-slate-700 font-black">
+                    <td colSpan={3} className="px-4 py-3 text-xs font-black text-slate-700 dark:text-slate-300 text-right">Totals:</td>
+                    <td className="px-4 py-3 text-[11px] font-bold text-slate-800 dark:text-slate-100 text-right">
+                      Rs. {totalStockValue.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 text-[11px] font-bold text-slate-800 dark:text-slate-100 text-right">
+                      Rs. {totalRetailValue.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 text-right text-slate-400">-</td>
+                    <td className="px-2 py-2 text-right">
+                      <span className="inline-block px-3 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-[11px] font-bold text-slate-800 dark:text-slate-100 min-w-[70px]">
+                        {totalOpening.toFixed(2)}
+                      </span>
+                    </td>
+                    <td className="px-2 py-2 text-right">
+                      <span className="inline-block px-3 py-1 bg-white dark:bg-slate-900 border border-slate-400 dark:border-slate-600 rounded text-[11px] font-bold text-blue-700 dark:text-blue-400 min-w-[70px]">
+                        {totalStock.toFixed(2)}
+                      </span>
+                    </td>
+                    <td colSpan={2} className="px-4 py-3 text-right"></td>
+                  </tr>
                 </tbody>
               </table>
             </div>
