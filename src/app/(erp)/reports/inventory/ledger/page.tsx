@@ -26,6 +26,16 @@ export default function InventoryLedgerReportPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [invoices, setInvoices] = useState<any[]>([]);
+  const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
+
+  const handleInvoiceClick = (refNo: string) => {
+    const inv = invoices.find(i => i.invoiceNo === refNo);
+    if (inv) {
+      setSelectedInvoice(inv);
+    } else {
+      alert(`Invoice ${refNo} not found`);
+    }
+  };
 
   useEffect(() => {
     fetch('/api/items')
@@ -334,8 +344,20 @@ export default function InventoryLedgerReportPage() {
                         return (
                           <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                             <td className="px-4 py-3 text-[11px] font-medium text-slate-600 dark:text-slate-300">{new Date(row.date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '-')}</td>
-                            <td className="px-4 py-3 text-[11px] font-bold text-blue-600">{row.refNo}</td>
-                            <td className="px-4 py-3 text-[11px] font-medium text-slate-700 dark:text-slate-200">{row.partyName || "Walk-in (Cash) Customer"}</td>
+                            <td className="px-4 py-3 text-[11px] font-bold text-blue-600">
+                              <button 
+                                onClick={() => handleInvoiceClick(row.refNo)}
+                                className="hover:underline flex items-center gap-1 text-left"
+                              >
+                                {row.refNo}
+                              </button>
+                            </td>
+                            <td 
+                              className="px-4 py-3 text-[11px] font-medium text-slate-700 dark:text-slate-200 hover:text-blue-600 hover:underline cursor-pointer"
+                              onClick={() => handleInvoiceClick(row.refNo)}
+                            >
+                              {row.partyName || "Walk-in (Cash) Customer"}
+                            </td>
                             <td className="px-4 py-3 text-[11px] font-black text-emerald-600 text-right">{row.in > 0 ? row.in.toFixed(2) : ""}</td>
                             <td className="px-4 py-3 text-[11px] font-black text-rose-600 text-right">{row.out > 0 ? row.out.toFixed(2) : ""}</td>
                             <td className="px-4 py-3 text-[11px] font-medium text-slate-400">-</td>
@@ -455,6 +477,137 @@ export default function InventoryLedgerReportPage() {
                   </tr>
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* Premium Invoice Details Modal */}
+        {selectedInvoice && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm no-print">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2rem] w-full max-w-4xl max-h-[85vh] overflow-y-auto shadow-2xl flex flex-col relative">
+              
+              {/* Modal Header */}
+              <div className="px-8 py-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between sticky top-0 bg-white dark:bg-slate-900 z-10">
+                <div>
+                  <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Transaction Invoice</span>
+                  <h3 className="text-xl font-black text-slate-900 dark:text-white mt-1 flex items-center gap-2">
+                    {selectedInvoice.invoiceNo}
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                      selectedInvoice.status?.toLowerCase() === "paid" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200/50" : 
+                      selectedInvoice.status?.toLowerCase() === "posted" ? "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400 border border-blue-200/50" : 
+                      "bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-400 border border-orange-200/50"
+                    }`}>
+                      {selectedInvoice.status || "Posted"}
+                    </span>
+                  </h3>
+                </div>
+                <button 
+                  onClick={() => setSelectedInvoice(null)}
+                  className="w-10 h-10 rounded-full border border-slate-200 dark:border-slate-800 flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800 transition-all font-bold text-slate-500 dark:text-slate-400 text-sm"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Modal Content */}
+              <div className="p-8 space-y-6">
+                {/* Billing Info */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-6 bg-slate-50 dark:bg-slate-800/40 p-6 rounded-2xl border border-slate-100 dark:border-slate-800">
+                  <div className="space-y-1">
+                    <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Party Name</p>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">
+                      {selectedInvoice.partyId?.companyName || selectedInvoice.partyId?.name || selectedInvoice.customer || "Walk-in (Cash) Customer"}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Transaction Date</p>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">
+                      {selectedInvoice.date ? new Date(selectedInvoice.date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-') : "-"}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Reference</p>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">{selectedInvoice.reference || "-"}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Warehouse Location</p>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">
+                      {selectedInvoice.locationId?.name || "Main Warehouse"}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Items List Table */}
+                <div className="space-y-2">
+                  <h4 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Items Sold / Purchased</h4>
+                  <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900">
+                    <table className="w-full text-left border-collapse">
+                      <thead className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                        <tr>
+                          <th className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Item Details</th>
+                          <th className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Qty</th>
+                          <th className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Rate</th>
+                          <th className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Gross Amount</th>
+                          <th className="px-4 py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Net Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {(selectedInvoice.lines || []).map((line: any, idx: number) => {
+                          const lineQty = lineStockQty(line);
+                          const gross = lineQty * (Number(line.rate) || 0);
+                          const net = Number(line.netAmount) || gross;
+                          return (
+                            <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 text-xs transition-colors">
+                              <td className="px-4 py-3">
+                                <p className="font-bold text-slate-950 dark:text-white uppercase">{line.itemId?.name || "Unknown Item"}</p>
+                                {line.itemId?.code && <span className="text-[9px] font-bold text-slate-400 mt-0.5 inline-block">Code: {line.itemId.code}</span>}
+                              </td>
+                              <td className="px-4 py-3 text-right font-black text-slate-800 dark:text-slate-200">
+                                {lineQty.toFixed(2)}
+                              </td>
+                              <td className="px-4 py-3 text-right font-medium text-slate-600 dark:text-slate-300">
+                                Rs. {(Number(line.rate) || 0).toLocaleString()}
+                              </td>
+                              <td className="px-4 py-3 text-right font-medium text-slate-600 dark:text-slate-300">
+                                Rs. {gross.toLocaleString()}
+                              </td>
+                              <td className="px-4 py-3 text-right font-black text-slate-950 dark:text-white">
+                                Rs. {net.toLocaleString()}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Financial Totals */}
+                <div className="flex flex-col items-end pt-4 border-t border-slate-100 dark:border-slate-800 gap-2">
+                  <div className="flex justify-between w-64 text-xs">
+                    <span className="font-medium text-slate-400">Total Gross:</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200">Rs. {(Number(selectedInvoice.grossAmount) || Number(selectedInvoice.totalAmount) || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between w-64 text-xs">
+                    <span className="font-medium text-slate-400">Discount:</span>
+                    <span className="font-bold text-rose-600">Rs. {(Number(selectedInvoice.discountAmount) || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between w-64 text-sm border-t border-slate-200 dark:border-slate-800 pt-2 font-black">
+                    <span className="text-slate-800 dark:text-white">Grand Total:</span>
+                    <span className="text-blue-700 dark:text-blue-400">Rs. {(Number(selectedInvoice.totalAmount) || 0).toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="px-8 py-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2 sticky bottom-0 bg-white dark:bg-slate-900">
+                <button 
+                  onClick={() => setSelectedInvoice(null)}
+                  className="px-4 py-2 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         )}
