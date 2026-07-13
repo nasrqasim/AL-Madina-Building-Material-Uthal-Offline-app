@@ -119,30 +119,33 @@ export async function GET(req: Request) {
       }
     }
 
-    let openingBalance = 0;
-    const periodRows = rows.filter((row) => {
-      const rowDate = new Date(row.date);
-      if (fromDate && rowDate < fromDate) {
-        openingBalance += row.in - row.out;
-        return false;
-      }
-      if (toDate && rowDate > toDate) return false;
-      return true;
+    let runningBalance = 0;
+    const rowsWithBalance = rows.map((row) => {
+      runningBalance += row.in - row.out;
+      if (runningBalance < 0) runningBalance = 0;
+      return { ...row, balance: runningBalance };
     });
 
-    let runningBalance = openingBalance;
-    const dataWithBalance = periodRows.map((t) => {
-      runningBalance += t.in - t.out;
-      return { ...t, balance: runningBalance };
+    let openingBalance = 0;
+    const beforeRows = rowsWithBalance.filter(row => fromDate && new Date(row.date) < fromDate);
+    if (beforeRows.length > 0) {
+      openingBalance = beforeRows[beforeRows.length - 1].balance;
+    }
+
+    const periodRows = rowsWithBalance.filter(row => {
+      const rowDate = new Date(row.date);
+      if (fromDate && rowDate < fromDate) return false;
+      if (toDate && rowDate > toDate) return false;
+      return true;
     });
 
     const totalIn = periodRows.reduce((s, r) => s + r.in, 0);
     const totalOut = periodRows.reduce((s, r) => s + r.out, 0);
     const closingBalance =
-      dataWithBalance.length > 0 ? dataWithBalance[dataWithBalance.length - 1].balance : openingBalance;
+      periodRows.length > 0 ? periodRows[periodRows.length - 1].balance : openingBalance;
 
     return ok({
-      rows: dataWithBalance,
+      rows: periodRows,
       openingBalance,
       totalIn,
       totalOut,
