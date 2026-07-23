@@ -1,34 +1,50 @@
 import { fail, ok } from "@/lib/api";
-import dbConnect from "@/lib/db";
-import CashPayment from "@/models/CashPayment";
-import { recalculatePartyBalance, postCashPaymentJournalEntries } from "@/services/posting/invoicePostingHelper";
+import { offlineDB, generateUniqueId } from "@/lib/dexie";
+import { recalculatePartyBalance, postCashPaymentJournalEntries } from "@/lib/offline/postingService";
 
 export async function GET() {
-  await dbConnect();
-  const rows = await CashPayment.find()
-    .populate("partyId", "name companyName type code phone address city balance debit credit")
-    .populate("cashAccountId", "title code type openingBalance")
-    .populate("jobId", "title name")
-    .sort({ createdAt: -1 })
-    .lean();
-  return ok(rows);
+  try {
+    const payments = await offlineDB.cashPayments.toArray();
+    const parties = await offlineDB.parties.toArray();
+    const accounts = await offlineDB.accounts.toArray();
+
+    const partyMap = new Map(parties.map(p => [p.id, p]));
+    const accountMap = new Map(accounts.map(a => [a.id, a]));
+
+    const rows = payments.map(p => {
+      const party = p.partyId ? partyMap.get(p.partyId) : undefined;
+      const account = p.cashAccountId ? accountMap.get(p.cashAccountId) : undefined;
+      return {
+        ...p,
+        partyId: party,
+        cashAccountId: account
+      };
+    });
+
+    rows.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return ok(rows);
+  } catch (e) {
+    return fail((e as Error).message);
+  }
 }
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    await dbConnect();
+    const id = generateUniqueId();
 
     if (!body.voucherNo || body.voucherNo === "Auto-generated") {
-      let attempt = (await CashPayment.countDocuments()) + 1;
+      let attempt = (await offlineDB.cashPayments.count()) + 1;
       let isUnique = false;
       while (!isUnique) {
         const candidate = `CPV-${attempt.toString().padStart(5, "0")}`;
-        const existing = await CashPayment.findOne({ voucherNo: candidate });
+        const existing = await offlineDB.cashPayments.where("voucherNo").equals(candidate).first();
         if (!existing) {
           body.voucherNo = candidate;
           isUnique = true;
-        } else attempt++;
+        } else {
+          attempt++;
+        }
       }
     }
 
@@ -45,10 +61,12 @@ export async function POST(req: Request) {
     const netPaid = amount - whtAmount;
     const partyId = body.partyId || body.vendorId || null;
 
-    const payload = {
+    const paymentRecord = {
+      id,
+      _id: id,
       voucherNo: body.voucherNo,
       paymentType,
-      date: body.date,
+      date: body.date || new Date().toISOString(),
       partyId: partyId || null,
       vendor: partyId ? String(partyId) : "",
       cashAccountId: body.cashAccountId || null,
@@ -66,23 +84,20 @@ export async function POST(req: Request) {
       partyPaymentType: body.partyPaymentType || "",
       isRefund: !!body.isRefund,
       contraLines: body.contraLines || [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
 
-    const row = await CashPayment.create(payload);
+    await offlineDB.cashPayments.add(paymentRecord);
 
-    if (row.status === "Posted") {
-      await postCashPaymentJournalEntries(row);
+    if (paymentRecord.status === "Posted") {
+      await postCashPaymentJournalEntries(paymentRecord);
       if (partyId) {
-        await recalculatePartyBalance(String(partyId));
+        await recalculatePartyBalance(partyId);
       }
     }
 
-    const populated = await CashPayment.findById(row._id)
-      .populate("partyId", "name companyName type")
-      .populate("cashAccountId", "title code")
-      .lean();
-
-    return ok(populated ?? row, 201);
+    return ok(paymentRecord, 201);
   } catch (e) {
     return fail((e as Error).message);
   }

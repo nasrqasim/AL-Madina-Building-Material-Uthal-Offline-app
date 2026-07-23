@@ -18,8 +18,9 @@ type Item = {
   name: string;
   mainCategoryId?: string;
   subCategoryId?: string;
-  litersInCtn: number;
-  gallonsInCtn: number;
+  unit: string;
+  weight: number;
+  size: string;
   purchaseRate: number;
   wholesaleRate: number;
   retailRate: number;
@@ -59,8 +60,8 @@ export default function InventoryChart() {
       const catData = await catRes.json();
       const itemData = await itemRes.json();
       
-      if (catData.ok) setCategories(catData.data);
-      if (itemData.ok) setItems(itemData.data);
+      if (catData.ok) setCategories(catData.data || []);
+      if (itemData.ok) setItems(itemData.data || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -69,12 +70,12 @@ export default function InventoryChart() {
   };
 
   const mainCategories = useMemo(() => {
-    return categories.filter(c => c.type === "main");
+    return (categories || []).filter(c => c.type === "main");
   }, [categories]);
 
   const subCategories = useMemo(() => {
     if (!selectedMainCatId) return [];
-    return categories.filter(c => c.type === "sub" && c.parentId === selectedMainCatId);
+    return (categories || []).filter(c => c.type === "sub" && c.parentId === selectedMainCatId);
   }, [categories, selectedMainCatId]);
 
   const filteredItems = useMemo(() => {
@@ -128,12 +129,14 @@ export default function InventoryChart() {
         name: "",
         mainCategoryId: selectedMainCatId || "",
         subCategoryId: selectedSubCatId || "",
+        unit: "Per Piece",
+        weight: 0,
+        size: "",
         purchaseRate: 0,
         wholesaleRate: 0,
         retailRate: 0,
-        litersInCtn: 0,
-        gallonsInCtn: 0,
-        reorderLevel: 0
+        reorderLevel: 0,
+        stockQtyCartons: 0
       });
     } else {
       setCatFormData({
@@ -296,7 +299,7 @@ export default function InventoryChart() {
             </button>
           </div>
           <div className="flex-1 overflow-y-auto p-2">
-            {filteredItems.map(item => (
+            {(filteredItems || []).map(item => (
               <div
                 key={item._id}
                 onClick={() => handleItemClick(item)}
@@ -419,23 +422,33 @@ export default function InventoryChart() {
                 </div>
                 
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-slate-500">Liters in Ctn</label>
+                  <label className="text-xs font-medium text-slate-500">Unit</label>
                   <input
-                    type="number"
+                    type="text"
                     disabled={!isEditing}
                     className="w-full rounded border px-3 py-1.5 text-sm disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:disabled:bg-slate-900"
-                    value={formData.litersInCtn || 0}
-                    onChange={e => setFormData({...formData, litersInCtn: Number(e.target.value)})}
+                    value={formData.unit || "Per Piece"}
+                    onChange={e => setFormData({...formData, unit: e.target.value})}
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-slate-500">Gallons in Ctn</label>
+                  <label className="text-xs font-medium text-slate-500">Weight (KG/Gram)</label>
                   <input
                     type="number"
                     disabled={!isEditing}
                     className="w-full rounded border px-3 py-1.5 text-sm disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:disabled:bg-slate-900"
-                    value={formData.gallonsInCtn || 0}
-                    onChange={e => setFormData({...formData, gallonsInCtn: Number(e.target.value)})}
+                    value={formData.weight || 0}
+                    onChange={e => setFormData({...formData, weight: Number(e.target.value)})}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-500">Size</label>
+                  <input
+                    type="text"
+                    disabled={!isEditing}
+                    className="w-full rounded border px-3 py-1.5 text-sm disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:disabled:bg-slate-900"
+                    value={formData.size || ""}
+                    onChange={e => setFormData({...formData, size: e.target.value})}
                   />
                 </div>
               </div>

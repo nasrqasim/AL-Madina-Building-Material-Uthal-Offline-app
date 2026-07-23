@@ -78,7 +78,7 @@ export default function GeneralLedgerReport() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {data.map((row) => (
+            {(data || []).map((row) => (
               <>
                 <tr 
                   key={row.id} 

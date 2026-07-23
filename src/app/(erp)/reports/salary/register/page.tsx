@@ -24,8 +24,8 @@ export default function SalaryRegisterReportPage() {
       const payrollJson = await payrollRes.json();
       const empJson = await empRes.json();
       
-      if (payrollJson.ok) setPayrolls(payrollJson.data);
-      if (empJson.ok) setEmployees(empJson.data);
+      if (payrollJson.ok) setPayrolls(payrollJson.data || []);
+      if (empJson.ok) setEmployees(empJson.data || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -33,12 +33,12 @@ export default function SalaryRegisterReportPage() {
     }
   };
 
-  const empMap = new Map(employees.map(e => [e._id, e]));
-  const empByName = new Map(employees.map(e => [e.name, e]));
-  const empByCode = new Map(employees.map(e => [e.code, e]));
+  const empMap = new Map((employees || []).map(e => [e._id, e]));
+  const empByName = new Map((employees || []).map(e => [e.name, e]));
+  const empByCode = new Map((employees || []).map(e => [e.code, e]));
 
   // Filter payrolls by month if selected
-  const filteredPayrolls = payrolls.filter(p => selectedMonth === "All Months" || p.month === selectedMonth);
+  const filteredPayrolls = (payrolls || []).filter(p => selectedMonth === "All Months" || p.month === selectedMonth);
 
   // Flatten staff data across filtered payrolls
   const reportData = filteredPayrolls.flatMap(p => 
@@ -60,14 +60,14 @@ export default function SalaryRegisterReportPage() {
     }).filter(Boolean)
   );
 
-  const totalGross = reportData.reduce((sum, item) => sum + item.gross, 0);
-  const totalStatutory = reportData.reduce((sum, item) => sum + item.statutory, 0);
-  const totalLoan = reportData.reduce((sum, item) => sum + item.loan, 0);
-  const totalAdvance = reportData.reduce((sum, item) => sum + item.advance, 0);
-  const totalNet = reportData.reduce((sum, item) => sum + item.net, 0);
+  const totalGross = (reportData || []).reduce((sum, item) => sum + item.gross, 0);
+  const totalStatutory = (reportData || []).reduce((sum, item) => sum + item.statutory, 0);
+  const totalLoan = (reportData || []).reduce((sum, item) => sum + item.loan, 0);
+  const totalAdvance = (reportData || []).reduce((sum, item) => sum + item.advance, 0);
+  const totalNet = (reportData || []).reduce((sum, item) => sum + item.net, 0);
 
   const stats = [
-    { title: "Lines", value: reportData.length.toString(), icon: FileText, iconColor: "text-slate-600 dark:text-slate-300", iconBg: "bg-slate-50 dark:bg-slate-800/50" },
+    { title: "Lines", value: (reportData || []).length.toString(), icon: FileText, iconColor: "text-slate-600 dark:text-slate-300", iconBg: "bg-slate-50 dark:bg-slate-800/50" },
     { title: "Total Gross", value: `Rs.${totalGross.toLocaleString()}`, icon: DollarSign, iconColor: "text-blue-600", iconBg: "bg-blue-50" },
     { title: "Statutory", value: `Rs.${totalStatutory.toLocaleString()}`, icon: ShieldCheck, iconColor: "text-rose-600", iconBg: "bg-rose-50" },
     { title: "Loan Recovery", value: `Rs.${totalLoan.toLocaleString()}`, icon: History, iconColor: "text-amber-600", iconBg: "bg-amber-50" },
@@ -75,7 +75,7 @@ export default function SalaryRegisterReportPage() {
     { title: "Net Paid", value: `Rs.${totalNet.toLocaleString()}`, icon: DollarSign, iconColor: "text-white", iconBg: "bg-maroon-800", valueColor: "text-white" },
   ];
 
-  const deptGroups = reportData.reduce((acc, curr) => {
+  const deptGroups = (reportData || []).reduce((acc, curr) => {
     acc[curr.dept] = (acc[curr.dept] || 0) + curr.gross;
     return acc;
   }, {} as Record<string, number>);
@@ -85,13 +85,13 @@ export default function SalaryRegisterReportPage() {
     name, value, color: pieColors[idx % pieColors.length]
   }));
 
-  const staffCountDept = reportData.reduce((acc, curr) => {
+  const staffCountDept = (reportData || []).reduce((acc, curr) => {
     acc[curr.dept] = (acc[curr.dept] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
   const barData = Object.entries(staffCountDept).map(([name, count]) => ({ name, count }));
 
-  const uniqueMonths = Array.from(new Set(payrolls.map(p => p.month))).sort().reverse();
+  const uniqueMonths = Array.from(new Set((payrolls || []).map(p => p.month))).sort().reverse();
 
   const Filters = (
     <div className="space-y-4">
@@ -168,7 +168,7 @@ export default function SalaryRegisterReportPage() {
             <div className="px-4">
               <div className="flex items-center gap-2 mb-4">
                 <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-widest">Payroll Summary {selectedMonth !== 'All Months' ? `- ${selectedMonth}` : ''}</h3>
-                <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded text-xs font-bold">{reportData.length} lines</span>
+                <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded text-xs font-bold">{(reportData || []).length} lines</span>
               </div>
               <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 shadow-sm">
                 <table className="w-full text-left border-collapse min-w-max">
@@ -185,7 +185,7 @@ export default function SalaryRegisterReportPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {reportData.map((row, i) => (
+                    {(reportData || []).map((row, i) => (
                       <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors">
                         <td className="px-4 py-3 text-[11px] font-medium text-slate-400 dark:text-slate-500">{i + 1}</td>
                         <td className="px-4 py-3">

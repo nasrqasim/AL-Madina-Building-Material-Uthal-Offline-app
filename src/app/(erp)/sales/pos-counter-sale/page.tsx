@@ -44,7 +44,7 @@ export default function POSCounterSalePage() {
     try {
       const res = await fetch("/api/invoices?type=sale", { cache: "no-store" });
       const json = await res.json();
-      if (json.ok) setSales(json.data);
+      if (json.ok) setSales(json.data || []);
     } catch (e) { console.error(e); } finally { setIsLoading(false); }
   };
 
@@ -86,7 +86,7 @@ export default function POSCounterSalePage() {
           </div>
           <div>
             <p className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Today&apos;s Sales</p>
-            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{sales.length}</h4>
+            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{(sales || []).length}</h4>
           </div>
         </div>
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
@@ -96,7 +96,7 @@ export default function POSCounterSalePage() {
           <div>
             <p className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Total Cash</p>
             <h4 className="text-2xl font-black text-slate-900 dark:text-white">
-              Rs.{sales.reduce((acc, s) => acc + (s.totalAmount || 0), 0).toLocaleString('en-US')}
+              Rs.{(sales || []).reduce((acc, s) => acc + (s.totalAmount || 0), 0).toLocaleString('en-US')}
             </h4>
           </div>
         </div>
@@ -106,7 +106,7 @@ export default function POSCounterSalePage() {
           </div>
           <div>
             <p className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Completed</p>
-            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{sales.filter(s => s.status === "posted").length}</h4>
+            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{(sales || []).filter(s => s.status === "posted").length}</h4>
           </div>
         </div>
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
@@ -162,8 +162,8 @@ export default function POSCounterSalePage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {sales.length > 0 ? (
-                sales.map((sale) => (
+              {(sales || []).length > 0 ? (
+                (sales || []).map((sale) => (
                   <tr key={sale._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
                     <td className="px-8 py-5">
                       <span className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 transition-colors">{sale.invoiceNo}</span>

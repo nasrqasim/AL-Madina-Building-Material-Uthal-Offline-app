@@ -81,7 +81,7 @@ export default function BackupExportPage() {
 
       const cleanForExcel = (data: any[]) => {
         if (!data || !Array.isArray(data)) return [];
-        return data.map((doc: any) => {
+        return (data || []).map((doc: any) => {
           const cleaned: any = {};
           for (const [key, value] of Object.entries(doc)) {
             if (key === "__v" || key === "password") continue;
@@ -319,7 +319,7 @@ export default function BackupExportPage() {
                 <div key={i} className="h-24 bg-slate-50 dark:bg-slate-800/50 rounded-2xl animate-pulse" />
               ))
             ) : (
-              stats.map((s: any, i: number) => (
+              (stats || []).map((s: any, i: number) => (
                 <div key={i} className="p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 group hover:border-blue-200 hover:bg-blue-50/30 transition-all">
                   <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1 group-hover:text-blue-400">{s.name}</p>
                   <p className="text-2xl font-black text-slate-800 dark:text-slate-100">{s.count}</p>

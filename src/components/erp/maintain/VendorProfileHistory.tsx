@@ -9,6 +9,7 @@ import {
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import ERPStatCard from "@/components/erp/ui/ERPStatCard";
 import WhatsAppShareModal from "@/components/erp/whatsapp/WhatsAppShareModal";
+import { calculateVendorBalanceFromTransactions } from "@/lib/vendorBalance";
 
 interface VendorProfileHistoryProps {
   vendor: any;
@@ -27,6 +28,8 @@ export default function VendorProfileHistory({
   // Data State
   const [purchases, setPurchases] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
+  const [cashReceipts, setCashReceipts] = useState<any[]>([]);
+  const [bankReceipts, setBankReceipts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
   // Ledger Dates State
@@ -82,15 +85,19 @@ export default function VendorProfileHistory({
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [purchasesRes, cashRes, bankRes] = await Promise.all([
+      const [purchasesRes, cashRes, bankRes, cashReceiptsRes, bankReceiptsRes] = await Promise.all([
         fetch("/api/purchases"),
         fetch("/api/cash-payments"),
-        fetch("/api/bank-payments")
+        fetch("/api/bank-payments"),
+        fetch("/api/cash-receipts"),
+        fetch("/api/bank-receipts")
       ]);
-      const [purchasesJson, cashJson, bankJson] = await Promise.all([
+      const [purchasesJson, cashJson, bankJson, cashReceiptsJson, bankReceiptsJson] = await Promise.all([
         purchasesRes.json(),
         cashRes.json(),
-        bankRes.json()
+        bankRes.json(),
+        cashReceiptsRes.json(),
+        bankReceiptsRes.json()
       ]);
 
       let vendorPurchases: any[] = [];
@@ -138,6 +145,8 @@ export default function VendorProfileHistory({
 
       setPurchases(vendorPurchases.sort((a, b) => new Date(b.date || b.createdAt).getTime() - new Date(a.date || a.createdAt).getTime()));
       setPayments(vendorPayments.sort((a, b) => new Date(b.date || b.createdAt).getTime() - new Date(a.date || a.createdAt).getTime()));
+      setCashReceipts(cashReceiptsJson.ok ? cashReceiptsJson.data || [] : []);
+      setBankReceipts(bankReceiptsJson.ok ? bankReceiptsJson.data || [] : []);
     } catch (e) {
       console.error("Error loading vendor profile history details:", e);
     } finally {
@@ -182,7 +191,7 @@ export default function VendorProfileHistory({
     }
 
     // Process Purchases & Returns (Purchases increase credit (payable), Returns increase debit (receivable))
-    purchases.forEach((p: any) => {
+    (purchases || []).forEach((p: any) => {
       const isReturn = p.type === "purchase_return" || p.type === "non_tax_purchase_return";
       txs.push({
         date: new Date(p.date || p.createdAt),
@@ -195,7 +204,7 @@ export default function VendorProfileHistory({
     });
 
     // Process Payments (Payments to vendor increase debit (reduce payable))
-    payments.forEach((p: any) => {
+    (payments || []).forEach((p: any) => {
       txs.push({
         date: new Date(p.date || p.createdAt),
         voucherNo: p.voucherNo,
@@ -244,16 +253,21 @@ export default function VendorProfileHistory({
   const ledgerData = getProcessedLedger();
 
   // Overview metrics calculations
-  const totalPurchases = purchases.filter(p => p.type !== "purchase_return" && p.type !== "non_tax_purchase_return").reduce((a, p) => a + (p.totalAmount || 0), 0);
-  const totalPaymentsVal = payments.reduce((a, p) => a + (p.amount || 0), 0);
+  const totalPurchases = (purchases || []).filter(p => p.type !== "purchase_return" && p.type !== "non_tax_purchase_return").reduce((a, p) => a + (p.totalAmount || 0), 0);
+  const totalPaymentsVal = (payments || []).reduce((a, p) => a + (p.amount || 0), 0);
   
-  const lastPurchaseTx = purchases.find(p => p.type !== "purchase_return" && p.type !== "non_tax_purchase_return");
+  const lastPurchaseTx = (purchases || []).find(p => p.type !== "purchase_return" && p.type !== "non_tax_purchase_return");
   const lastPaymentTx = payments[0];
 
-  const currentPayable = Math.max(0, (vendor.openingBalance || 0) + totalPurchases - totalPaymentsVal);
+  // Use unified vendor balance calculation
+  const balanceResult = calculateVendorBalanceFromTransactions(vendor, purchases || [], [], payments || [], [], cashReceipts || [], bankReceipts || []);
+  const payable = balanceResult.payable;
+  const advance = balanceResult.advance;
+  const netBalance = balanceResult.netBalance;
+  const status = balanceResult.status;
 
   // TAB 1: Filtered Purchases
-  const filteredPurchases = purchases.filter(p => {
+  const filteredPurchases = (purchases || []).filter(p => {
     const isReturn = p.type === "purchase_return" || p.type === "non_tax_purchase_return";
     const matchesSearch = p.invoiceNo?.toLowerCase().includes(purchasesSearch.toLowerCase()) ||
       p.items?.some((item: any) => item.description?.toLowerCase().includes(purchasesSearch.toLowerCase())) ||
@@ -270,7 +284,7 @@ export default function VendorProfileHistory({
   const paginatedPurchases = filteredPurchases.slice((purchasesPage - 1) * itemsPerPage, purchasesPage * itemsPerPage);
 
   // TAB 2: Filtered Payments
-  const filteredPayments = payments.filter(p => {
+  const filteredPayments = (payments || []).filter(p => {
     const matchesSearch = p.voucherNo?.toLowerCase().includes(paymentsSearch.toLowerCase()) ||
       p.reference?.toLowerCase().includes(paymentsSearch.toLowerCase());
     const matchesMethod = paymentsMethod === "all" || p.method?.toLowerCase() === paymentsMethod.toLowerCase();
@@ -283,7 +297,7 @@ export default function VendorProfileHistory({
   const getProductHistory = () => {
     const productsMap = new Map<string, any>();
     
-    purchases.forEach(p => {
+    (purchases || []).forEach(p => {
       const itemsList = p.lines || p.items || [];
       const date = new Date(p.date || p.createdAt);
 
@@ -327,7 +341,7 @@ export default function VendorProfileHistory({
 
   // TAB 4: Outstanding Bills computation
   const getOutstandingBills = () => {
-    return purchases.filter(p => {
+    return (purchases || []).filter(p => {
       const outstanding = (p.totalAmount || 0) - (p.amountReceived || 0);
       const matchesSearch = p.invoiceNo?.toLowerCase().includes(outstandingSearch.toLowerCase());
       return outstanding > 0 && matchesSearch;
@@ -350,7 +364,7 @@ export default function VendorProfileHistory({
       monthlyData[label] = { purchases: 0, payments: 0 };
     }
 
-    purchases.forEach(p => {
+    (purchases || []).forEach(p => {
       if (p.type === "purchase_return" || p.type === "non_tax_purchase_return") return;
       const d = new Date(p.date || p.createdAt);
       const label = d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
@@ -359,7 +373,7 @@ export default function VendorProfileHistory({
       }
     });
 
-    payments.forEach(pay => {
+    (payments || []).forEach(pay => {
       const d = new Date(pay.date || pay.createdAt);
       const label = d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
       if (monthlyData[label]) {
@@ -445,19 +459,26 @@ export default function VendorProfileHistory({
 
           <div className="flex flex-wrap gap-4 border-t lg:border-t-0 lg:border-l border-slate-100 dark:border-slate-850 pt-4 lg:pt-0 lg:pl-8">
             <div className="text-left min-w-[120px]">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Opening Balance</p>
-              <p className="text-lg font-black text-slate-800 dark:text-slate-200 mt-0.5">PKR {Math.round(vendor.openingBalance || 0).toLocaleString()}</p>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Payable (We Owe)</p>
+              <p className="text-lg font-black text-rose-600 mt-0.5">PKR {Math.round(payable).toLocaleString()}</p>
             </div>
             <div className="text-left min-w-[120px]">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Current Balance</p>
-              <p className={`text-lg font-black mt-0.5 ${vendor.balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                PKR {Math.round(vendor.balance || 0).toLocaleString()}
-                <span className="text-xs ml-0.5 font-bold">{vendor.balance > 0 ? ' (Payable)' : ' (Advance)'}</span>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Advance (Vendor Owes)</p>
+              <p className="text-lg font-black text-emerald-600 mt-0.5">PKR {Math.round(advance).toLocaleString()}</p>
+            </div>
+            <div className="text-left min-w-[120px]">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Net Balance</p>
+              <p className={`text-lg font-black mt-0.5 ${netBalance > 0 ? 'text-rose-600' : netBalance < 0 ? 'text-emerald-600' : 'text-slate-600'}`}>
+                PKR {Math.round(Math.abs(netBalance)).toLocaleString()}
               </p>
             </div>
             <div className="text-left min-w-[120px]">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-black">Outstanding Bills</p>
-              <p className="text-lg font-black text-[#800000] mt-0.5">PKR {Math.round(currentPayable).toLocaleString()}</p>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</p>
+              <p className="text-sm font-black mt-0.5">
+                {status === "We Owe Vendor" && "🔴 We Owe Vendor"}
+                {status === "Advance Available" && "🟢 Advance Available"}
+                {status === "Settled" && "⚪ Settled"}
+              </p>
             </div>
           </div>
         </div>
@@ -1033,7 +1054,7 @@ export default function VendorProfileHistory({
                   <div className="p-5 bg-gradient-to-tr from-blue-50 to-blue-100 dark:from-slate-800 dark:to-slate-800/60 rounded-3xl border border-blue-200/50 dark:border-slate-750 flex flex-col justify-between">
                     <p className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest flex items-center gap-1.5"><TrendingUp size={12} /> Average Invoice Value</p>
                     <p className="text-2xl font-black text-blue-900 dark:text-white mt-2">
-                      PKR {purchases.length > 0 ? Math.round(totalPurchases / purchases.filter(p => p.type !== "purchase_return" && p.type !== "non_tax_purchase_return").length || 0).toLocaleString() : 0}
+                      PKR {(purchases || []).length > 0 ? Math.round(totalPurchases / (purchases || []).filter(p => p.type !== "purchase_return" && p.type !== "non_tax_purchase_return").length || 0).toLocaleString() : 0}
                     </p>
                   </div>
                   <div className="p-5 bg-gradient-to-tr from-emerald-50 to-emerald-100 dark:from-slate-800 dark:to-slate-800/60 rounded-3xl border border-emerald-200/50 dark:border-slate-750 flex flex-col justify-between">
@@ -1046,7 +1067,7 @@ export default function VendorProfileHistory({
                   <div className="p-5 bg-gradient-to-tr from-indigo-50 to-indigo-100 dark:from-slate-800 dark:to-slate-800/60 rounded-3xl border border-indigo-200/50 dark:border-slate-750 flex flex-col justify-between">
                     <p className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest flex items-center gap-1.5"><ShoppingBag size={12} /> Total Purchases Count</p>
                     <p className="text-2xl font-black text-indigo-900 dark:text-white mt-2">
-                      {purchases.filter(p => p.type !== "purchase_return" && p.type !== "non_tax_purchase_return").length} Invoices
+                      {(purchases || []).filter(p => p.type !== "purchase_return" && p.type !== "non_tax_purchase_return").length} Invoices
                     </p>
                   </div>
                   <div className="p-5 bg-gradient-to-tr from-rose-50 to-rose-100 dark:from-slate-800 dark:to-slate-800/60 rounded-3xl border border-rose-200/50 dark:border-slate-750 flex flex-col justify-between">

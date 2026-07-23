@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { 
   ArrowLeft, 
   Edit, 
@@ -10,7 +11,7 @@ import {
   User,
   AlertCircle
 } from "lucide-react";
-import { printPage } from "@/lib/excel";
+import PrintTemplate from "@/components/print/PrintTemplate";
 
 interface PurchaseReturnDetailsProps {
   record: any;
@@ -19,7 +20,33 @@ interface PurchaseReturnDetailsProps {
 }
 
 export default function PurchaseReturnDetails({ record, onClose, onEdit }: PurchaseReturnDetailsProps) {
+  const [printData, setPrintData] = useState<any>(null);
   const items = record.lines || record.items || [];
+
+  const handlePrint = () => {
+    setPrintData({
+      invoiceNo: record.docNo || record.returnNo || "PR-DOC",
+      date: record.date || record.createdAt,
+      customer: record.partyName || record.vendorName || "Vendor",
+      supplier: record.partyName || record.vendorName || "Vendor",
+      paymentMethod: record.refundMethod || "Credit",
+      type: "purchase_return",
+      subtotal: record.totalAmount || record.amount || 0,
+      discountAmount: 0,
+      total: record.totalAmount || record.amount || 0,
+      amountReceived: record.totalAmount || record.amount || 0,
+      lines: (items || []).map((l: any) => ({
+        description: l.description || l.itemName || "Returned Item",
+        qty: l.qty || l.quantity || 1,
+        unit: l.unit || "Per Piece",
+        rate: l.unitCost || l.rate || 0,
+        total: l.total || l.netAmount || 0,
+        isReceived: true,
+        deliveredQty: l.qty || l.quantity || 1,
+        pendingQty: 0
+      }))
+    });
+  };
 
   return (
     <div className="bg-slate-50 dark:bg-slate-800/50 min-h-screen">
@@ -43,11 +70,14 @@ export default function PurchaseReturnDetails({ record, onClose, onEdit }: Purch
         <div className="flex items-center space-x-3">
           <button 
             onClick={onEdit}
-            className="px-4 py-2 text-sm font-bold text-white bg-maroon-800 hover:bg-maroon-900 rounded-lg flex items-center shadow-lg shadow-maroon-800/10 transition-all"
+            className="px-4 py-2 text-sm font-bold text-white bg-maroon-800 hover:bg-maroon-900 rounded-lg flex items-center shadow-lg transition-all"
           >
             <Edit size={16} className="mr-2" /> Edit
           </button>
-          <button onClick={printPage} className="px-4 py-2 text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 rounded-lg flex items-center transition-all border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+          <button 
+            onClick={handlePrint}
+            className="px-4 py-2 text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg flex items-center border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm transition-all"
+          >
             <Printer size={16} className="mr-2" /> Print
           </button>
         </div>
@@ -110,7 +140,7 @@ export default function PurchaseReturnDetails({ record, onClose, onEdit }: Purch
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50 font-bold">
-                {items.map((item: any, index: number) => (
+                {(items || []).map((item: any, index: number) => (
                   <tr key={item.id || index} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors">
                     <td className="px-8 py-6 text-xs font-bold text-slate-400 dark:text-slate-500 text-center">{index + 1}</td>
                     <td className="px-8 py-6 text-sm text-slate-600 dark:text-slate-300 font-bold">{item.description || item.itemName}</td>
@@ -133,6 +163,15 @@ export default function PurchaseReturnDetails({ record, onClose, onEdit }: Purch
           </div>
         </section>
       </div>
+
+      {printData && (
+        <PrintTemplate
+          formatName="Sale Invoice Receipt"
+          data={printData}
+          items={printData.lines}
+          onPrintComplete={() => setPrintData(null)}
+        />
+      )}
     </div>
   );
 }

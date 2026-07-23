@@ -43,7 +43,7 @@ export default function VendorBalancesReportPage() {
       try {
         const res = await fetch("/api/shop-profile");
         const json = await res.json();
-        if (json.ok) setShopProfile(json.data);
+        if (json.ok) setShopProfile(json.data || []);
       } catch (err) {
         console.error("Error fetching shop profile:", err);
       }
@@ -102,16 +102,16 @@ export default function VendorBalancesReportPage() {
     const endRange = toDate ? new Date(toDate) : new Date("2100-01-01");
     endRange.setHours(23, 59, 59, 999);
 
-    const result = rawParties.map((p: any) => {
+    const result = (rawParties || []).map((p: any) => {
       const partyId = p._id;
       const initialOpening = Number(p.openingBalance) || 0;
 
       // Filter transactions for this vendor
-      const pInvoices = invoices.filter((inv: any) => inv.partyId?._id === partyId || inv.partyId === partyId);
-      const pCashReceipts = cashReceipts.filter((r: any) => r.partyId?._id === partyId || r.partyId === partyId);
-      const pBankReceipts = bankReceipts.filter((r: any) => r.partyId?._id === partyId || r.partyId === partyId || r.party === partyId);
-      const pCashPayments = cashPayments.filter((py: any) => py.partyId?._id === partyId || py.partyId === partyId || py.vendor === partyId);
-      const pBankPayments = bankPayments.filter((py: any) => py.vendor === partyId);
+      const pInvoices = (invoices || []).filter((inv: any) => inv.partyId?._id === partyId || inv.partyId === partyId);
+      const pCashReceipts = (cashReceipts || []).filter((r: any) => r.partyId?._id === partyId || r.partyId === partyId);
+      const pBankReceipts = (bankReceipts || []).filter((r: any) => r.partyId?._id === partyId || r.partyId === partyId || r.party === partyId);
+      const pCashPayments = (cashPayments || []).filter((py: any) => py.partyId?._id === partyId || py.partyId === partyId || py.vendor === partyId);
+      const pBankPayments = (bankPayments || []).filter((py: any) => py.vendor === partyId);
 
       // Collect all transactions into a single list
       const txs: any[] = [];
@@ -204,7 +204,7 @@ export default function VendorBalancesReportPage() {
       return;
     }
     setFilteredData(
-      data.filter((r) =>
+      (data || []).filter((r) =>
         String(r.vendor || "").toLowerCase().includes(q) ||
         String(r.city || "").toLowerCase().includes(q) ||
         String(r.type || "").toLowerCase().includes(q)
@@ -212,14 +212,14 @@ export default function VendorBalancesReportPage() {
     );
   }, [searchQuery, data]);
 
-  const totalDebit = filteredData.reduce((s, r) => s + r.debit, 0);
-  const totalCredit = filteredData.reduce((s, r) => s + r.credit, 0);
-  const totalClosing = filteredData.reduce((s, r) => s + r.closing, 0);
+  const totalDebit = (filteredData || []).reduce((s, r) => s + r.debit, 0);
+  const totalCredit = (filteredData || []).reduce((s, r) => s + r.credit, 0);
+  const totalClosing = (filteredData || []).reduce((s, r) => s + r.closing, 0);
 
   const closingFmt = formatBalance(totalClosing);
 
   const stats = [
-    { title: "Vendors with Balance", value: filteredData.length.toString(), icon: Users, iconColor: "text-rose-600", iconBg: "bg-rose-50" },
+    { title: "Vendors with Balance", value: (filteredData || []).length.toString(), icon: Users, iconColor: "text-rose-600", iconBg: "bg-rose-50" },
     { title: "Total Payable", value: closingFmt.text, icon: DollarSign, iconColor: "text-rose-600", iconBg: "bg-rose-50", valueColor: closingFmt.color },
     { title: "Total Debit", value: `Rs. ${totalDebit.toLocaleString()}`, icon: ArrowDownLeft, iconColor: "text-emerald-600", iconBg: "bg-emerald-50", valueColor: "text-emerald-600" },
     { title: "Total Credit", value: `Rs. ${totalCredit.toLocaleString()}`, icon: ArrowUpRight, iconColor: "text-blue-600", iconBg: "bg-blue-50", valueColor: "text-blue-600" },
@@ -332,7 +332,7 @@ export default function VendorBalancesReportPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredData.map((row, i) => {
+                {(filteredData || []).map((row, i) => {
                   const bal = formatBalance(row.closing);
                   return (
                     <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
@@ -365,7 +365,7 @@ export default function VendorBalancesReportPage() {
                 })}
                 <tr className="bg-slate-50 dark:bg-slate-800/50 font-black">
                   <td colSpan={4} className="px-4 py-3 text-right text-[10px] uppercase tracking-widest text-slate-800 dark:text-slate-100">Grand Total</td>
-                  <td className="px-4 py-3 text-[11px] text-right">{filteredData.reduce((s, r) => s + r.opening, 0).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-[11px] text-right">{(filteredData || []).reduce((s, r) => s + r.opening, 0).toLocaleString()}</td>
                   <td className="px-4 py-3 text-[11px] text-right">{totalDebit.toLocaleString()}</td>
                   <td className="px-4 py-3 text-[11px] text-right">{totalCredit.toLocaleString()}</td>
                   <td className={`px-4 py-3 text-[11px] text-right ${closingFmt.color}`}>

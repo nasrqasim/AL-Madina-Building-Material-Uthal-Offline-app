@@ -21,7 +21,7 @@ export default function PurchaseOrderPage() {
     try {
       const res = await fetch("/api/invoices?type=purchase_order", { cache: "no-store" });
       const json = await res.json();
-      if (json.ok) setOrders(json.data);
+      if (json.ok) setOrders(json.data || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -35,7 +35,7 @@ export default function PurchaseOrderPage() {
 
   const handleSaveOrder = (data: any) => {
     if (data.id) {
-      setOrders(orders.map(o => o.id === data.id ? { ...o, ...data } : o));
+      setOrders((orders || []).map(o => o.id === data.id ? { ...o, ...data } : o));
     } else {
       setOrders([...orders, { ...data, id: Date.now().toString() }]);
     }
@@ -48,7 +48,7 @@ export default function PurchaseOrderPage() {
       try {
         const res = await fetch(`/api/invoices/${id}`, { method: "DELETE" });
         if (res.ok) {
-          setOrders(orders.filter(o => o._id !== id));
+          setOrders((orders || []).filter(o => o._id !== id));
           alert("Deleted successfully");
         } else {
           alert("Failed to delete");
@@ -93,7 +93,7 @@ export default function PurchaseOrderPage() {
           </div>
           <div>
             <p className="text-xs font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Total Orders</p>
-            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{orders.length}</h4>
+            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{(orders || []).length}</h4>
           </div>
         </div>
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
@@ -102,7 +102,7 @@ export default function PurchaseOrderPage() {
           </div>
           <div>
             <p className="text-xs font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Completed</p>
-            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{orders.filter(o => o.status === "Completed").length}</h4>
+            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{(orders || []).filter(o => o.status === "Completed").length}</h4>
           </div>
         </div>
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
@@ -111,7 +111,7 @@ export default function PurchaseOrderPage() {
           </div>
           <div>
             <p className="text-xs font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Pending</p>
-            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{orders.filter(o => o.status === "Draft" || o.status === "Approved").length}</h4>
+            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{(orders || []).filter(o => o.status === "Draft" || o.status === "Approved").length}</h4>
           </div>
         </div>
       </div>
@@ -169,8 +169,8 @@ export default function PurchaseOrderPage() {
             <tbody className="divide-y divide-slate-50">
               {isLoading ? (
                 <tr><td colSpan={9} className="px-6 py-12 text-center text-slate-400 font-bold">Loading...</td></tr>
-              ) : orders.length > 0 ? (
-                orders.map((order) => (
+              ) : (orders || []).length > 0 ? (
+                (orders || []).map((order) => (
                   <tr key={order._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors group">
                     <td className="px-6 py-4">
                       <span className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-maroon-800 transition-colors">{order.invoiceNo || order.docNo}</span>
@@ -259,13 +259,13 @@ export default function PurchaseOrderPage() {
 
         {/* Footer info */}
         <div className="p-4 border-t border-slate-50 bg-slate-50 dark:bg-slate-800/50/30 flex justify-between items-center text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">
-          <span>Total: {orders.length} record(s)</span>
+          <span>Total: {(orders || []).length} record(s)</span>
           <div className="flex gap-4">
             <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400"></span> Completed: {orders.filter(o => o.status === "Completed").length}
+              <span className="w-2 h-2 rounded-full bg-emerald-400"></span> Completed: {(orders || []).filter(o => o.status === "Completed").length}
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-orange-400"></span> Draft: {orders.filter(o => o.status === "Draft").length}
+              <span className="w-2 h-2 rounded-full bg-orange-400"></span> Draft: {(orders || []).filter(o => o.status === "Draft").length}
             </span>
           </div>
         </div>

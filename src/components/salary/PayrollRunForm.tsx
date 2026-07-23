@@ -20,12 +20,12 @@ export default function PayrollRunForm({ onClose, initialData }: any) {
 
   useEffect(() => {
     fetch("/api/employees").then(r => r.json()).then(data => {
-      if (data.ok) setEmployees(data.data);
+      if (data.ok) setEmployees(data.data || []);
     });
   }, []);
 
   const generatePayroll = () => {
-    const activeEmployees = employees.filter(e => e.status === "Active" || !e.status);
+    const activeEmployees = (employees || []).filter(e => e.status === "Active" || !e.status);
     const payrollStaff = activeEmployees.map(e => ({
       employeeId: e._id,
       name: e.name,
@@ -140,7 +140,7 @@ export default function PayrollRunForm({ onClose, initialData }: any) {
                     {staff.map((s, idx) => (
                       <tr key={idx} className="hover:bg-slate-50 transition-colors">
                         <td className="px-6 py-4">
-                          <div className="text-sm text-slate-900 dark:text-white">{s.name || employees.find(e => e._id === s.employeeId)?.name}</div>
+                          <div className="text-sm text-slate-900 dark:text-white">{s.name || (employees || []).find(e => e._id === s.employeeId)?.name}</div>
                         </td>
                         <td className="px-6 py-4 text-right text-sm text-slate-600">{(s.basicSalary||0).toLocaleString()}</td>
                         <td className="px-6 py-4 text-right text-sm text-slate-900 dark:text-white">{(s.netSalary||0).toLocaleString()}</td>

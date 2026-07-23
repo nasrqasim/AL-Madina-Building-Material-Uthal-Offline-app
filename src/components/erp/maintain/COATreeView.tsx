@@ -149,7 +149,7 @@ export default function COATreeView() {
       const res = await fetch("/api/accounts");
       const json = await res.json();
       if (json.ok) {
-        setAccounts(json.data);
+        setAccounts(json.data || []);
         
         // Group accounts by type for the tree view
         const grouped: Record<string, any[]> = {};
@@ -198,7 +198,7 @@ export default function COATreeView() {
     try {
       const res = await fetch("/api/parties");
       const json = await res.json();
-      if (json.ok) setParties(json.data);
+      if (json.ok) setParties(json.data || []);
     } catch (e) { console.error(e); }
   };
 
@@ -208,7 +208,7 @@ export default function COATreeView() {
       const res = await fetch(`/api/journal-entries?accountCode=${accountCode}`);
       const json = await res.json();
       if (json.ok) {
-        setLedgerEntries(json.data);
+        setLedgerEntries(json.data || []);
       }
     } catch (e) { console.error(e); } finally { setLedgerLoading(false); }
   };
@@ -219,11 +219,11 @@ export default function COATreeView() {
   }, []);
 
   useEffect(() => {
-    if (accounts.length > 0 && typeof window !== "undefined") {
+    if ((accounts || []).length > 0 && typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const accountCode = params.get("accountCode");
       if (accountCode) {
-        const matched = accounts.find((a: any) => a.code === accountCode);
+        const matched = (accounts || []).find((a: any) => a.code === accountCode);
         if (matched) {
           setActiveAccount({
             _id: matched._id,
@@ -402,7 +402,7 @@ export default function COATreeView() {
           </div>
           <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 mx-2" />
           <span className="text-sm font-bold text-slate-500">
-            {isLoading ? "Loading..." : `${accounts.length} Accounts`}
+            {isLoading ? "Loading..." : `${(accounts || []).length} Accounts`}
           </span>
         </div>
         
@@ -424,7 +424,7 @@ export default function COATreeView() {
         }`}>
           <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Account Tree</h3>
           <div className="overflow-y-auto max-h-[650px] pr-2">
-            {treeData.length > 0 ? treeData.map(node => (
+            {(treeData || []).length > 0 ? (treeData || []).map(node => (
               <TreeNode 
                 key={node._id} 
                 node={node} 

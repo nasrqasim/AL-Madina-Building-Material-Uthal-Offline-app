@@ -112,7 +112,7 @@ export default function Sidebar({ user }: SidebarProps) {
             
             if (isSuperAdmin) return true;
             if (isSalesUser) {
-              const allowedMainTitles = ["Dashboard", "Sales", "Maintain", "WhatsApp Center", "Reports"];
+              const allowedMainTitles = ["Dashboard", "Sales", "Maintain", "Reports"];
               return allowedMainTitles.includes(item.title);
             }
             return !item.roles || item.roles.includes(user?.role as any);

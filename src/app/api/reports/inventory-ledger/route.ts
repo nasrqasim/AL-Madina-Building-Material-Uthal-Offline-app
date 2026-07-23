@@ -1,8 +1,5 @@
 import { fail, ok } from "@/lib/api";
-import dbConnect from "@/lib/db";
-import Invoice from "@/models/Invoice";
-import { lineStockQty } from "@/lib/itemUnits";
-import mongoose from "mongoose";
+import { offlineDB } from "@/lib/dexie";
 
 const IN_TYPES = new Set([
   "purchase",
@@ -38,6 +35,7 @@ function resolveLineItemId(line: { itemId?: unknown }): string {
   if (!id) return "";
   if (typeof id === "object" && id !== null) {
     if ("_id" in (id as object)) return String((id as { _id: unknown })._id);
+    if ("id" in (id as object)) return String((id as { id: unknown }).id);
     if (typeof (id as any).toString === "function") return (id as any).toString();
   }
   return String(id);
@@ -48,26 +46,31 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const itemId = searchParams.get("itemId");
     if (!itemId) return fail("itemId is required");
-    if (!mongoose.Types.ObjectId.isValid(itemId)) return fail("Invalid itemId");
 
     const from = searchParams.get("from");
     const to = searchParams.get("to");
-    const itemOid = new mongoose.Types.ObjectId(itemId);
-
-    await dbConnect();
 
     const fromDate = from ? parseLocalDate(from) : null;
     const toDate = to ? parseLocalDate(to, true) : null;
 
-    const invoices = await Invoice.find({
-      status: { $nin: ["cancelled", "Cancelled"] },
-      "lines.itemId": { $in: [itemOid, itemId] },
-    })
-      .select("invoiceNo type date lines locationId reference partyId createdAt")
-      .populate("locationId", "name")
-      .populate("partyId", "name companyName type")
-      .sort({ date: 1, createdAt: 1 })
-      .lean();
+    // Get all invoices and filter
+    const allInvoices = await offlineDB.invoices.toArray();
+    const invoices = allInvoices
+      .filter((inv: any) => 
+        inv.status && 
+        !["cancelled", "Cancelled"].includes(inv.status) &&
+        inv.lines &&
+        inv.lines.some((line: any) => resolveLineItemId(line) === itemId)
+      )
+      .sort((a: any, b: any) => {
+        const dateCompare = new Date(a.date).getTime() - new Date(b.date).getTime();
+        if (dateCompare !== 0) return dateCompare;
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      });
+
+    // Get locations and parties for population
+    const allLocations = await offlineDB.locations.toArray();
+    const allParties = await offlineDB.parties.toArray();
 
     const rows: Array<{
       date: Date;
@@ -87,16 +90,25 @@ export async function GET(req: Request) {
       const isOut = OUT_TYPES.has(invType);
       if (!isIn && !isOut) continue;
 
-      const partyObj = inv.partyId as any;
+      // Populate location
+      let locationName = "Main Warehouse";
+      if (inv.locationId) {
+        const location = allLocations.find((l: any) => l.id === inv.locationId);
+        if (location) locationName = location.name;
+      }
+
+      // Populate party
       let partyName = invType.toLowerCase().includes("sale") ? "Walk-in (Cash) Customer" : "Cash Vendor";
-      if (partyObj) {
-        partyName = partyObj.name || partyObj.companyName || partyName;
+      if (inv.partyId) {
+        const party = allParties.find((p: any) => p.id === inv.partyId);
+        if (party) partyName = party.name || party.companyName || partyName;
       }
 
       for (const line of inv.lines || []) {
         if (resolveLineItemId(line) !== itemId) continue;
 
-        let qty = lineStockQty(line);
+        // Use dynamic quantity field
+        let qty = Number((line as any).quantity) || 0;
         if (qty <= 0) {
           const liters = Number(line.liters) || 0;
           const gallons = Number(line.gallons) || 0;
@@ -106,10 +118,10 @@ export async function GET(req: Request) {
         }
 
         rows.push({
-          date: inv.date as Date,
+          date: new Date(inv.date),
           refNo: inv.invoiceNo || "",
           type: invType.replace(/_/g, " ").toUpperCase(),
-          location: (inv.locationId as { name?: string })?.name || "Main Warehouse",
+          location: locationName,
           partyName,
           in: isIn ? qty : 0,
           out: isOut ? qty : 0,
@@ -120,7 +132,7 @@ export async function GET(req: Request) {
     }
 
     let runningBalance = 0;
-    const rowsWithBalance = rows.map((row) => {
+    const rowsWithBalance = (rows || []).map((row) => {
       runningBalance += row.in - row.out;
       if (runningBalance < 0) runningBalance = 0;
       return { ...row, balance: runningBalance };

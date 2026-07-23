@@ -1,14 +1,17 @@
 import { fail, ok } from "@/lib/api";
-import dbConnect from "@/lib/db";
-import SalaryLoan from "@/models/SalaryLoan";
+import { offlineDB } from "@/lib/dexie";
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   try {
     const body = await req.json();
-    await dbConnect();
-    const row = await SalaryLoan.findByIdAndUpdate(params.id, body, { new: true });
+    const updatedSalaryLoan = {
+      ...body,
+      updatedAt: new Date().toISOString()
+    };
+    await offlineDB.settings.update(params.id, { value: updatedSalaryLoan });
+    const row = await offlineDB.settings.get(params.id);
     if (!row) return fail("Not found", 404);
-    return ok(row);
+    return ok((row as any).value);
   } catch (e) {
     return fail((e as Error).message);
   }
@@ -16,8 +19,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 
 export async function DELETE(_: Request, { params }: { params: { id: string } }) {
   try {
-    await dbConnect();
-    await SalaryLoan.findByIdAndDelete(params.id);
+    await offlineDB.settings.delete(params.id);
     return ok({ deleted: true });
   } catch (e) {
     return fail((e as Error).message);

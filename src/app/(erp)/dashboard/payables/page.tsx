@@ -57,10 +57,10 @@ export default function PayablesPage() {
         ));
       }
 
-      if (cashJson.ok) setCashPayments(cashJson.data);
-      if (bankJson.ok) setBankPayments(bankJson.data);
-      if (empJson.ok) setEmployees(empJson.data);
-      if (regJson.ok) setRegions(regJson.data);
+      if (cashJson.ok) setCashPayments(cashJson.data || []);
+      if (bankJson.ok) setBankPayments(bankJson.data || []);
+      if (empJson.ok) setEmployees(empJson.data || []);
+      if (regJson.ok) setRegions(regJson.data || []);
 
     } catch (e) {
       console.error("Error loading payables data:", e);
@@ -98,7 +98,7 @@ export default function PayablesPage() {
     let purchases = 0;
     let payments = 0;
 
-    vendors.forEach(vend => {
+    (vendors || []).forEach(vend => {
       const initialOpening = Number(vend.openingBalance) || 0;
       let beforePurchases = 0;
       let beforePayments = 0;
@@ -106,7 +106,7 @@ export default function PayablesPage() {
       let periodPayments = 0;
 
       // Invoices
-      invoices.forEach(inv => {
+      (invoices || []).forEach(inv => {
         if (inv.partyId?._id === vend._id || inv.partyId === vend._id) {
           const invDate = new Date(inv.date || inv.createdAt);
           const isPurchase = ["purchase", "non_tax_purchase", "import_purchase"].includes(inv.type);
@@ -123,7 +123,7 @@ export default function PayablesPage() {
       });
 
       // Cash Payments
-      cashPayments.forEach(cp => {
+      (cashPayments || []).forEach(cp => {
         const match = cp.partyId?._id === vend._id || cp.partyId === vend._id || cp.vendor === vend._id || cp.vendor === vend.name;
         if (match && cp.status !== "Cancelled") {
           const cpDate = new Date(cp.date || cp.createdAt);
@@ -136,7 +136,7 @@ export default function PayablesPage() {
       });
 
       // Bank Payments
-      bankPayments.forEach(bp => {
+      (bankPayments || []).forEach(bp => {
         const match = bp.vendor === vend._id || bp.vendor === vend.name;
         if (match && bp.status !== "Cancelled") {
           const bpDate = new Date(bp.date || bp.createdAt);
@@ -169,7 +169,7 @@ export default function PayablesPage() {
   const rows = useMemo(() => {
     const now = new Date();
     
-    return vendors.map(vend => {
+    return (vendors || []).map(vend => {
       const initialOpening = Number(vend.openingBalance) || 0;
       let beforePurchases = 0;
       let beforePayments = 0;
@@ -179,7 +179,7 @@ export default function PayablesPage() {
       let hasBuyerMatch = false;
       const unpaidInvoices: any[] = [];
 
-      invoices.forEach(inv => {
+      (invoices || []).forEach(inv => {
         if (inv.partyId?._id === vend._id || inv.partyId === vend._id) {
           const invDate = new Date(inv.date || inv.createdAt);
           const isPurchase = ["purchase", "non_tax_purchase", "import_purchase"].includes(inv.type);
@@ -209,7 +209,7 @@ export default function PayablesPage() {
       });
 
       // Cash Payments
-      cashPayments.forEach(cp => {
+      (cashPayments || []).forEach(cp => {
         const match = cp.partyId?._id === vend._id || cp.partyId === vend._id || cp.vendor === vend._id || cp.vendor === vend.name;
         if (match && cp.status !== "Cancelled") {
           const cpDate = new Date(cp.date || cp.createdAt);
@@ -222,7 +222,7 @@ export default function PayablesPage() {
       });
 
       // Bank Payments
-      bankPayments.forEach(bp => {
+      (bankPayments || []).forEach(bp => {
         const match = bp.vendor === vend._id || bp.vendor === vend.name;
         if (match && bp.status !== "Cancelled") {
           const bpDate = new Date(bp.date || bp.createdAt);
@@ -294,7 +294,7 @@ export default function PayablesPage() {
 
   // Apply filters
   const filteredRows = useMemo(() => {
-    return rows.filter(r => {
+    return (rows || []).filter(r => {
       const q = searchQuery.toLowerCase();
       if (q && !r.name.toLowerCase().includes(q)) return false;
       if (selectedVendor && r._id !== selectedVendor) return false;
@@ -379,7 +379,7 @@ export default function PayablesPage() {
               className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold focus:outline-none dark:text-white"
             >
               <option value="">-- All Vendors --</option>
-              {vendors.map(v => <option key={v._id} value={v._id}>{v.companyName || v.name}</option>)}
+              {(vendors || []).map(v => <option key={v._id} value={v._id}>{v.companyName || v.name}</option>)}
             </select>
           </div>
 
@@ -392,7 +392,7 @@ export default function PayablesPage() {
               className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold focus:outline-none dark:text-white"
             >
               <option value="">-- All Regions --</option>
-              {regions.map((reg, idx) => <option key={idx} value={reg.name || reg}>{reg.name || reg}</option>)}
+              {(regions || []).map((reg, idx) => <option key={idx} value={reg.name || reg}>{reg.name || reg}</option>)}
             </select>
           </div>
 
@@ -405,7 +405,7 @@ export default function PayablesPage() {
               className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold focus:outline-none dark:text-white"
             >
               <option value="">-- All Buyers --</option>
-              {employees.map(emp => <option key={emp._id} value={emp._id}>{emp.name}</option>)}
+              {(employees || []).map(emp => <option key={emp._id} value={emp._id}>{emp.name}</option>)}
             </select>
           </div>
 

@@ -1,12 +1,14 @@
 import { fail, ok } from "@/lib/api";
-import dbConnect from "@/lib/db";
-import { FinancialYear } from "@/models/FinancialYear";
+import { offlineDB } from "@/lib/dexie";
+import { generateUniqueId } from "@/lib/dexie";
 
 export async function GET() {
   try {
-    await dbConnect();
-    const years = await FinancialYear.find({}).sort({ startDate: -1 });
-    return ok(years);
+    const years = await offlineDB.settings.toArray();
+    const financialYears = years.filter((y: any) => y.key === "financialYear");
+    // Sort by startDate descending
+    financialYears.sort((a: any, b: any) => new Date(b.value.startDate).getTime() - new Date(a.value.startDate).getTime());
+    return ok(financialYears.map((y: any) => y.value));
   } catch (e) {
     return fail((e as Error).message);
   }
@@ -21,22 +23,38 @@ export async function POST(req: Request) {
       return fail("Missing required fields");
     }
 
-    await dbConnect();
-
     // If new year is "Current", set others to "Closed" or "Upcoming"
     if (status === "Current") {
-      await FinancialYear.updateMany({ status: "Current" }, { status: "Closed", isClosed: true });
+      const allSettings = await offlineDB.settings.toArray();
+      const financialYears = allSettings.filter((s: any) => s.key === "financialYear");
+      for (const fy of financialYears) {
+        const fyValue = fy.value as any;
+        if (fyValue.status === "Current") {
+          fyValue.status = "Closed";
+          fyValue.isClosed = true;
+          await offlineDB.settings.update(fy.id, { value: fyValue });
+        }
+      }
     }
 
-    const newYear = await FinancialYear.create({
-      name,
-      startDate,
-      endDate,
-      status: status || "Upcoming",
-      isClosed: status === "Closed"
-    });
+    const id = generateUniqueId();
+    const newYear = {
+      id,
+      _id: id,
+      key: "financialYear",
+      value: {
+        name,
+        startDate,
+        endDate,
+        status: status || "Upcoming",
+        isClosed: status === "Closed"
+      },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
 
-    return ok(newYear);
+    await offlineDB.settings.add(newYear);
+    return ok(newYear.value);
   } catch (e) {
     return fail((e as Error).message);
   }

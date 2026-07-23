@@ -18,7 +18,7 @@ export default function PayrollRunPage() {
     try {
       const res = await fetch("/api/payrolls");
       const json = await res.json();
-      if (json.ok) setRecords(json.data);
+      if (json.ok) setRecords(json.data || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -31,7 +31,7 @@ export default function PayrollRunPage() {
   }, [showForm]);
 
   const deleteRecord = async (id: string) => {
-    setRecords(records.filter(r => r._id !== id));
+    setRecords((records || []).filter(r => r._id !== id));
     try {
       await fetch(`/api/payrolls/${id}`, { method: "DELETE" });
     } catch (e) { console.error(e); }
@@ -41,7 +41,7 @@ export default function PayrollRunPage() {
     return <PayrollRunForm onClose={() => { setShowForm(false); setSelectedRecord(null); }} initialData={selectedRecord} />;
   }
 
-  const filteredRecords = records.filter(p => p.voucherNo?.toLowerCase().includes(searchQuery.toLowerCase()) || p.month?.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredRecords = (records || []).filter(p => p.voucherNo?.toLowerCase().includes(searchQuery.toLowerCase()) || p.month?.toLowerCase().includes(searchQuery.toLowerCase()));
 
   return (
     <div className="space-y-6">

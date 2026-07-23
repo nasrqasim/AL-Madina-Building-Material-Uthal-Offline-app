@@ -16,10 +16,10 @@ import {
 
 export default function WebsiteSnapshot() {
   const modules = [
-    { name: "Dashboard Overview", icon: LayoutDashboard, color: "text-maroon-800", bg: "bg-maroon-50", desc: "Real-time KPIs, Financial Health, and Operational Metrics." },
-    { name: "Sales & Invoicing", icon: ShoppingCart, color: "text-blue-600", bg: "bg-blue-50", desc: "Quotations, Sale Orders, Tax Invoices, and POS Counter Sales." },
-    { name: "Purchase Management", icon: Package, color: "text-emerald-600", bg: "bg-emerald-50", desc: "Vendor Bills, Purchase Orders, and Inward Gate Pass management." },
-    { name: "Financial Reports", icon: BarChart3, color: "text-amber-600", bg: "bg-amber-50", desc: "Trial Balance, Profit & Loss, Ledger Reports, and Cash Flow Statements." },
+    { name: "Dashboard Overview", icon: LayoutDashboard, color: "text-maroon-800", bg: "bg-maroon-50", desc: "Real-time KPIs, Inventory Intelligence, and Decision Support." },
+    { name: "Sales & Invoicing", icon: ShoppingCart, color: "text-blue-600", bg: "bg-blue-50", desc: "Sale Orders, Tax Invoices, and POS Counter Sales." },
+    { name: "Purchase Management", icon: Package, color: "text-emerald-600", bg: "bg-emerald-50", desc: "Vendor Bills, Purchase Orders, and Purchase Returns." },
+    { name: "Financial Reports", icon: BarChart3, color: "text-amber-600", bg: "bg-amber-50", desc: "Trial Balance, Profit & Loss, Ledger Reports, and Balance Sheet." },
     { name: "Inventory Control", icon: Settings, color: "text-slate-600", bg: "bg-slate-50", desc: "Stock Balances, Low Stock Alerts, and Inventory Intelligence." },
     { name: "Salary & HR", icon: Users, color: "text-indigo-600", bg: "bg-indigo-50", desc: "Staff Payroll, Loans, Advances, and Employee Master Data." },
     { name: "Cash Receipts", icon: Wallet, color: "text-rose-600", bg: "bg-rose-50", desc: "Cash Collection, Bank Deposits, and Payment Tracking." },

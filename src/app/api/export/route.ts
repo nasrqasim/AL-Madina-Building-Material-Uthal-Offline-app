@@ -1,53 +1,33 @@
 import { NextResponse } from "next/server";
-import dbConnect from "@/lib/db";
+import { offlineDB } from "@/lib/dexie";
 import * as XLSX from "xlsx";
-import Account from "@/models/Account";
-import Category from "@/models/Category";
-import { DocumentSetting } from "@/models/DocumentSetting";
-import Employee from "@/models/Employee";
-import { FinancialYear } from "@/models/FinancialYear";
-import { InventorySetting } from "@/models/InventorySetting";
-import Invoice from "@/models/Invoice";
-import Item from "@/models/Item";
-import Journal from "@/models/Journal";
-import JournalEntry from "@/models/JournalEntry";
-import Party from "@/models/Party";
-import Payroll from "@/models/Payroll";
-import { PrintFormat } from "@/models/PrintFormat";
-import { Role } from "@/models/Role";
-import ShopProfile from "@/models/ShopProfile";
-import { User } from "@/models/User";
-import VehicleLog from "@/models/VehicleLog";
 
 export async function GET() {
   try {
-    console.log("Excel Export: Connecting to DB...");
-    await dbConnect();
-
+    console.log("Excel Export: Fetching from IndexedDB...");
     const workbook = XLSX.utils.book_new();
 
-    const models = [
-      { name: "Accounts", model: Account },
-      { name: "Categories", model: Category },
-      { name: "Doc Settings", model: DocumentSetting },
-      { name: "Employees", model: Employee },
-      { name: "Financial Years", model: FinancialYear },
-      { name: "Inv Settings", model: InventorySetting },
-      { name: "Invoices", model: Invoice },
-      { name: "Items", model: Item },
-      { name: "Journals", model: Journal },
-      { name: "Journal Entries", model: JournalEntry },
-      { name: "Payroll", model: Payroll },
-      { name: "Print Formats", model: PrintFormat },
-      { name: "Roles", model: Role },
-      { name: "Shop Profile", model: ShopProfile },
-      { name: "Users", model: User },
-      { name: "Vehicle Logs", model: VehicleLog },
+    const tables = [
+      { name: "Accounts", table: "accounts" },
+      { name: "Categories", table: "categories" },
+      { name: "Employees", table: "employees" },
+      { name: "Invoices", table: "invoices" },
+      { name: "Items", table: "items" },
+      { name: "Journal Entries", table: "journalEntries" },
+      { name: "Cash Receipts", table: "cashReceipts" },
+      { name: "Cash Payments", table: "cashPayments" },
+      { name: "Bank Receipts", table: "bankReceipts" },
+      { name: "Bank Payments", table: "bankPayments" },
+      { name: "Shop Profile", table: "shopProfiles" },
+      { name: "Users", table: "users" },
+      { name: "Banks", table: "banks" },
+      { name: "Locations", table: "locations" },
+      { name: "Settings", table: "settings" },
     ];
 
     const cleanForExcel = (data: any[]) => {
       if (!data || !Array.isArray(data)) return [];
-      return data.map((doc: any) => {
+      return (data || []).map((doc: any) => {
         const cleaned: any = {};
         for (const [key, value] of Object.entries(doc)) {
           if (key === "__v" || key === "password") continue;
@@ -70,10 +50,11 @@ export async function GET() {
     };
 
     console.log("Excel Export: Fetching data...");
-    for (const { name, model } of models) {
+    for (const { name, table } of tables) {
       try {
-        if (!model) continue;
-        const data = await model.find({}).lean();
+        const tableRef: any = (offlineDB as any)[table];
+        if (!tableRef) continue;
+        const data = await tableRef.toArray();
         const cleanData = cleanForExcel(data);
         const ws = XLSX.utils.json_to_sheet(cleanData.length > 0 ? cleanData : [{ Info: "No data" }]);
         XLSX.utils.book_append_sheet(workbook, ws, name.substring(0, 31));
@@ -84,19 +65,19 @@ export async function GET() {
 
     // Special handling for Parties
     try {
-      const allParties = await Party.find({}).lean();
+      const allParties = await offlineDB.parties.toArray();
       const customers = cleanForExcel(allParties.filter((p: any) => p.type === "Customer"));
       const vendors = cleanForExcel(allParties.filter((p: any) => p.type === "Vendor"));
-      
-      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(customers.length > 0 ? customers : [{ Info: "No Customers" }]), "Customers");
-      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(vendors.length > 0 ? vendors : [{ Info: "No Vendors" }]), "Vendors");
+
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet((customers || []).length > 0 ? customers : [{ Info: "No Customers" }]), "Customers");
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet((vendors || []).length > 0 ? vendors : [{ Info: "No Vendors" }]), "Vendors");
     } catch (err) {
       console.error("Error exporting parties:", err);
     }
 
     console.log("Excel Export: Writing workbook...");
     const buf = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
-    
+
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 
     return new Response(buf, {

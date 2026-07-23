@@ -11,6 +11,7 @@ import CustomerProfileHistory from "@/components/erp/maintain/CustomerProfileHis
 import { Plus, FileText, Download, Printer, UserCheck, UserX, Wallet, Search, Edit2, Trash2, MapPin, FileSpreadsheet, ArrowLeft, Play, Calendar, MessageCircle } from "lucide-react";
 import ERPStatCard from "@/components/erp/ui/ERPStatCard";
 import { exportToExcel, downloadTemplate, printPage, printListDocument, triggerFileInput, importFromExcel } from "@/lib/excel";
+import { calculateBalanceFromTransactions } from "@/lib/customerBalance";
 
 export default function CustomerBalancesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -25,6 +26,9 @@ export default function CustomerBalancesPage() {
   const [waDocData, setWaDocData] = useState<any>(null);
   const [waType, setWaType] = useState<"Statement" | "Reminder">("Reminder");
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
+  const [statusFilter, setStatusFilter] = useState<string>("All");
+  const [sortBy, setSortBy] = useState<string>("name");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
   // Ledger state variables
   const [selectedLedgerCustomer, setSelectedLedgerCustomer] = useState<any>(null);
@@ -40,7 +44,45 @@ export default function CustomerBalancesPage() {
       const res = await fetch("/api/parties?type=customer");
       const json = await res.json();
       if (json.ok) {
-        setCustomers(json.data);
+        const customersData = json.data || [];
+        
+        // Fetch all transactions once for efficiency
+        const [salesRes, cashRes, bankRes, cashPayRes, bankPayRes] = await Promise.all([
+          fetch("/api/sales"),
+          fetch("/api/cash-receipts"),
+          fetch("/api/bank-receipts"),
+          fetch("/api/cash-payments"),
+          fetch("/api/bank-payments")
+        ]);
+        
+        const [salesJson, cashJson, bankJson, cashPayJson, bankPayJson] = await Promise.all([
+          salesRes.json(),
+          cashRes.json(),
+          bankRes.json(),
+          cashPayRes.json(),
+          bankPayRes.json()
+        ]);
+
+        const sales = salesJson.ok ? salesJson.data || [] : [];
+        const cashReceipts = cashJson.ok ? cashJson.data || [] : [];
+        const bankReceipts = bankJson.ok ? bankJson.data || [] : [];
+        const cashPayments = cashPayJson.ok ? cashPayJson.data || [] : [];
+        const bankPayments = bankPayJson.ok ? bankPayJson.data || [] : [];
+
+        // Calculate balances for each customer using unified function
+        const customersWithBalances = customersData.map((customer: any) => {
+          const balance = calculateBalanceFromTransactions(customer, sales, cashReceipts, bankReceipts, cashPayments, bankPayments);
+          
+          return {
+            ...customer,
+            receivable: balance.receivable,
+            advance: balance.advance,
+            netBalance: balance.netBalance,
+            status: balance.status
+          };
+        });
+
+        setCustomers(customersWithBalances);
       }
     } catch (e) {
       console.error(e);
@@ -53,7 +95,7 @@ export default function CustomerBalancesPage() {
     try {
       const res = await fetch("/api/shop-profile");
       const json = await res.json();
-      if (json.ok) setShopProfile(json.data);
+      if (json.ok) setShopProfile(json.data || []);
     } catch (e) {
       console.error(e);
     }
@@ -73,11 +115,11 @@ export default function CustomerBalancesPage() {
   }, []);
 
   useEffect(() => {
-    if (customers.length > 0 && typeof window !== "undefined") {
+    if ((customers || []).length > 0 && typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const customerId = params.get("customerId");
       if (customerId) {
-        const matched = customers.find((c: any) => c._id === customerId);
+        const matched = (customers || []).find((c: any) => c._id === customerId);
         if (matched) {
           handleOpenLedger(matched);
         }
@@ -239,8 +281,8 @@ export default function CustomerBalancesPage() {
     endRange.setHours(23, 59, 59, 999);
 
     let opening = initialOpening;
-    const beforeTxs = ledgerTransactions.filter(t => t.date.getTime() < startRange.getTime());
-    const duringTxs = ledgerTransactions.filter(t => t.date.getTime() >= startRange.getTime() && t.date.getTime() <= endRange.getTime());
+    const beforeTxs = (ledgerTransactions || []).filter(t => t.date.getTime() < startRange.getTime());
+    const duringTxs = (ledgerTransactions || []).filter(t => t.date.getTime() >= startRange.getTime() && t.date.getTime() <= endRange.getTime());
 
     // Compute dynamic opening balance up to From Date
     beforeTxs.forEach(t => {
@@ -274,14 +316,7 @@ export default function CustomerBalancesPage() {
 
   const columns = [
     { 
-      header: "Account Code", 
-      accessor: "code",
-      render: (val: string) => (
-        <span className="font-bold text-slate-700 dark:text-slate-300">{val || "-"}</span>
-      )
-    },
-    { 
-      header: "Customer Name", 
+      header: "Customer", 
       accessor: "name",
       render: (val: string, row: any) => {
         const hasValidPhone = row.phone && row.phone.replace(/[^0-9]/g, "").length >= 10;
@@ -312,84 +347,87 @@ export default function CustomerBalancesPage() {
       }
     },
     { 
-      header: "Type", 
-      accessor: "category",
-      render: (val: string) => (
-        <span className="text-[10px] font-bold text-maroon-800 bg-maroon-50 px-2 py-1 rounded-lg uppercase tracking-wider">
-          {val || "Customer"}
-        </span>
-      )
-    },
-    { 
-      header: "Opening Balance", 
-      accessor: "openingBalance", 
-      render: (val: number) => {
-        const isDebit = val > 0;
-        const formattedVal = isDebit 
-          ? `+Rs. ${val.toLocaleString()}` 
-          : val < 0 ? `-Rs. ${Math.abs(val).toLocaleString()}` : "Rs. 0";
-        const balanceLabel = isDebit ? " (Debit)" : val < 0 ? " (Credit)" : "";
-        return (
-          <span className="text-sm font-bold text-slate-600 dark:text-slate-400">
-            {formattedVal}{balanceLabel}
-          </span>
-        );
-      }
-    },
-    { 
-      header: "Debit", 
-      accessor: "debit",
+      header: "Customer Receivable (Customer Owes)", 
+      accessor: "receivable",
       render: (val: number) => {
         const num = Number(val) || 0;
-        if (num !== 0) {
-          return <span className="text-sm font-bold text-emerald-600">+Rs. {Math.abs(num).toLocaleString()}</span>;
+        if (num > 0) {
+          return <span className="text-sm font-bold text-rose-600">Rs. {num.toLocaleString()}</span>;
         }
         return <span className="text-sm font-bold text-slate-500">Rs. 0</span>;
       }
     },
     { 
-      header: "Credit", 
-      accessor: "credit",
+      header: "Advance Balance (We Owe Customer)", 
+      accessor: "advance",
       render: (val: number) => {
         const num = Number(val) || 0;
-        if (num !== 0) {
-          return <span className="text-sm font-bold text-rose-600">-Rs. {Math.abs(num).toLocaleString()}</span>;
+        if (num > 0) {
+          return <span className="text-sm font-bold text-emerald-600">Rs. {num.toLocaleString()}</span>;
         }
         return <span className="text-sm font-bold text-slate-500">Rs. 0</span>;
       }
     },
     { 
-      header: "Closing Balance", 
-      accessor: "balance", 
-      render: (val: number, row: any) => {
-        const isDebit = val > 0;
-        const formattedVal = isDebit 
-          ? `+Rs. ${val.toLocaleString()}` 
-          : val < 0 ? `-Rs. ${Math.abs(val).toLocaleString()}` : "Rs. 0";
-        const balanceLabel = isDebit ? " (Debit)" : val < 0 ? " (Credit)" : "";
-        return (
-          <div className="flex flex-col">
-            <span className={`text-sm font-black ${val > (row.creditLimit || 0) && row.creditLimit > 0 ? "text-red-600 animate-pulse" : isDebit ? "text-rose-600" : val < 0 ? "text-emerald-600" : "text-slate-500"}`}>
-              {formattedVal}{balanceLabel}
-            </span>
-            {val > (row.creditLimit || 0) && row.creditLimit > 0 && (
-              <span className="text-[8px] font-black text-red-600 uppercase tracking-tighter">Over Limit! (Max: {row.creditLimit?.toLocaleString()})</span>
-            )}
-          </div>
-        );
+      header: "Net Balance", 
+      accessor: "netBalance",
+      render: (val: number) => {
+        const num = Number(val) || 0;
+        if (num > 0) {
+          return <span className="text-sm font-bold text-rose-600">Rs. {num.toLocaleString()}</span>;
+        } else if (num < 0) {
+          return <span className="text-sm font-bold text-emerald-600">Rs. {Math.abs(num).toLocaleString()}</span>;
+        }
+        return <span className="text-sm font-bold text-slate-500">Rs. 0</span>;
       }
     },
     { 
       header: "Status", 
       accessor: "status", 
-      render: (val: string) => (
-        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
-          val === "Active" ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400" : "bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400"
-        }`}>
-          {val || "Active"}
-        </span>
-      )
+      render: (val: string) => {
+        const statusConfig: Record<string, { emoji: string; color: string; bgColor: string }> = {
+          "Customer Owes": { emoji: "🔴", color: "text-red-600", bgColor: "bg-red-50 dark:bg-red-900/30" },
+          "Advance Available": { emoji: "🟢", color: "text-emerald-600", bgColor: "bg-emerald-50 dark:bg-emerald-900/30" },
+          "Mixed Balance": { emoji: "🟡", color: "text-amber-600", bgColor: "bg-amber-50 dark:bg-amber-900/30" },
+          "Settled": { emoji: "⚪", color: "text-slate-600", bgColor: "bg-slate-50 dark:bg-slate-900/30" }
+        };
+        const config = statusConfig[val] || statusConfig["Settled"];
+        return (
+          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${config.color} ${config.bgColor}`}>
+            {config.emoji} {val}
+          </span>
+        );
+      }
     },
+    {
+      header: "Actions",
+      accessor: "_id",
+      render: (val: string, row: any) => (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => handleOpenLedger(row)}
+            className="p-1.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors"
+            title="View Ledger"
+          >
+            <FileText size={14} />
+          </button>
+          <button
+            onClick={() => handleEdit(row)}
+            className="p-1.5 rounded bg-slate-50 hover:bg-slate-100 text-slate-600 transition-colors"
+            title="Edit"
+          >
+            <Edit2 size={14} />
+          </button>
+          <button
+            onClick={() => handleDelete(val)}
+            className="p-1.5 rounded bg-red-50 hover:bg-red-100 text-red-600 transition-colors"
+            title="Delete"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+      )
+    }
   ];
 
   // The 8 specified customer categories
@@ -404,18 +442,34 @@ export default function CustomerBalancesPage() {
     "Credit Customer (Radbook)"
   ];
 
-  // Filter customers by search term and category
-  const filteredCustomers = customers.filter(c => {
+  // Filter customers by search term, category, and status
+  const filteredCustomers = (customers || []).filter(c => {
     const term = searchTerm.toLowerCase();
     const matchesSearch = (
       c.name?.toLowerCase().includes(term) ||
       c.contactPerson?.toLowerCase().includes(term) ||
       c.phone?.toLowerCase().includes(term) ||
       c.area?.toLowerCase().includes(term) ||
-      c.ntn?.toLowerCase().includes(term)
+      c.ntn?.toLowerCase().includes(term) ||
+      c.code?.toLowerCase().includes(term)
     );
     const matchesCategory = selectedCategory === "All" || c.category === selectedCategory;
-    return matchesSearch && matchesCategory;
+    const matchesStatus = statusFilter === "All" || c.status === statusFilter;
+    return matchesSearch && matchesCategory && matchesStatus;
+  }).sort((a, b) => {
+    const multiplier = sortOrder === "asc" ? 1 : -1;
+    switch (sortBy) {
+      case "name":
+        return multiplier * (a.name || "").localeCompare(b.name || "");
+      case "receivable":
+        return multiplier * ((a.receivable || 0) - (b.receivable || 0));
+      case "advance":
+        return multiplier * ((a.advance || 0) - (b.advance || 0));
+      case "netBalance":
+        return multiplier * ((a.netBalance || 0) - (b.netBalance || 0));
+      default:
+        return 0;
+    }
   });
 
   // LEDGER / COMPLETE CUSTOMER PROFILE HISTORY VIEW
@@ -494,27 +548,26 @@ export default function CustomerBalancesPage() {
                 companyPhone: shopProfile?.phone || "",
                 columns: [
                   { header: "#", key: "_idx" },
-                  { header: "Account Code", key: "code" },
-                  { header: "Customer Name", key: "name" },
-                  { header: "Type", key: "category" },
-                  { header: "Phone", key: "phone" },
-                  { header: "Opening Bal.", key: "openingBalance" },
-                  { header: "Debit", key: "debit" },
-                  { header: "Credit", key: "credit" },
-                  { header: "Closing Bal.", key: "balance" },
+                  { header: "Customer", key: "name" },
+                  { header: "Customer Receivable", key: "receivable" },
+                  { header: "Advance Balance", key: "advance" },
+                  { header: "Net Balance", key: "netBalance" },
                   { header: "Status", key: "status" },
                 ],
-                rows: filteredCustomers.map((c, i) => ({ ...c, _idx: i + 1, openingBalance: `Rs.${(c.openingBalance || 0).toLocaleString()}`, debit: `Rs.${(c.debit || 0).toLocaleString()}`, credit: `Rs.${(c.credit || 0).toLocaleString()}`, balance: `Rs.${(c.balance || 0).toLocaleString()}` })),
+                rows: (filteredCustomers || []).map((c, i) => ({ 
+                  ...c, 
+                  _idx: i + 1,
+                  receivable: `Rs.${(c.receivable || 0).toLocaleString()}`, 
+                  advance: `Rs.${(c.advance || 0).toLocaleString()}`, 
+                  netBalance: `Rs.${(c.netBalance || 0).toLocaleString()}`,
+                  status: c.status
+                })),
                 totals: {
                   _idx: "",
-                  code: "TOTAL",
-                  name: `${filteredCustomers.length} Customers`,
-                  category: "",
-                  phone: "",
-                  openingBalance: `Rs.${filteredCustomers.reduce((a, c) => a + (c.openingBalance || 0), 0).toLocaleString()}`,
-                  debit: `Rs.${filteredCustomers.reduce((a, c) => a + (c.debit || 0), 0).toLocaleString()}`,
-                  credit: `Rs.${filteredCustomers.reduce((a, c) => a + (c.credit || 0), 0).toLocaleString()}`,
-                  balance: `Rs.${filteredCustomers.reduce((a, c) => a + (c.balance || 0), 0).toLocaleString()}`,
+                  name: `TOTAL (${(filteredCustomers || []).length} Customers)`,
+                  receivable: `Rs.${(filteredCustomers || []).reduce((a, c) => a + (c.receivable || 0), 0).toLocaleString()}`,
+                  advance: `Rs.${(filteredCustomers || []).reduce((a, c) => a + (c.advance || 0), 0).toLocaleString()}`,
+                  netBalance: `Rs.${(filteredCustomers || []).reduce((a, c) => a + (c.netBalance || 0), 0).toLocaleString()}`,
                   status: "",
                 },
               }), icon: Printer },
@@ -525,10 +578,11 @@ export default function CustomerBalancesPage() {
       </div>
 
       {/* Stats Section */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <ERPStatCard label="Active Accounts" value={customers.filter(c => c.status === "Active").length} icon={UserCheck} variant="green" />
-        <ERPStatCard label="Inactive Accounts" value={customers.filter(c => c.status === "Inactive").length} icon={UserX} variant="slate" />
-        <ERPStatCard label="Total Outstanding Receivable" value={`Rs. ${(customers.reduce((acc, c) => acc + (c.balance > 0 ? c.balance : 0), 0) / 1000000).toFixed(1)}M`} icon={Wallet} variant="maroon" />
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <ERPStatCard label="Total Customers" value={(customers || []).length} icon={UserCheck} variant="green" />
+        <ERPStatCard label="Total Customer Receivable" value={`Rs. ${((customers || []).reduce((acc, c) => acc + (c.receivable || 0), 0))?.toLocaleString()}`} icon={Wallet} variant="maroon" />
+        <ERPStatCard label="Total Customer Advance" value={`Rs. ${((customers || []).reduce((acc, c) => acc + (c.advance || 0), 0))?.toLocaleString()}`} icon={Wallet} variant="green" />
+        <ERPStatCard label="Net Customer Balance" value={`Rs. ${((customers || []).reduce((acc, c) => acc + (c.netBalance || 0), 0))?.toLocaleString()}`} icon={Wallet} variant="slate" />
       </div>
 
       {/* Search & Add Section */}
@@ -553,22 +607,26 @@ export default function CustomerBalancesPage() {
                 companyPhone: shopProfile?.phone || "",
                 columns: [
                   { header: "#", key: "_idx" },
-                  { header: "Account Code", key: "code" },
-                  { header: "Customer Name", key: "name" },
-                  { header: "Type", key: "category" },
-                  { header: "Opening Bal.", key: "openingBalance" },
-                  { header: "Debit", key: "debit" },
-                  { header: "Credit", key: "credit" },
-                  { header: "Closing Bal.", key: "balance" },
+                  { header: "Customer", key: "name" },
+                  { header: "Customer Receivable", key: "receivable" },
+                  { header: "Advance Balance", key: "advance" },
+                  { header: "Net Balance", key: "netBalance" },
                   { header: "Status", key: "status" },
                 ],
-                rows: filteredCustomers.map((c, i) => ({ ...c, _idx: i + 1, openingBalance: `Rs.${(c.openingBalance || 0).toLocaleString()}`, debit: `Rs.${(c.debit || 0).toLocaleString()}`, credit: `Rs.${(c.credit || 0).toLocaleString()}`, balance: `Rs.${(c.balance || 0).toLocaleString()}` })),
+                rows: (filteredCustomers || []).map((c, i) => ({ 
+                  ...c, 
+                  _idx: i + 1,
+                  receivable: `Rs.${(c.receivable || 0).toLocaleString()}`, 
+                  advance: `Rs.${(c.advance || 0).toLocaleString()}`, 
+                  netBalance: `Rs.${(c.netBalance || 0).toLocaleString()}`,
+                  status: c.status
+                })),
                 totals: {
-                  _idx: "", code: "TOTAL", name: `${filteredCustomers.length} Customers`, category: "",
-                  openingBalance: `Rs.${filteredCustomers.reduce((a, c) => a + (c.openingBalance || 0), 0).toLocaleString()}`,
-                  debit: `Rs.${filteredCustomers.reduce((a, c) => a + (c.debit || 0), 0).toLocaleString()}`,
-                  credit: `Rs.${filteredCustomers.reduce((a, c) => a + (c.credit || 0), 0).toLocaleString()}`,
-                  balance: `Rs.${filteredCustomers.reduce((a, c) => a + (c.balance || 0), 0).toLocaleString()}`,
+                  _idx: "",
+                  name: `TOTAL (${(filteredCustomers || []).length} Customers)`,
+                  receivable: `Rs.${(filteredCustomers || []).reduce((a, c) => a + (c.receivable || 0), 0).toLocaleString()}`,
+                  advance: `Rs.${(filteredCustomers || []).reduce((a, c) => a + (c.advance || 0), 0).toLocaleString()}`,
+                  netBalance: `Rs.${(filteredCustomers || []).reduce((a, c) => a + (c.netBalance || 0), 0).toLocaleString()}`,
                   status: "",
                 },
               })}
@@ -601,7 +659,7 @@ export default function CustomerBalancesPage() {
         >
           All
         </button>
-        {categories.map((cat) => (
+        {(categories || []).map((cat) => (
           <button
             key={cat}
             onClick={() => setSelectedCategory(cat)}
@@ -612,6 +670,54 @@ export default function CustomerBalancesPage() {
             }`}
           >
             {cat}
+          </button>
+        ))}
+      </div>
+
+      {/* Status Filter Buttons */}
+      <div className="no-print bg-slate-50 dark:bg-slate-800/40 rounded-[2rem] p-4 border border-slate-200 dark:border-slate-800 flex flex-wrap gap-2 items-center">
+        <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mr-2">Filter Status:</span>
+        {["All", "Customer Owes", "Advance Available", "Settled"].map((status) => (
+          <button
+            key={status}
+            onClick={() => setStatusFilter(status)}
+            className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${
+              statusFilter === status
+                ? "bg-maroon-800 text-white shadow-md shadow-maroon-900/20"
+                : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800"
+            }`}
+          >
+            {status}
+          </button>
+        ))}
+      </div>
+
+      {/* Sort Controls */}
+      <div className="no-print bg-slate-50 dark:bg-slate-800/40 rounded-[2rem] p-4 border border-slate-200 dark:border-slate-800 flex flex-wrap gap-2 items-center">
+        <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mr-2">Sort By:</span>
+        {[
+          { key: "name", label: "Customer Name" },
+          { key: "receivable", label: "Receivable Amount" },
+          { key: "advance", label: "Advance Amount" },
+          { key: "netBalance", label: "Net Balance" }
+        ].map((sort) => (
+          <button
+            key={sort.key}
+            onClick={() => {
+              if (sortBy === sort.key) {
+                setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+              } else {
+                setSortBy(sort.key);
+                setSortOrder("asc");
+              }
+            }}
+            className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${
+              sortBy === sort.key
+                ? "bg-maroon-800 text-white shadow-md shadow-maroon-900/20"
+                : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800"
+            }`}
+          >
+            {sort.label} {sortBy === sort.key && (sortOrder === "asc" ? "↑" : "↓")}
           </button>
         ))}
       </div>
@@ -627,7 +733,7 @@ export default function CustomerBalancesPage() {
         </div>
 
         <div className="p-1">
-          {filteredCustomers.length > 0 ? (
+          {(filteredCustomers || []).length > 0 ? (
             <ERPDataTable 
               columns={columns} 
               data={filteredCustomers} 
@@ -645,27 +751,21 @@ export default function CustomerBalancesPage() {
               ]}
               footerContent={
                 <tr>
-                  <td colSpan={3} className="px-6 py-4 text-right uppercase tracking-widest text-xs">Total PKR:</td>
-                  <td className="px-6 py-4 text-sm font-bold">
-                    {(() => {
-                      const totalOpening = filteredCustomers.reduce((acc, c) => acc + (c.openingBalance || 0), 0);
-                      return totalOpening < 0 ? `-Rs. ${Math.abs(totalOpening).toLocaleString()}` : `+Rs. ${totalOpening.toLocaleString()}`;
-                    })()}
-                  </td>
+                  <td colSpan={1} className="px-6 py-4 text-right uppercase tracking-widest text-xs font-black">Total:</td>
                   <td className="px-6 py-4 text-sm font-bold text-rose-600">
-                    -Rs. {filteredCustomers.reduce((acc, c) => acc + (c.debit || 0), 0).toLocaleString()}
+                    Rs. {(filteredCustomers || []).reduce((acc, c) => acc + (c.receivable || 0), 0).toLocaleString()}
                   </td>
                   <td className="px-6 py-4 text-sm font-bold text-emerald-600">
-                    +Rs. {filteredCustomers.reduce((acc, c) => acc + (c.credit || 0), 0).toLocaleString()}
+                    Rs. {(filteredCustomers || []).reduce((acc, c) => acc + (c.advance || 0), 0).toLocaleString()}
                   </td>
                   <td className="px-6 py-4 text-sm font-bold text-slate-800 dark:text-slate-100">
                     {(() => {
-                      const totalClosing = filteredCustomers.reduce((acc, c) => acc + (c.balance || 0), 0);
-                      return totalClosing < 0 ? `-Rs. ${Math.abs(totalClosing).toLocaleString()}` : `+Rs. ${totalClosing.toLocaleString()}`;
+                      const totalNet = (filteredCustomers || []).reduce((acc, c) => acc + (c.netBalance || 0), 0);
+                      return totalNet < 0 ? `Rs. ${Math.abs(totalNet).toLocaleString()}` : `Rs. ${totalNet.toLocaleString()}`;
                     })()}
                   </td>
                   <td className="px-6 py-4 text-center">-</td>
-                  <td className="px-6 py-4 print:hidden"></td>
+                  <td className="px-6 py-4 print-hidden"></td>
                 </tr>
               }
             />

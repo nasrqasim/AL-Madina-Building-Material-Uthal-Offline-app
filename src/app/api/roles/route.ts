@@ -1,12 +1,14 @@
 import { fail, ok } from "@/lib/api";
-import dbConnect from "@/lib/db";
-import { Role } from "@/models/Role";
+import { offlineDB } from "@/lib/dexie";
+import { generateUniqueId } from "@/lib/dexie";
 
 export async function GET() {
   try {
-    await dbConnect();
-    const roles = await Role.find({}).sort({ createdAt: 1 });
-    return ok(roles);
+    const allSettings = await offlineDB.settings.toArray();
+    const roles = allSettings.filter((s: any) => s.key === "role");
+    // Sort by createdAt ascending
+    roles.sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    return ok(roles.map((s: any) => s.value));
   } catch (e) {
     return fail((e as Error).message);
   }
@@ -19,19 +21,27 @@ export async function POST(req: Request) {
 
     if (!name) return fail("Role name is required");
 
-    await dbConnect();
-    
-    const existingRole = await Role.findOne({ name });
+    const allSettings = await offlineDB.settings.toArray();
+    const existingRoles = allSettings.filter((s: any) => s.key === "role");
+    const existingRole = existingRoles.find((s: any) => s.value.name === name);
     if (existingRole) return fail("Role name already exists");
 
-    const newRole = await Role.create({
-      name,
-      description: description || "",
-      permissions: permissions || [],
-      userCount: 0
-    });
+    const id = generateUniqueId();
+    const newRole = {
+      id,
+      key: "role",
+      value: {
+        name,
+        description: description || "",
+        permissions: permissions || [],
+        userCount: 0
+      },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
 
-    return ok(newRole);
+    await offlineDB.settings.add(newRole as any);
+    return ok(newRole.value);
   } catch (e) {
     return fail((e as Error).message);
   }

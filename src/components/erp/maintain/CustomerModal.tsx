@@ -28,14 +28,12 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
     category: "Cash Customer",
     creditLimit: 0,
     creditDays: 30,
-    openingBalance: 0,
-    manualDebit: 0,
-    manualCredit: 0,
-    status: "Active",
+    receivable: 0,
+    advance: 0,
+    status: "Settled",
     notes: "",
   });
 
-  const [openingBalanceType, setOpeningBalanceType] = useState<"Credit" | "Debit">("Credit");
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [shopProfile, setShopProfile] = useState<any>(null);
 
@@ -44,7 +42,7 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
       try {
         const res = await fetch("/api/shop-profile");
         const json = await res.json();
-        if (json.ok) setShopProfile(json.data);
+        if (json.ok) setShopProfile(json.data || []);
       } catch (e) {
         console.error(e);
       }
@@ -56,8 +54,37 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
 
   useEffect(() => {
     if (customer) {
-      const op = customer.openingBalance || 0;
-      setOpeningBalanceType(op > 0 ? "Debit" : "Credit");
+      // Calculate receivable and advance from existing data
+      let receivable = 0;
+      let advance = 0;
+      let status = "Settled";
+
+      if (customer.openingBalance) {
+        if (customer.openingBalance > 0) {
+          receivable = customer.openingBalance;
+        } else {
+          advance = Math.abs(customer.openingBalance);
+        }
+      }
+
+      // Add manual debit/credit if they exist
+      if (customer.manualDebit) receivable += customer.manualDebit;
+      if (customer.manualCredit) advance += customer.manualCredit;
+
+      // Auto-adjust
+      if (receivable > 0 && advance > 0) {
+        const offset = Math.min(receivable, advance);
+        receivable -= offset;
+        advance -= offset;
+      }
+
+      // Determine status
+      if (receivable > 0 && advance === 0) {
+        status = "Customer Owes";
+      } else if (advance > 0 && receivable === 0) {
+        status = "Advance Available";
+      }
+
       setFormData({
         code: customer.code || "",
         name: customer.companyName || customer.name || "",
@@ -73,14 +100,12 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
         category: customer.category || "Cash Customer",
         creditLimit: customer.creditLimit || 0,
         creditDays: customer.creditDays || 30,
-        openingBalance: Math.abs(op),
-        manualDebit: customer.manualDebit || customer.debit || 0,
-        manualCredit: customer.manualCredit || customer.credit || 0,
-        status: customer.status || "Active",
+        receivable,
+        advance,
+        status,
         notes: customer.notes || "",
       });
     } else {
-      setOpeningBalanceType("Debit");
       setFormData({
         code: "",
         name: "",
@@ -96,10 +121,9 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
         category: "Cash Customer",
         creditLimit: 0,
         creditDays: 30,
-        openingBalance: 0,
-        manualDebit: 0,
-        manualCredit: 0,
-        status: "Active",
+        receivable: 0,
+        advance: 0,
+        status: "Settled",
         notes: "",
       });
     }
@@ -108,10 +132,29 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (onSave) {
-      const finalOpeningBalance = openingBalanceType === "Debit" ? Math.abs(Number(formData.openingBalance)) : -Math.abs(Number(formData.openingBalance));
+      // Auto-adjust receivable and advance before saving
+      let receivable = Number(formData.receivable) || 0;
+      let advance = Number(formData.advance) || 0;
+      
+      if (receivable > 0 && advance > 0) {
+        const offset = Math.min(receivable, advance);
+        receivable -= offset;
+        advance -= offset;
+      }
+
+      // Calculate opening balance from receivable/advance
+      let openingBalance = 0;
+      if (receivable > 0) {
+        openingBalance = receivable;
+      } else if (advance > 0) {
+        openingBalance = -advance;
+      }
+
       onSave({
         ...formData,
-        openingBalance: finalOpeningBalance
+        receivable,
+        advance,
+        openingBalance
       });
     }
     onClose();
@@ -161,6 +204,7 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
           <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-2">
               <Hash size={14} className="text-maroon-800" /> Account Code
+              <span className="text-[9px] text-slate-400 font-normal">(Auto-generated if left blank)</span>
             </label>
             <input
               type="text"
@@ -176,7 +220,7 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-2">
-              <User size={14} className="text-maroon-800" /> Customer Name *
+              <User size={14} className="text-maroon-800" /> Customer Name <span className="text-red-500 font-black">*</span>
             </label>
             <input
               type="text"
@@ -205,7 +249,7 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-2">
-              Category *
+              Category <span className="text-red-500 font-black">*</span>
             </label>
             <select
               value={formData.category}
@@ -225,7 +269,7 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
           </div>
           <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-2">
-              <Phone size={14} className="text-maroon-800" /> Phone *
+              <Phone size={14} className="text-maroon-800" /> Phone <span className="text-red-500 font-black">*</span>
             </label>
             <input
               type="tel"
@@ -367,88 +411,70 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
           </div>
         </div>
 
-        {/* Row 8: Opening Balance, Debit, Credit & Status */}
+        {/* Row 8: Customer Receivable, Advance Balance, Net Balance & Status */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-2">
-              <Wallet size={14} className="text-maroon-800" /> Opening Balance
+              <Wallet size={14} className="text-rose-600" /> Customer Receivable (Customer Owes)
             </label>
-            <div className="flex gap-3">
-              <input
-                type="number"
-                value={formData.openingBalance}
-                onChange={(e) => setFormData({ ...formData, openingBalance: Number(e.target.value) })}
-                className="flex-1 min-w-0 px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-maroon-800/5 outline-none transition-all dark:text-white"
-                placeholder="0"
-              />
-              <div className="flex bg-slate-100 dark:bg-slate-800/60 p-1 rounded-xl shrink-0 w-36">
-                <button
-                  type="button"
-                  onClick={() => setOpeningBalanceType("Credit")}
-                  className={`flex-1 py-1 text-[11px] font-black rounded-lg transition-all ${
-                    openingBalanceType === "Credit"
-                      ? "bg-white dark:bg-slate-900 text-maroon-850 dark:text-white shadow-sm"
-                      : "text-slate-500 hover:text-slate-700 dark:text-slate-400"
-                  }`}
-                >
-                  Credit
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setOpeningBalanceType("Debit")}
-                  className={`flex-1 py-1 text-[11px] font-black rounded-lg transition-all ${
-                    openingBalanceType === "Debit"
-                      ? "bg-white dark:bg-slate-900 text-maroon-855 dark:text-white shadow-sm"
-                      : "text-slate-500 hover:text-slate-700 dark:text-slate-400"
-                  }`}
-                >
-                  Debit
-                </button>
-              </div>
-            </div>
+            <input
+              type="number"
+              value={formData.receivable}
+              onChange={(e) => setFormData({ ...formData, receivable: Number(e.target.value) })}
+              className="w-full px-4 py-3 bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-800 rounded-xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-rose-500/10 outline-none transition-all dark:text-white"
+              placeholder="0"
+            />
+            <p className="text-[9px] text-slate-400 uppercase tracking-widest">Amount owed by customer</p>
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-2">
+              <Wallet size={14} className="text-emerald-600" /> Advance Balance (We Owe Customer)
+            </label>
+            <input
+              type="number"
+              value={formData.advance}
+              onChange={(e) => setFormData({ ...formData, advance: Number(e.target.value) })}
+              className="w-full px-4 py-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 rounded-xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all dark:text-white"
+              placeholder="0"
+            />
+            <p className="text-[9px] text-slate-400 uppercase tracking-widest">Payments received from customer</p>
+          </div>
+        </div>
+
+        {/* Row 8b: Net Balance & Status */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-2">
+              <CreditCard size={14} className="text-maroon-800" /> Net Balance
+            </label>
+            <input
+              type="text"
+              value={`PKR ${((formData.receivable || 0) - (formData.advance || 0)).toLocaleString()}`}
+              readOnly
+              className="w-full px-4 py-3 bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-600 dark:text-slate-400 cursor-not-allowed"
+              placeholder="PKR 0"
+            />
+            <p className="text-[9px] text-slate-400 uppercase tracking-widest">Auto-calculated (Receivable - Advance)</p>
           </div>
           <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-2">
               Status
             </label>
-            <select
-              value={formData.status}
-              onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 dark:bg-slate-900 outline-none transition-all dark:text-white"
-            >
-              <option>Active</option>
-              <option>Inactive</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Row 8b: Debit & Credit */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-2">
-              <CreditCard size={14} className="text-emerald-600" /> Debit (Sales)
-            </label>
             <input
-              type="number"
-              value={formData.manualDebit}
-              onChange={(e) => setFormData({ ...formData, manualDebit: Number(e.target.value) })}
-              className="w-full px-4 py-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 rounded-xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all dark:text-white"
-              placeholder="0"
+              type="text"
+              value={(() => {
+                const receivable = formData.receivable || 0;
+                const advance = formData.advance || 0;
+                if (receivable > 0 && advance === 0) return "🔴 Customer Owes";
+                if (advance > 0 && receivable === 0) return "🟢 Advance Available";
+                if (receivable > 0 && advance > 0) return "🟡 Mixed Balance";
+                return "⚪ Settled";
+              })()}
+              readOnly
+              className="w-full px-4 py-3 bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-600 dark:text-slate-400 cursor-not-allowed"
+              placeholder="Settled"
             />
-            <p className="text-[9px] text-slate-400 uppercase tracking-widest">Amount owed by customer (sales on credit)</p>
-          </div>
-          <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-2">
-              <CreditCard size={14} className="text-rose-600" /> Credit (Receipts)
-            </label>
-            <input
-              type="number"
-              value={formData.manualCredit}
-              onChange={(e) => setFormData({ ...formData, manualCredit: Number(e.target.value) })}
-              className="w-full px-4 py-3 bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-800 rounded-xl text-sm font-bold focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-rose-500/10 outline-none transition-all dark:text-white"
-              placeholder="0"
-            />
-            <p className="text-[9px] text-slate-400 uppercase tracking-widest">Payments received from customer</p>
+            <p className="text-[9px] text-slate-400 uppercase tracking-widest">Auto-calculated based on balances</p>
           </div>
         </div>
 
@@ -474,7 +500,7 @@ export default function CustomerModal({ isOpen, onClose, customer, onSave }: Cus
           phone: formData.phone,
           name: formData.name,
           status: formData.status,
-          balance: customer?.balance !== undefined ? customer.balance : formData.openingBalance,
+          balance: (formData.receivable || 0) - (formData.advance || 0),
           type: "Customer"
         }}
         type="Reminder"

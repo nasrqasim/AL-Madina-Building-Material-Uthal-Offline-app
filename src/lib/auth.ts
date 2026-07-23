@@ -1,6 +1,7 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
+import { offlineDB } from "@/lib/dexie";
 
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
@@ -19,20 +20,15 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        // Dynamic imports to prevent top-level database/model loading in RSC
-        const dbConnect = (await import("@/lib/db")).default;
-        const { User } = await import("@/models/User");
-
-        await dbConnect();
-        const user = await User.findOne({
-          username: credentials.username.trim(),
-          isActive: true,
-        });
+        const allUsers = await offlineDB.users.toArray();
+        const user = allUsers.find((u: any) => 
+          u.username === credentials.username.trim() && u.isActive === true
+        );
         if (!user) return null;
         const ok = await bcrypt.compare(credentials.password, user.password);
         if (!ok) return null;
         return {
-          id: user._id.toString(),
+          id: user.id,
           name: user.name,
           role: user.role,
           financialYear: user.financialYear,

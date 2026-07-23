@@ -31,7 +31,7 @@ export default function InventoryMovementPage() {
     fetch("/api/settings/inventory")
       .then(res => res.json())
       .then(res => {
-        if (res.ok) setConfig(res.data);
+        if (res.ok) setConfig(res.data || []);
       })
       .finally(() => setIsLoading(false));
   }, []);

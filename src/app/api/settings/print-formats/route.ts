@@ -1,25 +1,34 @@
 import { fail, ok } from "@/lib/api";
-import dbConnect from "@/lib/db";
-import { PrintFormat } from "@/models/PrintFormat";
+import { offlineDB } from "@/lib/dexie";
+import { generateUniqueId } from "@/lib/dexie";
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const formatName = searchParams.get("formatName");
 
-    await dbConnect();
-    
     if (formatName) {
-      let format = await PrintFormat.findOne({ formatName });
+      const allSettings = await offlineDB.settings.toArray();
+      let format = allSettings.find((s: any) => s.key === `printFormat_${formatName}`);
       if (!format) {
         // Create default if not found
-        format = await PrintFormat.create({ formatName });
+        const id = generateUniqueId();
+        const newFormat = {
+          id,
+          key: `printFormat_${formatName}`,
+          value: { formatName },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        await offlineDB.settings.add(newFormat as any);
+        format = newFormat;
       }
-      return ok(format);
+      return ok((format as any).value);
     }
 
-    const allFormats = await PrintFormat.find({});
-    return ok(allFormats);
+    const allSettings = await offlineDB.settings.toArray();
+    const allFormats = allSettings.filter((s: any) => s.key.startsWith("printFormat_"));
+    return ok(allFormats.map((s: any) => s.value));
   } catch (e) {
     return fail((e as Error).message);
   }
@@ -32,15 +41,29 @@ export async function POST(req: Request) {
 
     if (!formatName) return fail("Format name is required");
 
-    await dbConnect();
-    
-    const updatedFormat = await PrintFormat.findOneAndUpdate(
-      { formatName },
-      { ...config },
-      { upsert: true, new: true }
-    );
+    const allSettings = await offlineDB.settings.toArray();
+    const existingFormat = allSettings.find((s: any) => s.key === `printFormat_${formatName}`);
 
-    return ok(updatedFormat);
+    if (existingFormat) {
+      const updatedFormat = {
+        ...config,
+        updatedAt: new Date().toISOString()
+      };
+      await offlineDB.settings.update(existingFormat.id, { value: updatedFormat });
+      const updated = await offlineDB.settings.get(existingFormat.id);
+      return ok((updated as any).value);
+    } else {
+      const id = generateUniqueId();
+      const newFormat = {
+        id,
+        key: `printFormat_${formatName}`,
+        value: { formatName, ...config },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      await offlineDB.settings.add(newFormat as any);
+      return ok(newFormat.value);
+    }
   } catch (e) {
     return fail((e as Error).message);
   }

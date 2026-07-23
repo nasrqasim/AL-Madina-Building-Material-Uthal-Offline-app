@@ -1,6 +1,5 @@
 import { fail, ok } from "@/lib/api";
-import dbConnect from "@/lib/db";
-import { FinancialYear } from "@/models/FinancialYear";
+import { offlineDB } from "@/lib/dexie";
 
 export async function PATCH(
   req: Request,
@@ -9,11 +8,23 @@ export async function PATCH(
   try {
     const { id } = params;
     const body = await req.json();
-    
-    await dbConnect();
-    const updatedYear = await FinancialYear.findByIdAndUpdate(id, body, { new: true });
-    
-    return ok(updatedYear);
+
+    const allSettings = await offlineDB.settings.toArray();
+    const financialYear = allSettings.find((s: any) => s.key === "financialYear" && s.id === id);
+
+    if (financialYear) {
+      const fyValue = financialYear.value as any;
+      const updatedValue = {
+        ...fyValue,
+        ...body,
+        updatedAt: new Date().toISOString()
+      };
+      await offlineDB.settings.update(id, { value: updatedValue });
+      const updated = await offlineDB.settings.get(id);
+      return ok((updated as any).value);
+    }
+
+    return fail("Financial year not found", 404);
   } catch (e) {
     return fail((e as Error).message);
   }
@@ -25,8 +36,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = params;
-    await dbConnect();
-    await FinancialYear.findByIdAndDelete(id);
+    await offlineDB.settings.delete(id);
     return ok({ message: "Financial year deleted successfully" });
   } catch (e) {
     return fail((e as Error).message);

@@ -1,59 +1,44 @@
 import { fail, ok } from "@/lib/api";
-import dbConnect from "@/lib/db";
-import BankReceipt from "@/models/BankReceipt";
-import { postBankReceipt } from "@/services/posting/transactionPosting";
-import { recalculatePartyBalance } from "@/services/posting/invoicePostingHelper";
+import { offlineDB, generateUniqueId } from "@/lib/dexie";
+import { postBankReceiptJournalEntries, recalculatePartyBalance } from "@/lib/offline/postingService";
 
 export async function GET() {
-  await dbConnect();
-  const rows = await BankReceipt.aggregate([
-    {
-      $lookup: {
-        from: "parties",
-        let: { partyId: "$party" },
-        pipeline: [
-          { $match: { $expr: { $eq: [{ $toString: "$_id" }, "$$partyId"] } } }
-        ],
-        as: "partyData"
-      }
-    },
-    {
-      $lookup: {
-        from: "banks",
-        let: { bankId: "$bankAccount" },
-        pipeline: [
-          { $match: { $expr: { $eq: [{ $toString: "$_id" }, "$$bankId"] } } }
-        ],
-        as: "bankData"
-      }
-    },
-    {
-      $project: {
-        receiptNumber: 1,
-        date: 1,
-        amount: 1,
-        status: 1,
-        party: { $ifNull: [{ $arrayElemAt: ["$partyData.name", 0] }, "$party"] },
-        bankAccount: { $ifNull: [{ $arrayElemAt: ["$bankData.name", 0] }, "$bankAccount"] },
-        createdAt: 1
-      }
-    },
-    { $sort: { createdAt: -1 } }
-  ]);
-  return ok(rows);
+  try {
+    const receipts = await offlineDB.bankReceipts.toArray();
+    const parties = await offlineDB.parties.toArray();
+    const banks = await offlineDB.banks.toArray();
+
+    const partyMap = new Map(parties.map(p => [p.id, p]));
+    const bankMap = new Map(banks.map(b => [b.id, b]));
+
+    const rows = receipts.map(r => {
+      const party = r.partyId ? partyMap.get(r.partyId) : undefined;
+      const bank = r.bankId ? bankMap.get(r.bankId) : undefined;
+      return {
+        ...r,
+        party: party?.name || r.party || "",
+        bankAccount: bank?.name || ""
+      };
+    });
+
+    rows.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return ok(rows);
+  } catch (e) {
+    return fail((e as Error).message);
+  }
 }
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    await dbConnect();
-    
+    const id = generateUniqueId();
+
     if (!body.voucherNo || body.voucherNo === "Auto-generated") {
+      let attempt = (await offlineDB.bankReceipts.count()) + 1;
       let isUnique = false;
-      let attempt = await BankReceipt.countDocuments() + 1;
       while (!isUnique) {
         const candidate = `BRV-${attempt.toString().padStart(5, "0")}`;
-        const existing = await BankReceipt.findOne({ receiptNumber: candidate });
+        const existing = await offlineDB.bankReceipts.where("receiptNumber").equals(candidate).first();
         if (!existing) {
           body.voucherNo = candidate;
           isUnique = true;
@@ -63,23 +48,33 @@ export async function POST(req: Request) {
       }
     }
 
-    const row = await postBankReceipt({
-      voucherNo: body.voucherNo,
-      date: body.date,
-      partyId: body.customerId,
-      bankId: body.bankAccountId,
-      amount: body.totalAmount,
-      netAmount: body.totalAmount,
-      narration: body.narration,
-    });
+    const receiptRecord = {
+      id,
+      _id: id,
+      receiptNumber: body.voucherNo,
+      date: body.date || new Date().toISOString(),
+      party: body.customerId || "",
+      partyId: body.customerId || null,
+      bankId: body.bankAccountId || null,
+      amount: Number(body.totalAmount) || 0,
+      netAmount: Number(body.totalAmount) || 0,
+      narration: body.narration || "",
+      status: "Posted",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
 
-    if (body.customerId) await recalculatePartyBalance(String(body.customerId));
+    await offlineDB.bankReceipts.add(receiptRecord);
 
-    return ok(row, 201);
+    await postBankReceiptJournalEntries(receiptRecord);
+    if (body.customerId) {
+      await recalculatePartyBalance(body.customerId);
+    }
+
+    return ok(receiptRecord, 201);
   } catch (e) {
     return fail((e as Error).message);
   }
 }
-
 
 export const dynamic = "force-dynamic";

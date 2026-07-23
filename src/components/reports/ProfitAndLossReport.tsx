@@ -58,7 +58,7 @@ export default function ProfitAndLossReport() {
       filters={filters}
     >
       <div className="p-12 max-w-4xl mx-auto space-y-12">
-        {data.map((section, idx) => (
+        {(data || []).map((section, idx) => (
           <div key={idx} className="space-y-4">
             <h3 className="text-sm font-black text-maroon-800 uppercase tracking-[0.2em] border-b-2 border-maroon-100 pb-2">{section.group}</h3>
             <div className="space-y-3">

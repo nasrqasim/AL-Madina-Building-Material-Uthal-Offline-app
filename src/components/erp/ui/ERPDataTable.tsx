@@ -90,7 +90,7 @@ export default function ERPDataTable({
                 </td>
               </tr>
             ) : (
-              data.map((item, rowIdx) => (
+              (data || []).map((item, rowIdx) => (
                 <tr key={rowIdx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50 transition-colors group">
                   {columns.map((col, colIdx) => (
                     <td key={colIdx} className="px-6 py-4 text-sm text-slate-700 dark:text-slate-200 dark:text-slate-300 whitespace-nowrap">

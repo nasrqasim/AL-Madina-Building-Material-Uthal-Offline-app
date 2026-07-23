@@ -25,7 +25,7 @@ export default function QuickReceiptModal({ isOpen, onClose, customer, onSuccess
   useEffect(() => {
     if (formData.type === "bank") {
       fetch("/api/banks").then(res => res.json()).then(json => {
-        if (json.ok) setBanks(json.data);
+        if (json.ok) setBanks(json.data || []);
       });
     }
   }, [formData.type]);
@@ -37,10 +37,14 @@ export default function QuickReceiptModal({ isOpen, onClose, customer, onSuccess
     const endpoint = formData.type === "cash" ? "/api/cash-receipts" : "/api/bank-receipts";
     const payload = {
       customerId: customer._id,
+      partyId: customer._id,
+      party: customer._id,
       totalAmount: formData.amount,
+      amount: formData.amount,
       date: formData.date,
-      narration: formData.narration || `Payment received from ${customer.companyName}`,
-      bankAccountId: formData.bankAccountId
+      narration: formData.narration || `Payment received from ${customer.companyName || customer.name}`,
+      bankAccountId: formData.bankAccountId,
+      status: "Posted"
     };
 
     try {
@@ -112,7 +116,7 @@ export default function QuickReceiptModal({ isOpen, onClose, customer, onSuccess
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">Bank Account</label>
             <select value={formData.bankAccountId} onChange={e => setFormData({...formData, bankAccountId: e.target.value})} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl text-sm font-bold dark:text-white outline-none" required>
               <option value="">Select Bank Account</option>
-              {banks.map(b => <option key={b._id} value={b._id}>{b.name} - {b.accountNo}</option>)}
+              {(banks || []).map(b => <option key={b._id} value={b._id}>{b.name} - {b.accountNo}</option>)}
             </select>
           </div>
         )}

@@ -25,7 +25,7 @@ export default function BalanceSheetReportPage() {
     try {
       const res = await fetch(`/api/reports/balance-sheet?date=${asOfDate}`);
       const json = await res.json();
-      if (json.ok) setReport(json.data);
+      if (json.ok) setReport(json.data || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -122,13 +122,13 @@ export default function BalanceSheetReportPage() {
     { name: 'Equity', current: report?.totalEquity || 0 },
   ];
 
-  const assetData = report ? report.assets.map((a: any, i: number) => ({
+  const assetData = report && report.assets ? report.assets.map((a: any, i: number) => ({
     name: a.title,
     value: a.balance,
     color: ['#0f172a', '#1e293b', '#334155', '#475569', '#64748b'][i % 5]
   })) : [];
 
-  const liabilityEquityData = report ? [
+  const liabilityEquityData = report && report.liabilities ? [
     ...report.liabilities.map((l: any, i: number) => ({
       name: l.title,
       value: l.balance,
@@ -149,19 +149,19 @@ export default function BalanceSheetReportPage() {
           if (!report) return alert("Please generate report first");
           const exportData = [
             { Category: "ASSETS", Account: "", Balance: "" },
-            ...report.assets.map((a: any) => ({ Category: "Assets", Account: a.title, Balance: a.balance })),
-            { Category: "Total Assets", Account: "", Balance: report.totalAssets },
+            ...(report.assets || []).map((a: any) => ({ Category: "Assets", Account: a.title, Balance: a.balance })),
+            { Category: "Total Assets", Account: "", Balance: report.totalAssets || 0 },
             { Category: "", Account: "", Balance: "" },
             { Category: "LIABILITIES", Account: "", Balance: "" },
-            ...report.liabilities.map((l: any) => ({ Category: "Liabilities", Account: l.title, Balance: l.balance })),
-            { Category: "Total Liabilities", Account: "", Balance: report.totalLiabilities },
+            ...(report.liabilities || []).map((l: any) => ({ Category: "Liabilities", Account: l.title, Balance: l.balance })),
+            { Category: "Total Liabilities", Account: "", Balance: report.totalLiabilities || 0 },
             { Category: "", Account: "", Balance: "" },
             { Category: "EQUITY", Account: "", Balance: "" },
-            ...report.equity.map((e: any) => ({ Category: "Equity", Account: e.title, Balance: e.balance })),
-            { Category: "Retained Earnings", Account: "Net Profit", Balance: report.netProfit },
-            { Category: "Total Equity", Account: "", Balance: report.totalEquity },
+            ...(report.equity || []).map((e: any) => ({ Category: "Equity", Account: e.title, Balance: e.balance })),
+            { Category: "Retained Earnings", Account: "Net Profit", Balance: report.netProfit || 0 },
+            { Category: "Total Equity", Account: "", Balance: report.totalEquity || 0 },
             { Category: "", Account: "", Balance: "" },
-            { Category: "TOTAL LIABILITIES & EQUITY", Account: "", Balance: report.totalLiabilities + report.totalEquity },
+            { Category: "TOTAL LIABILITIES & EQUITY", Account: "", Balance: (report.totalLiabilities || 0) + (report.totalEquity || 0) },
           ];
           exportToExcel(exportData, "BalanceSheet.xlsx");
         }, icon: FileSpreadsheet },
@@ -202,7 +202,7 @@ export default function BalanceSheetReportPage() {
                             </td>
                             <td className="px-6 py-2 text-[11px] font-black text-right"></td>
                         </tr>
-                        {expandedSections["assets"] && (
+                        {expandedSections["assets"] && report.assets && (
                             report.assets.map((a: any, i: number) => (
                                 <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/30">
                                     <td className="px-10 py-3 text-[11px] text-slate-700 dark:text-slate-200">{a.title}</td>
@@ -212,7 +212,7 @@ export default function BalanceSheetReportPage() {
                         )}
                         <tr className="bg-maroon-900 text-white">
                             <td className="px-6 py-3 text-[11px] font-black uppercase tracking-widest">TOTAL ASSETS</td>
-                            <td className="px-6 py-3 text-[11px] font-black text-right underline underline-offset-4 decoration-double">{report.totalAssets.toLocaleString()}</td>
+                            <td className="px-6 py-3 text-[11px] font-black text-right underline underline-offset-4 decoration-double">{(report.totalAssets || 0).toLocaleString()}</td>
                         </tr>
 
                         {/* LIABILITIES Section */}
@@ -223,7 +223,7 @@ export default function BalanceSheetReportPage() {
                             </td>
                             <td className="px-6 py-2 text-[11px] font-black text-right"></td>
                         </tr>
-                        {expandedSections["liabilities"] && (
+                        {expandedSections["liabilities"] && report.liabilities && (
                             report.liabilities.map((l: any, i: number) => (
                                 <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/30">
                                     <td className="px-10 py-3 text-[11px] text-slate-700 dark:text-slate-200 font-bold">{l.title}</td>
@@ -233,7 +233,7 @@ export default function BalanceSheetReportPage() {
                         )}
                         <tr className="bg-maroon-900 text-white">
                             <td className="px-6 py-3 text-[11px] font-black uppercase tracking-widest">TOTAL LIABILITIES</td>
-                            <td className="px-6 py-3 text-[11px] font-black text-right">{report.totalLiabilities.toLocaleString()}</td>
+                            <td className="px-6 py-3 text-[11px] font-black text-right">{(report.totalLiabilities || 0).toLocaleString()}</td>
                         </tr>
 
                         {/* EQUITY Section */}
@@ -244,7 +244,7 @@ export default function BalanceSheetReportPage() {
                             </td>
                             <td className="px-6 py-2 text-[11px] font-black text-right"></td>
                         </tr>
-                        {expandedSections["equity"] && (
+                        {expandedSections["equity"] && report.equity && (
                             <>
                                 {report.equity.map((e: any, i: number) => (
                                     <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/30">
@@ -254,18 +254,18 @@ export default function BalanceSheetReportPage() {
                                 ))}
                                 <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/30">
                                     <td className="px-10 py-3 text-[11px] text-slate-700 dark:text-slate-200 font-bold italic">Retained Earnings (Net Profit)</td>
-                                    <td className="px-6 py-3 text-[11px] text-right text-slate-700 dark:text-slate-200">{report.netProfit.toLocaleString()}</td>
+                                    <td className="px-6 py-3 text-[11px] text-right text-slate-700 dark:text-slate-200">{(report.netProfit || 0).toLocaleString()}</td>
                                 </tr>
                             </>
                         )}
                         <tr className="bg-maroon-900 text-white">
                             <td className="px-6 py-3 text-[11px] font-black uppercase tracking-widest">TOTAL EQUITY</td>
-                            <td className="px-6 py-3 text-[11px] font-black text-right">{report.totalEquity.toLocaleString()}</td>
+                            <td className="px-6 py-3 text-[11px] font-black text-right">{(report.totalEquity || 0).toLocaleString()}</td>
                         </tr>
 
                         <tr className="bg-slate-900 text-white">
                             <td className="px-6 py-4 text-xs font-black uppercase tracking-widest">TOTAL LIABILITIES & EQUITY</td>
-                            <td className="px-6 py-4 text-xs font-black text-right underline underline-offset-4 decoration-double">{(report.totalLiabilities + report.totalEquity).toLocaleString()}</td>
+                            <td className="px-6 py-4 text-xs font-black text-right underline underline-offset-4 decoration-double">{((report.totalLiabilities || 0) + (report.totalEquity || 0)).toLocaleString()}</td>
                         </tr>
                     </tbody>
                 </table>

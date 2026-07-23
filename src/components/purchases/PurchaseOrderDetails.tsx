@@ -140,7 +140,7 @@ export default function PurchaseOrderDetails({ order, onClose, onEdit }: Purchas
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50 font-bold">
-                {items.map((item: any, index: number) => (
+                {(items || []).map((item: any, index: number) => (
                   <tr key={item.id || index} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors">
                     <td className="px-8 py-6 text-xs font-bold text-slate-400 dark:text-slate-500 text-center">{index + 1}</td>
                     <td className="px-8 py-6 text-sm text-slate-600 dark:text-slate-300 font-bold">{item.description || item.itemName}</td>

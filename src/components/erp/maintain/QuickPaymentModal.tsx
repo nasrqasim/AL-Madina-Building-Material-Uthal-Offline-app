@@ -28,7 +28,7 @@ export default function QuickPaymentModal({ isOpen, onClose, vendor, onSuccess }
   useEffect(() => {
     if (formData.type === "bank") {
       fetch("/api/banks").then(res => res.json()).then(json => {
-        if (json.ok) setBanks(json.data);
+        if (json.ok) setBanks(json.data || []);
       });
     } else {
       fetch("/api/accounts").then(res => res.json()).then(json => {
@@ -121,7 +121,7 @@ export default function QuickPaymentModal({ isOpen, onClose, vendor, onSuccess }
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">Cash Account</label>
             <select value={formData.cashAccountId} onChange={e => setFormData({...formData, cashAccountId: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none" required>
               <option value="">Select Cash Account</option>
-              {cashAccounts.map(a => <option key={a._id} value={a._id}>{a.code} - {a.title || a.name}</option>)}
+              {(cashAccounts || []).map(a => <option key={a._id} value={a._id}>{a.code} - {a.title || a.name}</option>)}
             </select>
           </div>
         ) : (
@@ -129,7 +129,7 @@ export default function QuickPaymentModal({ isOpen, onClose, vendor, onSuccess }
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">Bank Account</label>
             <select value={formData.bankAccountId} onChange={e => setFormData({...formData, bankAccountId: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none" required>
               <option value="">Select Bank Account</option>
-              {banks.map(b => <option key={b._id} value={b._id}>{b.name} - {b.accountNo}</option>)}
+              {(banks || []).map(b => <option key={b._id} value={b._id}>{b.name} - {b.accountNo}</option>)}
             </select>
           </div>
         )}

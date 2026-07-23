@@ -40,7 +40,7 @@ export default function PurchaseInvoicePage() {
     try {
       const res = await fetch("/api/invoices?type=purchase", { cache: "no-store" });
       const json = await res.json();
-      if (json.ok) setInvoices(json.data);
+      if (json.ok) setInvoices(json.data || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -52,7 +52,7 @@ export default function PurchaseInvoicePage() {
     try {
       const res = await fetch("/api/shop-profile");
       const json = await res.json();
-      if (json.ok) setShopProfile(json.data);
+      if (json.ok) setShopProfile(json.data || []);
     } catch (e) {
       console.error(e);
     }
@@ -66,7 +66,7 @@ export default function PurchaseInvoicePage() {
 
   const handleSaveInvoice = (data: any) => {
     if (data.id) {
-      setInvoices(invoices.map(i => i.id === data.id ? { ...i, ...data } : i));
+      setInvoices((invoices || []).map(i => i.id === data.id ? { ...i, ...data } : i));
     } else {
       setInvoices([...invoices, { ...data, id: Date.now().toString() }]);
     }
@@ -79,7 +79,7 @@ export default function PurchaseInvoicePage() {
       try {
         const res = await fetch(`/api/invoices/${id}`, { method: "DELETE" });
         if (res.ok) {
-          setInvoices(invoices.filter(i => i._id !== id));
+          setInvoices((invoices || []).filter(i => i._id !== id));
           alert("Deleted successfully");
         } else {
           alert("Failed to delete");
@@ -113,7 +113,7 @@ export default function PurchaseInvoicePage() {
     );
   }
 
-  const filteredInvoices = invoices.filter(inv => {
+  const filteredInvoices = (invoices || []).filter(inv => {
     const matchesSearch = !searchQuery || 
       inv.invoiceNo?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       inv.partyId?.companyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -147,7 +147,7 @@ export default function PurchaseInvoicePage() {
           </div>
           <div>
             <p className="text-xs font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Total Invoices</p>
-            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{invoices.length}</h4>
+            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{(invoices || []).length}</h4>
           </div>
         </div>
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
@@ -157,7 +157,7 @@ export default function PurchaseInvoicePage() {
           <div>
             <p className="text-xs font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Outstanding</p>
             <h4 className="text-2xl font-black text-slate-900 dark:text-white">
-              PKR {invoices.reduce((sum, i) => sum + (i.balance || 0), 0).toLocaleString()}
+              PKR {(invoices || []).reduce((sum, i) => sum + (i.balance || 0), 0).toLocaleString()}
             </h4>
           </div>
         </div>
@@ -167,7 +167,7 @@ export default function PurchaseInvoicePage() {
           </div>
           <div>
             <p className="text-xs font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Posted</p>
-            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{invoices.filter(i => i.status === "Posted").length}</h4>
+            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{(invoices || []).filter(i => i.status === "Posted").length}</h4>
           </div>
         </div>
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
@@ -176,7 +176,7 @@ export default function PurchaseInvoicePage() {
           </div>
           <div>
             <p className="text-xs font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Paid</p>
-            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{invoices.filter(i => i.status === "Paid").length}</h4>
+            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{(invoices || []).filter(i => i.status === "Paid").length}</h4>
           </div>
         </div>
       </div>
@@ -243,8 +243,8 @@ export default function PurchaseInvoicePage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {filteredInvoices.length > 0 ? (
-                filteredInvoices.map((inv, i) => (
+              {(filteredInvoices || []).length > 0 ? (
+                (filteredInvoices || []).map((inv, i) => (
                   <tr key={inv._id || inv.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors group">
                     <td className="px-6 py-4 text-slate-500 font-medium">{i + 1}</td>
                     <td className="px-6 py-4">
@@ -338,9 +338,9 @@ export default function PurchaseInvoicePage() {
             </tbody>
             <tfoot>
               <tr className="bg-slate-800 dark:bg-slate-950 text-white">
-                <td colSpan={6} className="px-6 py-3 text-xs font-black uppercase tracking-widest">Grand Total ({filteredInvoices.length} Invoices)</td>
-                <td className="px-6 py-3 text-right text-xs font-black">{filteredInvoices.reduce((s, i) => s + (i.totalAmount || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                <td className="px-6 py-3 text-right text-xs font-black">{filteredInvoices.reduce((s, i) => s + (i.balance || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                <td colSpan={6} className="px-6 py-3 text-xs font-black uppercase tracking-widest">Grand Total ({(filteredInvoices || []).length} Invoices)</td>
+                <td className="px-6 py-3 text-right text-xs font-black">{(filteredInvoices || []).reduce((s, i) => s + (i.totalAmount || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                <td className="px-6 py-3 text-right text-xs font-black">{(filteredInvoices || []).reduce((s, i) => s + (i.balance || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                 <td colSpan={2}></td>
               </tr>
             </tfoot>
@@ -349,13 +349,13 @@ export default function PurchaseInvoicePage() {
 
         {/* Footer info */}
         <div className="p-4 border-t border-slate-50 bg-slate-50 dark:bg-slate-800/50/30 flex justify-between items-center text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest">
-          <span>Total: {filteredInvoices.length} invoice(s)</span>
+          <span>Total: {(filteredInvoices || []).length} invoice(s)</span>
           <div className="flex gap-4">
             <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-blue-400"></span> Posted: {filteredInvoices.filter(i => i.status === "Posted").length}
+              <span className="w-2 h-2 rounded-full bg-blue-400"></span> Posted: {(filteredInvoices || []).filter(i => i.status === "Posted").length}
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400"></span> Paid: {filteredInvoices.filter(i => i.status === "Paid").length}
+              <span className="w-2 h-2 rounded-full bg-emerald-400"></span> Paid: {(filteredInvoices || []).filter(i => i.status === "Paid").length}
             </span>
           </div>
         </div>

@@ -1,49 +1,40 @@
 import { NextResponse } from "next/server";
-import dbConnect from "@/lib/db";
-import Account from "@/models/Account";
-import Category from "@/models/Category";
-import { DocumentSetting } from "@/models/DocumentSetting";
-import Employee from "@/models/Employee";
-import { FinancialYear } from "@/models/FinancialYear";
-import { InventorySetting } from "@/models/InventorySetting";
-import Invoice from "@/models/Invoice";
-import Item from "@/models/Item";
-import Journal from "@/models/Journal";
-import JournalEntry from "@/models/JournalEntry";
-import Party from "@/models/Party";
-import Payroll from "@/models/Payroll";
-import { PrintFormat } from "@/models/PrintFormat";
-import { Role } from "@/models/Role";
-import ShopProfile from "@/models/ShopProfile";
-import { User } from "@/models/User";
-import VehicleLog from "@/models/VehicleLog";
+import { offlineDB } from "@/lib/dexie";
 
 export async function GET() {
   try {
-    await dbConnect();
-
-    const modelMappings = [
-      { name: "Bank Accounts", model: Account, sampleCount: 2 },
-      { name: "Categories", model: Category, sampleCount: 5 },
-      { name: "Employees", model: Employee, sampleCount: 12 },
-      { name: "Invoices", model: Invoice, sampleCount: 24 },
-      { name: "Inventory Items", model: Item, sampleCount: 156 },
-      { name: "Cash Receipts", model: null, sampleCount: 18 },
-      { name: "Bank Payments", model: null, sampleCount: 9 },
-      { name: "Customers", model: Party, sampleCount: 42 },
-      { name: "Vendors", model: Party, sampleCount: 15 },
-      { name: "Payroll Records", model: Payroll, sampleCount: 12 },
-      { name: "Users", model: User, sampleCount: 4 },
+    const tableMappings = [
+      { name: "Bank Accounts", table: "banks", sampleCount: 2 },
+      { name: "Categories", table: "categories", sampleCount: 5 },
+      { name: "Employees", table: "employees", sampleCount: 12 },
+      { name: "Invoices", table: "invoices", sampleCount: 24 },
+      { name: "Inventory Items", table: "items", sampleCount: 156 },
+      { name: "Cash Receipts", table: "cashReceipts", sampleCount: 18 },
+      { name: "Bank Payments", table: "bankPayments", sampleCount: 9 },
+      { name: "Customers", table: "parties", sampleCount: 42, filter: (p: any) => p.type === "Customer" },
+      { name: "Vendors", table: "parties", sampleCount: 15, filter: (p: any) => p.type === "Vendor" },
+      { name: "Payroll Records", table: null, sampleCount: 12 },
+      { name: "Users", table: "users", sampleCount: 4 },
     ];
 
     const stats = await Promise.all(
-      modelMappings.map(async ({ name, model, sampleCount }) => {
+      tableMappings.map(async ({ name, table, sampleCount, filter }) => {
         try {
           let count = 0;
-          if (model) {
-            count = await model.countDocuments({});
+          if (table) {
+            const tableRef: any = (offlineDB as any)[table];
+            if (!tableRef) {
+              count = sampleCount;
+            } else {
+              const data = await tableRef.toArray();
+              if (filter) {
+                count = data.filter(filter).length;
+              } else {
+                count = data.length;
+              }
+            }
           }
-          
+
           // If DB is empty, use sample counts for the prototype/demo experience
           if (count === 0) {
             count = sampleCount;

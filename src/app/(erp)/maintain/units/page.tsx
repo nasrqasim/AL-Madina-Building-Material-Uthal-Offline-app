@@ -19,7 +19,7 @@ export default function UnitsPage() {
     try {
       const res = await fetch("/api/units");
       const json = await res.json();
-      if (json.ok) setUnits(json.data);
+      if (json.ok) setUnits(json.data || []);
     } catch (e) { console.error(e); } finally { setIsLoading(false); }
   };
 
@@ -85,7 +85,7 @@ export default function UnitsPage() {
     }
   };
 
-  const filteredUnits = units.filter(unit => {
+  const filteredUnits = (units || []).filter(unit => {
     const q = searchTerm.toLowerCase();
     return (
       (unit.name || "").toLowerCase().includes(q) ||

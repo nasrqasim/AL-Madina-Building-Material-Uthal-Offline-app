@@ -19,7 +19,7 @@ export default function TrialBalanceReportPage() {
       const res = await fetch(`/api/reports/trial-balance?fromDate=${fromDate}&toDate=${toDate}`);
       const json = await res.json();
       if (json.ok) {
-        setReportData(json.data);
+        setReportData(json.data || []);
         setHasSearched(true);
       }
     } catch (e) {
@@ -29,12 +29,12 @@ export default function TrialBalanceReportPage() {
     }
   };
 
-  const totalDebit = reportData.reduce((sum, item) => sum + (item.debit || 0), 0);
-  const totalCredit = reportData.reduce((sum, item) => sum + (item.credit || 0), 0);
+  const totalDebit = (reportData || []).reduce((sum, item) => sum + (item.debit || 0), 0);
+  const totalCredit = (reportData || []).reduce((sum, item) => sum + (item.credit || 0), 0);
   const diff = Math.abs(totalDebit - totalCredit);
 
   const stats = [
-    { title: "Total Accounts", value: reportData.length.toString(), icon: ListTree, iconColor: "text-slate-600 dark:text-slate-300", iconBg: "bg-slate-50 dark:bg-slate-800/50" },
+    { title: "Total Accounts", value: (reportData || []).length.toString(), icon: ListTree, iconColor: "text-slate-600 dark:text-slate-300", iconBg: "bg-slate-50 dark:bg-slate-800/50" },
     { title: "Total Debit Balances", value: `Rs.${totalDebit.toLocaleString()}`, icon: ArrowUpRight, iconColor: "text-emerald-600", iconBg: "bg-emerald-50", iconLabel: "Dr" },
     { title: "Total Credit Balances", value: `Rs.${totalCredit.toLocaleString()}`, icon: ArrowDownRight, iconColor: "text-rose-600", iconBg: "bg-rose-50", iconLabel: "Cr" },
     { title: "Difference", value: diff === 0 ? "Balanced" : `Rs.${diff.toLocaleString()}`, icon: CheckCircle2, iconColor: diff === 0 ? "text-blue-600" : "text-rose-600", iconBg: diff === 0 ? "bg-blue-50" : "bg-rose-50", valueColor: diff === 0 ? "text-blue-600" : "text-rose-600" },
@@ -83,7 +83,7 @@ export default function TrialBalanceReportPage() {
     </div>
   );
 
-  const barData = reportData.slice(0, 10).map(item => ({
+  const barData = (reportData || []).slice(0, 10).map(item => ({
     name: item.title,
     debit: item.debit,
     credit: item.credit
@@ -125,7 +125,7 @@ export default function TrialBalanceReportPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {reportData.map((item) => (
+                    {(reportData || []).map((item) => (
                       <tr key={item.code} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
                         <td className="px-4 py-3 text-[11px] font-bold text-slate-600 dark:text-slate-400">{item.code}</td>
                         <td className="px-4 py-3 text-[11px] font-medium text-slate-800 dark:text-slate-200">{item.title}</td>

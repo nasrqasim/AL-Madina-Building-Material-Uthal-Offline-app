@@ -19,7 +19,7 @@ export default function LocationsPage() {
     try {
       const res = await fetch("/api/locations");
       const json = await res.json();
-      if (json.ok) setLocations(json.data);
+      if (json.ok) setLocations(json.data || []);
     } catch (e) { console.error(e); } finally { setIsLoading(false); }
   };
 
@@ -68,7 +68,7 @@ export default function LocationsPage() {
     setIsModalOpen(false);
   };
 
-  const filteredLocations = locations.filter(loc => {
+  const filteredLocations = (locations || []).filter(loc => {
     const q = searchTerm.toLowerCase();
     return (
       (loc.name || "").toLowerCase().includes(q) ||
@@ -108,21 +108,21 @@ export default function LocationsPage() {
         <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm flex items-center gap-6">
           <div className="p-4 bg-rose-50 text-rose-600 rounded-2xl"><MapPin size={24} /></div>
           <div>
-            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{locations.length}</h4>
+            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{(locations || []).length}</h4>
             <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Total Locations</p>
           </div>
         </div>
         <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm flex items-center gap-6">
           <div className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl"><CheckCircle2 size={24} /></div>
           <div>
-            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{locations.filter(l => l.status === "Active").length}</h4>
+            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{(locations || []).filter(l => l.status === "Active").length}</h4>
             <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Active Locations</p>
           </div>
         </div>
         <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm flex items-center gap-6">
           <div className="p-4 bg-blue-50 text-blue-600 rounded-2xl"><Home size={24} /></div>
           <div>
-            <h4 className="text-xl font-black text-slate-900 dark:text-white truncate max-w-[150px]">{locations.find(l => l.isDefault)?.name || "None"}</h4>
+            <h4 className="text-xl font-black text-slate-900 dark:text-white truncate max-w-[150px]">{(locations || []).find(l => l.isDefault)?.name || "None"}</h4>
             <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Default Location</p>
           </div>
         </div>

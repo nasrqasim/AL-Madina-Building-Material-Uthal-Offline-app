@@ -1,13 +1,7 @@
 import { fail, ok } from "@/lib/api";
-import dbConnect from "@/lib/db";
-import Invoice from "@/models/Invoice";
-import Party from "@/models/Party";
-import Employee from "@/models/Employee";
-import Job from "@/models/Job";
-import Location from "@/models/Location";
-import { generateInvoiceJournalEntries } from "@/services/posting/invoicePostingHelper";
-import { normalizeInvoicePayload } from "@/lib/invoicePayload";
-import { getPopulatedInvoice } from "@/lib/invoiceQueries";
+import { offlineDB } from "@/lib/dexie";
+import { generateInvoiceJournalEntries, updateInventoryFromInvoice } from "@/lib/offline/postingService";
+import { generateUniqueId } from "@/lib/dexie";
 
 export const dynamic = 'force-dynamic';
 
@@ -17,21 +11,28 @@ export async function GET(req: Request) {
     const type = searchParams.get("type");
     const partyId = searchParams.get("partyId");
 
-    const query: any = {};
-    if (type) query.type = type;
-    if (partyId) query.partyId = partyId;
+    let invoices = await offlineDB.invoices.toArray();
+    
+    if (type) {
+      invoices = invoices.filter(inv => inv.type === type);
+    }
+    if (partyId) {
+      invoices = invoices.filter(inv => inv.partyId === partyId);
+    }
 
-    await dbConnect();
-    const rows = await Invoice.find(query)
-      .populate("partyId", "companyName name")
-      .populate("employeeId", "name")
-      .populate("jobId", "title name")
-      .populate("locationId", "name")
-      .populate("lines.itemId", "name code category unit")
-      .sort({ createdAt: -1 })
-      .lean();
+    // Sort by date descending
+    invoices.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    return ok(rows);
+    // Populate party data
+    const parties = await offlineDB.parties.toArray();
+    const partyMap = new Map(parties.map(p => [p.id, p]));
+    
+    const populatedInvoices = invoices.map(inv => ({
+      ...inv,
+      partyId: inv.partyId ? partyMap.get(inv.partyId) : null
+    }));
+
+    return ok(populatedInvoices);
   } catch (e) {
     return fail((e as Error).message);
   }
@@ -47,31 +48,74 @@ export async function POST(req: Request) {
     const normalizedRole = (role || "").toLowerCase().replace(/\s+/g, "");
 
     const body = await req.json();
-    await dbConnect();
-
-    const payload = normalizeInvoicePayload(body);
 
     if (normalizedRole === "sales_user" || normalizedRole === "salesuser") {
-      if (payload.type !== "sale" && payload.type !== "sale_return" && payload.type !== "pos") {
+      if (body.type !== "sale" && body.type !== "sale_return" && body.type !== "pos") {
         return fail("Permission denied (Restricted invoice type)", 403);
       }
     }
 
-    if (payload.partyId) {
-      const party = await Party.findById(payload.partyId).lean() as any;
-      if (party && (party.name || party.companyName || "").toLowerCase().includes("walk-in")) {
-        payload.amountReceived = payload.totalAmount;
-        payload.balance = 0;
+    // Generate unique ID
+    const id = generateUniqueId();
+    
+    // Check for walk-in customer or cash payment method
+    if (body.partyId) {
+      const party = await offlineDB.parties.get(body.partyId);
+      const isWalkIn = party && (party.name || party.companyName || "").toLowerCase().includes("walk-in");
+      const isCashPayment = body.paymentMethod === "Cash" || body.paymentMethod === "Card";
+      
+      if (isWalkIn || (isCashPayment && !body.isOnCredit)) {
+        body.amountReceived = body.totalAmount;
+        body.balance = 0;
       }
     }
 
-    const row = await Invoice.create(payload);
+    // Create invoice record
+    const invoiceRecord = {
+      id,
+      _id: id,
+      invoiceNo: body.invoiceNo || `INV-${Date.now().toString().slice(-6)}`,
+      type: body.type || "sale",
+      date: body.date || new Date().toISOString(),
+      partyId: body.partyId || null,
+      paymentMethod: body.paymentMethod || body.paymentTerms || "Credit",
+      paymentTerms: body.paymentTerms || "Credit",
+      regNo: body.regNo || "",
+      startKms: body.startKms || 0,
+      endKms: body.endKms || 0,
+      rangeKms: body.rangeKms || 0,
+      oilGaugeLimit: body.oilGaugeLimit || 0,
+      locationId: body.locationId || null,
+      employeeId: body.employeeId || null,
+      jobId: body.jobId || null,
+      notes: body.notes || "",
+      lines: body.lines || [],
+      subTotal: body.subTotal || 0,
+      discountAmount: body.discountAmount || 0,
+      taxAmount: body.taxAmount || 0,
+      totalAmount: body.totalAmount || 0,
+      amountReceived: body.amountReceived || 0,
+      status: body.status || "posted",
+      useAdvance: body.useAdvance || false,
+      advanceAmountUsed: body.advanceAmountUsed || 0,
+      deliveryStatus: body.deliveryStatus || "posted",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
 
-    await generateInvoiceJournalEntries(row);
+    // Save to IndexedDB
+    await offlineDB.invoices.add(invoiceRecord);
 
-    const populated = await getPopulatedInvoice(String(row._id));
-    return ok(populated ?? row, 201);
+    // Generate journal entries
+    await generateInvoiceJournalEntries(invoiceRecord);
+
+    // Update inventory
+    await updateInventoryFromInvoice(invoiceRecord);
+
+    // Return the created invoice
+    return ok(invoiceRecord, 201);
   } catch (e) {
+    console.error("Error creating invoice:", e);
     return fail((e as Error).message);
   }
 }

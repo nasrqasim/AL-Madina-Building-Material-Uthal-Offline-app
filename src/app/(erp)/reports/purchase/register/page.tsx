@@ -46,7 +46,7 @@ export default function PurchaseRegisterReportPage() {
     fetchData();
   }, []);
 
-  const filteredData = data.filter(row => {
+  const filteredData = (data || []).filter(row => {
     const q = searchTerm.toLowerCase();
     return (
       (row.docNo || "").toLowerCase().includes(q) ||

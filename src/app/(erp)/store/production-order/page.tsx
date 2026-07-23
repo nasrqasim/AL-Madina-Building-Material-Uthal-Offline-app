@@ -67,7 +67,7 @@ export default function ProductionOrderPage() {
     try {
       const res = await fetch("/api/invoices?type=production_order", { cache: "no-store" });
       const json = await res.json();
-      if (json.ok) setOrders(json.data);
+      if (json.ok) setOrders(json.data || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -126,7 +126,7 @@ export default function ProductionOrderPage() {
           </div>
           <div>
             <p className="text-xs font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Active Orders</p>
-            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{orders.filter(o => o.status !== "Cancelled").length}</h4>
+            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{(orders || []).filter(o => o.status !== "Cancelled").length}</h4>
           </div>
         </div>
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
@@ -135,7 +135,7 @@ export default function ProductionOrderPage() {
           </div>
           <div>
             <p className="text-xs font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Completed</p>
-            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{orders.filter(o => o.status === "Completed").length}</h4>
+            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{(orders || []).filter(o => o.status === "Completed").length}</h4>
           </div>
         </div>
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
@@ -144,7 +144,7 @@ export default function ProductionOrderPage() {
           </div>
           <div>
             <p className="text-xs font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">In-Progress</p>
-            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{orders.filter(o => o.status === "In-Progress").length}</h4>
+            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{(orders || []).filter(o => o.status === "In-Progress").length}</h4>
           </div>
         </div>
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
@@ -208,8 +208,8 @@ export default function ProductionOrderPage() {
             <tbody className="divide-y divide-slate-50">
               {isLoading ? (
                 <tr><td colSpan={7} className="px-8 py-12 text-center text-slate-400 font-bold">Loading...</td></tr>
-              ) : orders.length > 0 ? (
-                orders.map((order) => (
+              ) : (orders || []).length > 0 ? (
+                (orders || []).map((order) => (
                   <tr key={order._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors group">
                     <td className="px-8 py-5">
                       <span className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-maroon-800 transition-colors">{order.invoiceNo || order.docNo}</span>

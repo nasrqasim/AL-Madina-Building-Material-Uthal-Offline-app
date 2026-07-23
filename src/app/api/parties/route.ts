@@ -1,7 +1,7 @@
 import { fail, ok } from "@/lib/api";
-import dbConnect from "@/lib/db";
-import Party from "@/models/Party";
-import { recalculatePartyBalance, getCustomerAdvanceStats } from "@/services/posting/invoicePostingHelper";
+import { offlineDB } from "@/lib/dexie";
+import { recalculatePartyBalance, getCustomerAdvanceStats } from "@/lib/offline/postingService";
+import { generateUniqueId } from "@/lib/dexie";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 
@@ -13,23 +13,27 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const typeParam = searchParams.get("type");
 
-  const query: any = {};
-  if (normalizedRole === "sales_user" || normalizedRole === "salesuser") {
-    query.type = "Customer";
-  } else if (typeParam === "customer") {
-    query.type = "Customer";
-  } else if (typeParam === "vendor") {
-    query.type = "Vendor";
-  }
-
-  await dbConnect();
-  const rows = await Party.find(query).sort({ createdAt: -1 }).lean();
+  let parties = await offlineDB.parties.toArray();
   
-  const rowsWithStats = await Promise.all(rows.map(async (r: any) => {
+  if (normalizedRole === "sales_user" || normalizedRole === "salesuser") {
+    parties = parties.filter(p => p.type === "Customer");
+  } else if (typeParam === "customer") {
+    parties = parties.filter(p => p.type === "Customer");
+  } else if (typeParam === "vendor") {
+    parties = parties.filter(p => p.type === "Vendor");
+  }
+  
+  // Sort by createdAt descending
+  parties.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  
+  const rowsWithStats = await Promise.all(parties.map(async (r: any) => {
     if (r.type === "Customer") {
       try {
-        const stats = await getCustomerAdvanceStats(r._id.toString());
-        return { ...r, advanceStats: stats };
+        // Recalculate balance to ensure it's up-to-date
+        await recalculatePartyBalance(r.id);
+        const updatedParty = await offlineDB.parties.get(r.id);
+        const stats = await getCustomerAdvanceStats(r.id);
+        return { ...updatedParty, advanceStats: stats };
       } catch (err) {
         return r;
       }
@@ -54,14 +58,42 @@ export async function POST(req: Request) {
       }
     }
 
-    await dbConnect();
+    const id = generateUniqueId();
+    
     if (body.openingBalance && (!body.balance || body.balance === 0)) {
       body.balance = body.openingBalance;
     }
-    const row = await Party.create(body);
-    await recalculatePartyBalance(String(row._id));
-    const finalRow = await Party.findById(row._id).lean();
-    return ok(finalRow || row, 201);
+    
+    const partyRecord = {
+      id,
+      _id: id,
+      code: body.code || `PARTY-${Date.now().toString().slice(-6)}`,
+      name: body.name || "",
+      companyName: body.companyName || body.name || "",
+      type: body.type || "Customer",
+      address: body.address || "",
+      city: body.city || "",
+      phone: body.phone || "",
+      mobile: body.mobile || "",
+      email: body.email || "",
+      ntn: body.ntn || "",
+      gst: body.gst || "",
+      creditLimit: body.creditLimit || 0,
+      balance: body.balance || 0,
+      openingBalance: body.openingBalance || 0,
+      debit: 0,
+      credit: 0,
+      isActive: body.isActive !== false,
+      status: body.status || "Active",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    await offlineDB.parties.add(partyRecord);
+    await recalculatePartyBalance(id);
+    
+    const finalRow = await offlineDB.parties.get(id);
+    return ok(finalRow || partyRecord, 201);
   } catch (e) {
     return fail((e as Error).message);
   }

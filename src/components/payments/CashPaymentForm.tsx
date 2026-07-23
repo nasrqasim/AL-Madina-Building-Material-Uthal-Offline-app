@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Save,
   ArrowLeft,
@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import PartyLookupSelect from "@/components/erp/ui/PartyLookupSelect";
 import PartyDetailsCard, { type PartyLike, type AccountLike } from "@/components/erp/ui/PartyDetailsCard";
+import { calculateCustomerBalance, calculateBalanceFromTransactions } from "@/lib/customerBalance";
+import { calculateVendorBalance, calculateVendorBalanceFromTransactions } from "@/lib/vendorBalance";
 
 interface CashPaymentFormProps {
   onClose: () => void;
@@ -55,22 +57,51 @@ export default function CashPaymentForm({ onClose, initialData }: CashPaymentFor
   const [availableParties, setAvailableParties] = useState<PartyLike[]>([]);
   const [jobs, setJobs] = useState<{ _id: string; title?: string; name?: string }[]>([]);
 
+  // Transaction data for balance calculation
+  const [salesData, setSalesData] = useState<any[]>([]);
+  const [purchasesData, setPurchasesData] = useState<any[]>([]);
+  const [cashReceiptsData, setCashReceiptsData] = useState<any[]>([]);
+  const [bankReceiptsData, setBankReceiptsData] = useState<any[]>([]);
+  const [cashPaymentsData, setCashPaymentsData] = useState<any[]>([]);
+  const [bankPaymentsData, setBankPaymentsData] = useState<any[]>([]);
+
   useEffect(() => {
     const fetchAll = async () => {
       try {
-        const [acctRes, partyRes, jobRes] = await Promise.all([
+        const [acctRes, partyRes, jobRes, salesRes, purRes, cashRecRes, bankRecRes, cashPayRes, bankPayRes] = await Promise.all([
           fetch("/api/accounts"),
           fetch("/api/parties"),
           fetch("/api/jobs"),
+          fetch("/api/sales"),
+          fetch("/api/purchases"),
+          fetch("/api/cash-receipts"),
+          fetch("/api/bank-receipts"),
+          fetch("/api/cash-payments"),
+          fetch("/api/bank-payments")
         ]);
         const [acctJson, partyJson, jobJson] = await Promise.all([
           acctRes.json(),
           partyRes.json(),
-          jobRes.json(),
+          jobRes.json()
         ]);
-        if (acctJson.ok) setAvailableAccounts(acctJson.data);
-        if (partyJson.ok) setAvailableParties(partyJson.data);
-        if (jobJson.ok) setJobs(jobJson.data);
+        const salesJson = await salesRes.json();
+        const purJson = await purRes.json();
+        const cashRecJson = await cashRecRes.json();
+        const bankRecJson = await bankRecRes.json();
+        const cashPayJson = await cashPayRes.json();
+        const bankPayJson = await bankPayRes.json();
+        
+        if (acctJson.ok) setAvailableAccounts(acctJson.data || []);
+        if (partyJson.ok) setAvailableParties(partyJson.data || []);
+        if (jobJson.ok) setJobs(jobJson.data || []);
+        
+        // Store transaction data for balance calculation
+        if (salesJson.ok) setSalesData(Array.isArray(salesJson.data) ? salesJson.data : []);
+        if (purJson.ok) setPurchasesData(Array.isArray(purJson.data) ? purJson.data : []);
+        if (cashRecJson.ok) setCashReceiptsData(Array.isArray(cashRecJson.data) ? cashRecJson.data : []);
+        if (bankRecJson.ok) setBankReceiptsData(Array.isArray(bankRecJson.data) ? bankRecJson.data : []);
+        if (cashPayJson.ok) setCashPaymentsData(Array.isArray(cashPayJson.data) ? cashPayJson.data : []);
+        if (bankPayJson.ok) setBankPaymentsData(Array.isArray(bankPayJson.data) ? bankPayJson.data : []);
       } catch (e) {
         console.error(e);
       }
@@ -79,10 +110,10 @@ export default function CashPaymentForm({ onClose, initialData }: CashPaymentFor
   }, []);
 
   useEffect(() => {
-    if (initialData?.partyId && availableParties.length) {
+    if (initialData?.partyId && (availableParties || []).length) {
       const p = initialData.partyId as PartyLike;
       const id = p._id || String(initialData.partyId);
-      const found = availableParties.find((x) => x._id === id);
+      const found = (availableParties || []).find((x) => x._id === id);
       if (found) {
         setPartyType(found.type === "Customer" ? "Customer" : "Vendor");
         setPreviewParty(found);
@@ -91,15 +122,15 @@ export default function CashPaymentForm({ onClose, initialData }: CashPaymentFor
   }, [initialData, availableParties]);
 
   const cashAccounts = useMemo(
-    () => availableAccounts.filter((a) => a.type === "cash" || a.type === "bank"),
+    () => (availableAccounts || []).filter((a) => a.type === "cash" || a.type === "bank"),
     [availableAccounts]
   );
 
-  const customers = useMemo(() => availableParties.filter((p) => p.type === "Customer"), [availableParties]);
-  const vendors = useMemo(() => availableParties.filter((p) => p.type === "Vendor"), [availableParties]);
+  const customers = useMemo(() => (availableParties || []).filter((p) => p.type === "Customer"), [availableParties]);
+  const vendors = useMemo(() => (availableParties || []).filter((p) => p.type === "Vendor"), [availableParties]);
 
   const selectedParty = useMemo(
-    () => availableParties.find((p) => p._id === formData.partyId) || previewParty,
+    () => (availableParties || []).find((p) => p._id === formData.partyId) || previewParty,
     [availableParties, formData.partyId, previewParty]
   );
 
@@ -125,6 +156,31 @@ export default function CashPaymentForm({ onClose, initialData }: CashPaymentFor
   }, [totalAmount, formData.whtRate, formData.whtAmount, activeTab]);
 
   const netPaid = totalAmount - whtAmount;
+
+  // Helper function to get party balance based on type
+  const getPartyBalance = useCallback((party: PartyLike, type: "Customer" | "Vendor"): { balance: number; label: string } => {
+    if (!party) return { balance: 0, label: "0.00" };
+    
+    if (type === "Customer") {
+      const balanceResult = calculateBalanceFromTransactions(party, salesData, cashReceiptsData, bankReceiptsData, cashPaymentsData, bankPaymentsData);
+      return { 
+        balance: balanceResult.receivable || 0, 
+        label: balanceResult.receivable.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      };
+    } else {
+      const balanceResult = calculateVendorBalanceFromTransactions(party, purchasesData, [], cashPaymentsData, bankPaymentsData, cashReceiptsData, bankReceiptsData);
+      return { 
+        balance: balanceResult.payable || 0, 
+        label: balanceResult.payable.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      };
+    }
+  }, [salesData, purchasesData, cashReceiptsData, bankReceiptsData, cashPaymentsData, bankPaymentsData]);
+
+  // Display balance for selected party
+  const displayPartyBalance = useMemo(() => {
+    if (!selectedParty) return { balance: "0.00", label: "Balance" };
+    return getPartyBalance(selectedParty, partyType);
+  }, [selectedParty, partyType, getPartyBalance]);
 
   const handleWhtRateChange = (rate: number) => {
     setFormData({
@@ -153,7 +209,7 @@ export default function CashPaymentForm({ onClose, initialData }: CashPaymentFor
         if (idx !== index) return line;
         const updated = { ...line, [field]: value };
         if (field === "accountId") {
-          const acc = availableAccounts.find((a) => a._id === value);
+          const acc = (availableAccounts || []).find((a) => a._id === value);
           updated.accountTitle = acc?.title || "";
         }
         return updated;
@@ -374,7 +430,7 @@ export default function CashPaymentForm({ onClose, initialData }: CashPaymentFor
                     className="w-full px-4 py-3 border rounded-xl text-sm font-bold"
                   >
                     <option value="">-- Select Job --</option>
-                    {jobs.map((j) => (
+                    {(jobs || []).map((j) => (
                       <option key={j._id} value={j._id}>{j.title || j.name}</option>
                     ))}
                   </select>

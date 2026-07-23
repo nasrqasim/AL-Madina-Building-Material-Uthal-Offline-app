@@ -22,12 +22,12 @@ export default function OpeningBalancesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const filteredItems = itemBalances.filter(item => 
+  const filteredItems = (itemBalances || []).filter(item => 
     item.itemName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.unit?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const filteredAccounts = accountBalances.filter(acc => 
+  const filteredAccounts = (accountBalances || []).filter(acc => 
     acc.accountName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     acc.balanceType?.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -37,11 +37,11 @@ export default function OpeningBalancesPage() {
     try {
       const resItems = await fetch("/api/opening-balances?type=Item");
       const jsonItems = await resItems.json();
-      if (jsonItems.ok) setItemBalances(jsonItems.data);
+      if (jsonItems.ok) setItemBalances(jsonItems.data || []);
 
       const resAccounts = await fetch("/api/opening-balances?type=Account");
       const jsonAccounts = await resAccounts.json();
-      if (jsonAccounts.ok) setAccountBalances(jsonAccounts.data);
+      if (jsonAccounts.ok) setAccountBalances(jsonAccounts.data || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -58,7 +58,7 @@ export default function OpeningBalancesPage() {
     if (file) {
       const data = await importFromExcel(file);
       const isItem = activeTab === "Items";
-      const newBalances = data.map((row: any) => ({
+      const newBalances = (data || []).map((row: any) => ({
         type: isItem ? "Item" : "Account",
         ...(isItem ? {
           itemName: row["Item Name"] || row.name || "Unknown Item",
@@ -101,7 +101,7 @@ export default function OpeningBalancesPage() {
     try {
       // Save items
       if (itemBalances.length > 0) {
-        const parsedItems = itemBalances.map(item => ({
+        const parsedItems = (itemBalances || []).map(item => ({
           ...item,
           qty: parseFloat(item.qty) || 0,
           rate: parseFloat(item.rate) || 0
@@ -114,7 +114,7 @@ export default function OpeningBalancesPage() {
       }
       // Save accounts
       if (accountBalances.length > 0) {
-        const parsedAccounts = accountBalances.map(acc => ({
+        const parsedAccounts = (accountBalances || []).map(acc => ({
           ...acc,
           amount: parseFloat(acc.amount) || 0
         }));
@@ -210,7 +210,7 @@ export default function OpeningBalancesPage() {
                 <tr><td colSpan={3} className="py-8 text-center text-slate-400">No accounts found.</td></tr>
               )}
               {activeTab === "Items" ? (
-                filteredItems.map((item, index) => (
+                (filteredItems || []).map((item, index) => (
                   <tr key={item._id || item.itemId || index} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
                     <td className="px-8 py-4">
                       <p className="text-sm font-black text-slate-900 dark:text-white">{item.itemName}</p>
@@ -279,8 +279,8 @@ export default function OpeningBalancesPage() {
             <p className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Grand Total Value</p>
             <p className="text-2xl font-black text-maroon-800 tracking-tighter">
               PKR {activeTab === "Items" 
-                ? itemBalances.reduce((s,i) => s + ((parseFloat(i.qty) || 0) * (parseFloat(i.rate) || 0)), 0).toLocaleString() 
-                : accountBalances.reduce((s,a) => s + (parseFloat(a.amount) || 0), 0).toLocaleString()
+                ? (itemBalances || []).reduce((s,i) => s + ((parseFloat(i.qty) || 0) * (parseFloat(i.rate) || 0)), 0).toLocaleString() 
+                : (accountBalances || []).reduce((s,a) => s + (parseFloat(a.amount) || 0), 0).toLocaleString()
               }
             </p>
           </div>

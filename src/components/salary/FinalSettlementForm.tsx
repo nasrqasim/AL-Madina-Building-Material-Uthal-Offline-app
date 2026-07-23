@@ -42,7 +42,7 @@ export default function FinalSettlementForm({ onClose, initialData }: any) {
 
   useEffect(() => {
     fetch("/api/employees").then(r => r.json()).then(data => {
-      if (data.ok) setEmployees(data.data);
+      if (data.ok) setEmployees(data.data || []);
     });
   }, []);
 
@@ -131,7 +131,7 @@ export default function FinalSettlementForm({ onClose, initialData }: any) {
                 className="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-bold" required
               >
                 <option value="">-- Select Staff --</option>
-                {employees.map(emp => (
+                {(employees || []).map(emp => (
                   <option key={emp._id} value={emp.name}>{emp.name}</option>
                 ))}
               </select>

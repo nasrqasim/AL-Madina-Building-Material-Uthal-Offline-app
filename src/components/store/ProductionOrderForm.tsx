@@ -73,20 +73,20 @@ export default function ProductionOrderForm({ onClose, initialData }: Production
   useEffect(() => {
     fetch("/api/invoices?type=bill_of_materials")
       .then(r => r.json())
-      .then(data => { if (data.ok) setBoms(data.data); });
+      .then(data => { if (data.ok) setBoms(data.data || []); });
     
     fetch("/api/locations")
       .then(r => r.json())
-      .then(data => { if (data.ok) setLocations(data.data); });
+      .then(data => { if (data.ok) setLocations(data.data || []); });
 
     fetch("/api/items")
       .then(r => r.json())
-      .then(data => { if (data.ok) setAvailableItems(data.data); });
+      .then(data => { if (data.ok) setAvailableItems(data.data || []); });
   }, []);
 
   useEffect(() => {
     if (!formData.bomId) return;
-    const selectedBOM = boms.find(b => b._id === formData.bomId);
+    const selectedBOM = (boms || []).find(b => b._id === formData.bomId);
     if (selectedBOM && selectedBOM.lines) {
       const isBomChanged = formData.bomId !== prevBomId;
       const isQtyChanged = formData.plannedQty !== prevPlannedQty;
@@ -96,7 +96,7 @@ export default function ProductionOrderForm({ onClose, initialData }: Production
         setPrevPlannedQty(formData.plannedQty);
         
         const mapped = selectedBOM.lines.map((l: any, idx: number) => {
-          const itemObj = availableItems.find(ai => ai._id === (l.itemId?._id || l.itemId));
+          const itemObj = (availableItems || []).find(ai => ai._id === (l.itemId?._id || l.itemId));
           const estQty = (l.qty || 0) * (formData.plannedQty || 0);
           const estCost = l.rate || 0;
           const estTotal = estQty * estCost;
@@ -126,7 +126,7 @@ export default function ProductionOrderForm({ onClose, initialData }: Production
   const selectedItemDetails = useMemo(() => {
     const activeLine = components.find(c => c.id === selectedLineId);
     if (!activeLine || !activeLine.itemId) return null;
-    return availableItems.find(ai => ai._id === activeLine.itemId) || null;
+    return (availableItems || []).find(ai => ai._id === activeLine.itemId) || null;
   }, [selectedLineId, components, availableItems]);
 
   const handleSave = async (submitStatus: string) => {
@@ -135,7 +135,7 @@ export default function ProductionOrderForm({ onClose, initialData }: Production
     
     setIsSaving(true);
     try {
-      const selectedBOM = boms.find(b => b._id === formData.bomId);
+      const selectedBOM = (boms || []).find(b => b._id === formData.bomId);
       const payload = {
         invoiceNo: formData.docNo === "Auto-generated" ? `PROD-${Date.now()}` : formData.docNo,
         type: "production_order",
@@ -206,7 +206,7 @@ export default function ProductionOrderForm({ onClose, initialData }: Production
         let updated = { ...c, [field]: value };
         
         if (field === "itemId") {
-          const selected = availableItems.find(ai => ai._id === value);
+          const selected = (availableItems || []).find(ai => ai._id === value);
           if (selected) {
             updated.itemCode = selected.code;
             updated.description = selected.name;
@@ -295,7 +295,7 @@ export default function ProductionOrderForm({ onClose, initialData }: Production
               <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Select BOM (Recipe) *</label>
               <select value={formData.bomId} onChange={(e) => setFormData({...formData, bomId: e.target.value})} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold focus:border-maroon-800 outline-none transition-all">
                 <option value="">-- Select Recipe --</option>
-                {boms.map(b => (
+                {(boms || []).map(b => (
                   <option key={b._id} value={b._id}>{b.bomName || b.docNo} (v{b.version})</option>
                 ))}
               </select>
@@ -312,7 +312,7 @@ export default function ProductionOrderForm({ onClose, initialData }: Production
               <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Location</label>
               <select value={formData.locationId} onChange={(e) => setFormData({...formData, locationId: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold">
                 <option value="">-- Select Location --</option>
-                {locations.map(l => <option key={l._id} value={l._id}>{l.name}</option>)}
+                {(locations || []).map(l => <option key={l._id} value={l._id}>{l.name}</option>)}
               </select>
             </div>
             <div className="space-y-1.5">
@@ -365,13 +365,13 @@ export default function ProductionOrderForm({ onClose, initialData }: Production
                       <td className="px-4 py-3 font-bold text-slate-400 dark:text-slate-500 text-center">{index + 1}</td>
                       <td className="px-4 py-3">
                         <ItemSearchInput
-                          value={availableItems.find(ai => ai._id === item.itemId)?.code || item.itemCode || ""}
+                          value={(availableItems || []).find(ai => ai._id === item.itemId)?.code || item.itemCode || ""}
                           availableItems={availableItems}
                           onSelect={(selected) => {
                             updateComponent(item.id, "itemId", selected._id);
                           }}
                           onChange={(val) => {
-                            const matched = availableItems.find(ai => ai.code === val);
+                            const matched = (availableItems || []).find(ai => ai.code === val);
                             if (matched) updateComponent(item.id, "itemId", matched._id);
                           }}
                           placeholder="Search item..."

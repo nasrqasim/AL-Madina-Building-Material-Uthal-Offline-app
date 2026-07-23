@@ -5,6 +5,8 @@ import PrintTemplate from "@/components/print/PrintTemplate";
 import ItemSearchInput from "@/components/erp/ui/ItemSearchInput";
 import CustomerModal from "@/components/erp/maintain/CustomerModal";
 import ERPModal from "@/components/erp/ui/ERPModal";
+import { calculateBalanceFromTransactions } from "@/lib/customerBalance";
+import { getProductUnit } from "@/lib/dynamicUnits";
 import { 
   Plus, 
   Trash2, 
@@ -32,13 +34,17 @@ interface SRItem {
   itemId: string;
   itemCode: string;
   description: string;
-  cartons: number;
-  gallons?: number;
-  liters?: number;
-  ratePerCtn: number;
+  quantity: number; // Dynamic quantity
+  unit: string; // Product's unit
+  rate: number; // Rate per unit
   grossAmount: number;
   netAmount: number;
   reason: string;
+  // Legacy fields for backward compatibility
+  cartons?: number;
+  gallons?: number;
+  liters?: number;
+  ratePerCtn?: number;
 }
 
 interface SaleReturnFormProps {
@@ -80,7 +86,7 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
     customerName: initialData?.partyId?.name || "",
     customerAddress: initialData?.partyId?.address || "",
     customerTelephone: initialData?.partyId?.phone || "",
-    customerBalance: initialData?.partyId?.balance || 0.00,
+    customerBalance: 0, // Will be calculated using unified function
     
     // Bottom Section
     locationId: initialData?.locationId?._id || initialData?.locationId || "",
@@ -136,28 +142,40 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
 
   const [items, setItems] = useState<SRItem[]>(() => {
     if (initialData?.lines && initialData.lines.length > 0) {
-      return initialData.lines.map((l: any, i: number) => ({
-        id: i.toString(),
-        itemId: l.itemId?._id || l.itemId,
-        itemCode: l.itemId?.code || "",
-        description: l.description || "",
-        cartons: l.cartons || l.qty || 0,
-        ratePerCtn: l.rate || 0,
-        grossAmount: l.grossAmount || 0,
-        netAmount: l.netAmount || 0,
-        reason: l.notes || ""
-      }));
+      return initialData.lines.map((l: any, i: number) => {
+        const item = l.itemId?._id ? availableItems.find(ai => ai._id === l.itemId._id) : null;
+        const unit = getProductUnit(item);
+        return {
+          id: i.toString(),
+          itemId: l.itemId?._id || l.itemId,
+          itemCode: l.itemId?.code || "",
+          description: l.description || "",
+          quantity: l.cartons || l.qty || 0,
+          unit: unit,
+          rate: l.rate || 0,
+          grossAmount: l.grossAmount || 0,
+          netAmount: l.netAmount || 0,
+          reason: l.notes || "",
+          // Legacy fields
+          cartons: l.cartons || l.qty || 0,
+          ratePerCtn: l.rate || 0
+        };
+      });
     }
     return [{
       id: "1",
       itemId: "",
       itemCode: "",
       description: "",
-      cartons: 0,
-      ratePerCtn: 0,
+      quantity: 0,
+      unit: "Per Piece",
+      rate: 0,
       grossAmount: 0,
       netAmount: 0,
-      reason: ""
+      reason: "",
+      // Legacy fields
+      cartons: 0,
+      ratePerCtn: 0
     }];
   });
 
@@ -169,6 +187,11 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
   const [locations, setLocations] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
 
+  // Transaction data for unified balance calculation
+  const [salesData, setSalesData] = useState<any[]>([]);
+  const [cashReceiptsData, setCashReceiptsData] = useState<any[]>([]);
+  const [bankReceiptsData, setBankReceiptsData] = useState<any[]>([]);
+
   const [showCustomerSearch, setShowCustomerSearch] = useState(false);
   const [itemHistory, setItemHistory] = useState<any[]>([]);
 
@@ -176,21 +199,27 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
 
   const fetchData = useCallback(async () => {
     try {
-      const [itemsRes, partiesRes, locsRes, empsRes, banksRes] = await Promise.all([
+      const [itemsRes, partiesRes, locsRes, empsRes, banksRes, salesRes, cashRes, bankRes] = await Promise.all([
         fetch("/api/items"),
         fetch("/api/parties"),
         fetch("/api/locations"),
         fetch("/api/employees"),
-        fetch("/api/banks")
+        fetch("/api/banks"),
+        fetch("/api/sales"),
+        fetch("/api/cash-receipts"),
+        fetch("/api/bank-receipts")
       ]);
-      const [itemsData, partiesData, locsData, empsData, banksData] = await Promise.all([
+      const [itemsData, partiesData, locsData, empsData, banksData, salesData, cashData, bankData] = await Promise.all([
         itemsRes.json(),
         partiesRes.json(),
         locsRes.json(),
         empsRes.json(),
-        banksRes.json()
+        banksRes.json(),
+        salesRes.json(),
+        cashRes.json(),
+        bankRes.json()
       ]);
-      if (itemsData.ok) setAvailableItems(itemsData.data);
+      if (itemsData.ok) setAvailableItems(itemsData.data || []);
       if (partiesData.ok) {
         // Exclude deleted/inactive customers
         const activeCustomers = partiesData.data.filter((p: any) => 
@@ -202,9 +231,14 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
         setCustomers(activeCustomers);
         setAllCustomers(activeCustomers);
       }
-      if (locsData.ok) setLocations(locsData.data);
-      if (empsData.ok) setEmployees(empsData.data);
-      if (banksData.ok) setBanks(banksData.data);
+      if (locsData.ok) setLocations(locsData.data || []);
+      if (empsData.ok) setEmployees(empsData.data || []);
+      if (banksData.ok) setBanks(banksData.data || []);
+      
+      // Store transaction data for unified balance calculation
+      if (salesData.ok) setSalesData(Array.isArray(salesData.data) ? salesData.data : []);
+      if (cashData.ok) setCashReceiptsData(Array.isArray(cashData.data) ? cashData.data : []);
+      if (bankData.ok) setBankReceiptsData(Array.isArray(bankData.data) ? bankData.data : []);
     } catch (e) { console.error(e); }
   }, []);
 
@@ -228,7 +262,7 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
         const res = await fetch(`/api/parties/search?q=${encodeURIComponent(query)}`);
         const json = await res.json();
         if (json.ok) {
-          setCustomers(json.data);
+          setCustomers(json.data || []);
         }
       } catch (e) {
         console.error("Error searching customers:", e);
@@ -241,11 +275,18 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
   // Track currently edited invoice ID
   const [currentInvoiceId, setCurrentInvoiceId] = useState(initialData?._id || "");
 
+  // Helper function to get customer balance using unified calculation
+  const getCustomerBalance = useCallback((customer: any): number => {
+    if (!customer) return 0;
+    const balanceResult = calculateBalanceFromTransactions(customer, salesData, cashReceiptsData, bankReceiptsData);
+    return balanceResult.netBalance;
+  }, [salesData, cashReceiptsData, bankReceiptsData]);
+
   // Default customer loading & editing customer balance Sync
   useEffect(() => {
-    if (allCustomers.length > 0) {
+    if ((allCustomers || []).length > 0) {
       if (!formData.customerId && !currentInvoiceId) {
-        const defaultCust = allCustomers.find(c => 
+        const defaultCust = (allCustomers || []).find(c => 
           c.name.toLowerCase() === "walk-in cash customer" || 
           c.name.toLowerCase() === "walk-in(cash) customer" ||
           c.name.toLowerCase().includes("walk-in")
@@ -258,15 +299,15 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
             customerCode: defaultCust.code,
             customerAddress: defaultCust.address || "",
             customerTelephone: defaultCust.phone || "",
-            customerBalance: defaultCust.balance || 0
+            customerBalance: getCustomerBalance(defaultCust)
           }));
         }
       } else if (formData.customerId) {
-        const currentCust = allCustomers.find(c => c._id === formData.customerId);
+        const currentCust = (allCustomers || []).find(c => c._id === formData.customerId);
         if (currentCust) {
           setFormData(prev => ({
             ...prev,
-            customerBalance: currentCust.balance || 0,
+            customerBalance: getCustomerBalance(currentCust),
             customerCode: currentCust.code || prev.customerCode,
             customerAddress: currentCust.address || prev.customerAddress,
             customerTelephone: currentCust.phone || prev.customerTelephone,
@@ -275,7 +316,7 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
         }
       }
     }
-  }, [allCustomers, currentInvoiceId, formData.customerId]);
+  }, [allCustomers, currentInvoiceId, formData.customerId, getCustomerBalance]);
 
   const [showPrevInvoicesModal, setShowPrevInvoicesModal] = useState(false);
   const [prevInvoices, setPrevInvoices] = useState<any[]>([]);
@@ -322,7 +363,7 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
       const res = await fetch(`/api/invoices/${invoiceId}/payment`);
       const json = await res.json();
       if (json.ok) {
-        setPrevInvoiceHistory(json.data);
+        setPrevInvoiceHistory(json.data || []);
       }
     } catch (e) {
       console.error(e);
@@ -375,7 +416,7 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
         await fetchPrevInvoices();
         const updatedInvoice = await fetch(`/api/invoices/${selectedPrevInvoice._id}`).then(r => r.json());
         if (updatedInvoice.ok) {
-          setSelectedPrevInvoice(updatedInvoice.data);
+          setSelectedPrevInvoice(updatedInvoice.data || []);
         }
         fetchData();
       } else {
@@ -421,7 +462,7 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
       customerName: inv.partyId?.name || "",
       customerAddress: inv.partyId?.address || "",
       customerTelephone: inv.partyId?.phone || "",
-      customerBalance: inv.partyId?.balance || 0.00,
+      customerBalance: getCustomerBalance(inv.partyId),
       
       locationId: inv.locationId?._id || inv.locationId || "",
       jobNo: inv.jobId?.code || "",
@@ -463,7 +504,7 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
 
   useEffect(() => {
     setActiveCustomerIndex(0);
-  }, [displayedCustomers.length]);
+  }, [(displayedCustomers || []).length]);
 
   useEffect(() => {
     if (showCustomerSearch && customerListRef.current) {
@@ -496,7 +537,7 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setActiveCustomerIndex(prev => 
-        prev < displayedCustomers.length - 1 ? prev + 1 : prev
+        prev < (displayedCustomers || []).length - 1 ? prev + 1 : prev
       );
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
@@ -504,7 +545,7 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
     } else if (e.key === "PageDown") {
       e.preventDefault();
       setActiveCustomerIndex(prev => 
-        Math.min(displayedCustomers.length - 1, prev + 5)
+        Math.min((displayedCustomers || []).length - 1, prev + 5)
       );
     } else if (e.key === "PageUp") {
       e.preventDefault();
@@ -520,7 +561,7 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
           customerCode: selected.code,
           customerAddress: selected.address || "",
           customerTelephone: selected.phone || "",
-          customerBalance: selected.balance || 0
+          customerBalance: getCustomerBalance(selected)
         }));
         setShowCustomerSearch(false);
       }
@@ -533,7 +574,7 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
   const handlePriceTypeChange = (isWholesale: boolean) => {
     setFormData({ ...formData, isWholesale, isRetail: !isWholesale });
     setItems(prev => prev.map(i => {
-      const item = availableItems.find(ai => ai._id === i.itemId);
+      const item = (availableItems || []).find(ai => ai._id === i.itemId);
       if (item) {
         const ratePerCtn = isWholesale ? (item.wholesaleRate || item.rate || 0) : (item.retailRate || item.rate || 0);
         const qty = (Number(i.cartons) || 0) + (Number(i.gallons) || 0) + (Number(i.liters) || 0);
@@ -546,77 +587,78 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
   };
 
   const addItem = () => {
-    const newItem = { id: Date.now().toString(), itemId: "", itemCode: "", description: "", cartons: 0, gallons: 0, liters: 0, ratePerCtn: 0, grossAmount: 0, netAmount: 0, reason: "" };
+    const newItem = { id: Date.now().toString(), itemId: "", itemCode: "", description: "", quantity: 0, unit: "Per Piece", rate: 0, grossAmount: 0, netAmount: 0, reason: "", cartons: 0, gallons: 0, liters: 0, ratePerCtn: 0 };
     setItems([...items, newItem]);
     setSelectedLineId(newItem.id);
   };
 
   const removeItem = (id: string) => {
-    if (items.length > 1) {
-      setItems(items.filter(i => i.id !== id));
+    if ((items || []).length > 1) {
+      setItems((items || []).filter(i => i.id !== id));
       if (selectedLineId === id) setSelectedLineId(items[0].id);
     }
   };
 
   const updateItem = (id: string, field: keyof SRItem, value: any) => {
-    setItems(items.map(i => {
+    setItems((items || []).map(i => {
       if (i.id === id) {
         const updated = { ...i, [field]: value };
         if (field === "itemCode") {
           updated.itemId = "";
           updated.description = "";
         }
-        const item = availableItems.find(ai => ai._id === (field === "itemId" ? value : i.itemId));
+        const item = (availableItems || []).find(ai => ai._id === (field === "itemId" ? value : i.itemId));
+        const unit = getProductUnit(item);
 
-        const isFilter = item && (
-          item.name?.toLowerCase().includes("filter") || 
-          item.name?.toLowerCase().includes("fliter") ||
-          updated.description?.toLowerCase().includes("filter") ||
-          updated.description?.toLowerCase().includes("fliter")
-        );
-        const gallonsInCtn = isFilter ? 1 : (item?.gallonsInCtn || 4);
-        const litersInCtn = isFilter ? 1 : (item?.litersInCtn || 16);
-
-        if (field === "cartons") {
-          updated.gallons = value * gallonsInCtn;
-          updated.liters = value * litersInCtn;
-        } else if (field === "gallons") {
-          updated.cartons = gallonsInCtn > 0 ? value / gallonsInCtn : 0;
-          updated.liters = gallonsInCtn > 0 ? (value / gallonsInCtn) * litersInCtn : 0;
-        } else if (field === "liters") {
-          updated.cartons = litersInCtn > 0 ? value / litersInCtn : 0;
-          updated.gallons = litersInCtn > 0 ? (value / litersInCtn) * gallonsInCtn : 0;
+        // Update unit when item is selected
+        if (field === "itemId" && item) {
+          updated.unit = unit;
         }
 
-        if (field === "cartons" || field === "gallons" || field === "liters" || field === "ratePerCtn" || field === "itemId") {
-          const qty = Number(updated.cartons) || 0;
-          updated.grossAmount = qty * (Number(updated.ratePerCtn) || 0);
+        // Handle quantity changes
+        if (field === "quantity") {
+          // Update legacy cartons field for backward compatibility
+          updated.cartons = value;
+        }
+
+        // Calculate amounts when quantity or rate changes
+        if (field === "quantity" || field === "rate" || field === "itemId") {
+          const qty = Number(updated.quantity) || 0;
+          const rate = Number(updated.rate) || 0;
+          updated.grossAmount = qty * rate;
           updated.netAmount = updated.grossAmount;
+          // Update legacy fields
+          updated.cartons = qty;
+          updated.ratePerCtn = rate;
         }
 
+        // When item is selected, set default values
         if (field === "itemId" && item) {
           updated.itemCode = item.code;
           updated.description = item.name;
-          updated.ratePerCtn = formData.isWholesale ? (item.wholesaleRate || item.rate || 0) : (item.retailRate || item.rate || 0);
-          
-          updated.cartons = 1;
-          const isFilterNow = item.name?.toLowerCase().includes("filter") || item.name?.toLowerCase().includes("fliter");
-          const defaultGals = isFilterNow ? 1 : (item.gallonsInCtn || 4);
-          const defaultLtrs = isFilterNow ? 1 : (item.litersInCtn || 16);
-          updated.gallons = defaultGals;
-          updated.liters = defaultLtrs;
+          updated.unit = unit;
+          updated.rate = item.retailRate || item.rate || 0;
+          updated.quantity = 1;
 
-          const qty = Number(updated.cartons) || 0;
-          updated.grossAmount = qty * (Number(updated.ratePerCtn) || 0);
+          const qty = Number(updated.quantity) || 0;
+          const rate = Number(updated.rate) || 0;
+          updated.grossAmount = qty * rate;
           updated.netAmount = updated.grossAmount;
+          
+          // Update legacy fields
+          updated.cartons = 1;
+          updated.ratePerCtn = updated.rate;
+          updated.gallons = 0;
+          updated.liters = 0;
         }
+
         return updated;
       }
       return i;
     }));
   };
 
-  const grossTotal = useMemo(() => items.reduce((acc, curr) => acc + curr.grossAmount, 0), [items]);
+  const grossTotal = useMemo(() => (items || []).reduce((acc, curr) => acc + curr.grossAmount, 0), [items]);
   const netTotal = useMemo(() => {
     const serviceAmt = Math.max(0, Number(formData.carService) || 0);
     const serviceDisc = Math.min(serviceAmt, Math.max(0, Number(formData.carServiceDiscount) || 0));
@@ -637,9 +679,11 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
     const bal = formData.customerBalance;
     if (bal === 0) return "0.00";
     if (bal > 0) {
-      return `${bal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Cr`;
+      // Customer owes us = Debit balance
+      return `${bal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Dr`;
     } else {
-      return `${Math.abs(bal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Dr`;
+      // We owe customer = Credit balance (advance)
+      return `${Math.abs(bal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Cr`;
     }
   }, [formData.customerName, formData.customerBalance]);
 
@@ -670,15 +714,18 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
       locationId: formData.locationId || null,
       employeeId: formData.employeeRef || null,
       notes: formData.remarks,
-      lines: items.filter(l => l.itemId).map(l => ({
+      lines: (items || []).filter(l => l.itemId).map(l => ({
         itemId: l.itemId,
         description: l.reason,
+        qty: l.quantity || l.cartons || 0,
+        unit: l.unit || "Per Piece",
+        rate: l.rate || l.ratePerCtn || 0,
+        grossAmount: l.grossAmount || 0,
+        netAmount: l.netAmount || 0,
+        // Legacy fields for backward compatibility
         cartons: l.cartons || 0,
         gallons: l.gallons || 0,
-        liters: l.liters || 0,
-        rate: l.ratePerCtn || 0,
-        grossAmount: l.grossAmount || 0,
-        netAmount: l.netAmount || 0
+        liters: l.liters || 0
       })),
       subTotal: grossTotal,
       discountAmount: Number(formData.additionalDiscount),
@@ -686,6 +733,9 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
       carServiceDiscount: Number(formData.carServiceDiscount) || 0,
       totalAmount: netTotal,
       amountReceived: Number(formData.amountReceived) || 0,
+      paymentMethod: formData.isOnCredit ? "Credit" : formData.termsOfPayment || "Cash",
+      paymentTerms: formData.isOnCredit ? "Credit" : formData.termsOfPayment || "Cash",
+      isCreditBill: formData.isOnCredit,
       status: status
     };
 
@@ -713,7 +763,7 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
             startKms: payload.startKms,
             endKms: payload.endKms,
             rangeKms: payload.rangeKms,
-            lines: items.filter(l => l.itemId).map(l => ({
+            lines: (items || []).filter(l => l.itemId).map(l => ({
               description: l.description,
               cartons: l.cartons || 0,
               gallons: l.gallons || 0,
@@ -741,10 +791,10 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
   }, [formData, items, grossTotal, netTotal, initialData, currentInvoiceId, onClose]);
 
   const selectedItemDetails = useMemo(() => {
-    if (previewItemId) return availableItems.find(i => i._id === previewItemId) || null;
-    const line = items.find(l => l.id === selectedLineId);
+    if (previewItemId) return (availableItems || []).find(i => i._id === previewItemId) || null;
+    const line = (items || []).find(l => l.id === selectedLineId);
     if (!line || !line.itemId) return null;
-    return availableItems.find(i => i._id === line.itemId);
+    return (availableItems || []).find(i => i._id === line.itemId);
   }, [previewItemId, selectedLineId, items, availableItems]);
 
   useEffect(() => {
@@ -906,14 +956,14 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
                          <>
                            <div className="fixed inset-0 z-40" onClick={() => setShowCustomerSearch(false)} />
                            <div ref={customerListRef} className="absolute top-full left-0 w-full bg-white border border-slate-200 rounded shadow-xl z-50 max-h-48 overflow-auto mt-1">
-                               {displayedCustomers.map((c, idx) => (
+                               {(displayedCustomers || []).map((c, idx) => (
                                  <div 
                                    key={c._id} 
                                    className={`px-3 py-2 text-xs cursor-pointer font-bold border-b relative z-50 transition-colors ${
                                      idx === activeCustomerIndex ? 'bg-yellow-100 text-yellow-900' : 'hover:bg-yellow-50 text-slate-800'
                                    }`} 
                                    onClick={() => {
-                                     setFormData({...formData, customerId: c._id, customerName: c.name, customerCode: c.code, customerAddress: c.address || "", customerTelephone: c.phone || "", customerBalance: c.balance || 0});
+                                     setFormData({...formData, customerId: c._id, customerName: c.name, customerCode: c.code, customerAddress: c.address || "", customerTelephone: c.phone || "", customerBalance: getCustomerBalance(c)});
                                      setShowCustomerSearch(false);
                                    }}
                                  >
@@ -968,7 +1018,7 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {items.map((line) => {
+                    {(items || []).map((line) => {
                       return (
                       <tr key={line.id} className={`group ${selectedLineId === line.id ? 'bg-blue-50' : 'hover:bg-slate-50'}`} onClick={() => setSelectedLineId(line.id)}>
                         <td className="p-0 border-r relative">
@@ -988,7 +1038,7 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
                         </td>
                         <td className="px-3 py-2 text-xs font-medium border-r">{line.description}</td>
                         <td className="px-3 py-2 text-xs font-black text-right border-r font-mono bg-slate-50">
-                          {(availableItems.find(ai => ai._id === line.itemId)?.purchaseRate || 0).toFixed(2)}
+                          {((availableItems || []).find(ai => ai._id === line.itemId)?.purchaseRate || 0).toFixed(2)}
                         </td>
                         <td className="p-0 border-r"><input type="number" value={line.cartons} onChange={e => updateItem(line.id, "cartons", parseFloat(e.target.value) || 0)} className="w-full px-2 py-2 text-xs font-black text-center outline-none bg-transparent" /></td>
                         <td className="p-0 border-r"><input type="number" value={line.gallons} onChange={e => updateItem(line.id, "gallons", parseFloat(e.target.value) || 0)} className="w-full px-2 py-2 text-xs font-black text-center outline-none bg-transparent" /></td>
@@ -1061,8 +1111,8 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
                        </tr>
                      </thead>
                      <tbody>
-                        {itemHistory.length > 0 ? (
-                          itemHistory.map((h, i) => (
+                        {(itemHistory || []).length > 0 ? (
+                          (itemHistory || []).map((h, i) => (
                             <tr key={i} className="border-b border-[#cbd5e1] last:border-0">
                               <td className="p-1 border-r border-[#cbd5e1] truncate max-w-[40px]" title={h.invoiceNo}>{h.invoiceNo}</td>
                               <td className="p-1 border-r border-[#cbd5e1] truncate max-w-[40px]">{h.date}</td>
@@ -1106,7 +1156,7 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
            <div className="col-span-12 lg:col-span-7 bg-white p-4 rounded border border-[#cbd5e1] shadow-sm space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                   <div className="flex items-center gap-2"><label className="text-xs font-bold w-24">Location</label><select value={formData.locationId} onChange={e => setFormData({...formData, locationId: e.target.value})} className="flex-1 border border-[#cbd5e1] rounded px-2 py-1 text-xs">{locations.map(l => (<option key={l._id} value={l._id}>{l.name}</option>))}</select></div>
+                   <div className="flex items-center gap-2"><label className="text-xs font-bold w-24">Location</label><select value={formData.locationId} onChange={e => setFormData({...formData, locationId: e.target.value})} className="flex-1 border border-[#cbd5e1] rounded px-2 py-1 text-xs">{(locations || []).map(l => (<option key={l._id || l.id} value={l._id || l.id}>{l.name}</option>))}</select></div>
                    <div className="flex items-center gap-2"><label className="text-xs font-bold w-24">Job No</label><input type="text" value={formData.jobNo} className="flex-1 border border-[#cbd5e1] rounded px-2 py-1 text-xs" /></div>
                 </div>
                 <div className="space-y-2">
@@ -1305,7 +1355,7 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
                           </tr>
                         </thead>
                         <tbody className="divide-y font-bold text-slate-600">
-                          {prevInvoiceHistory.map((hist, idx) => (
+                          {(prevInvoiceHistory || []).map((hist, idx) => (
                             <tr key={idx} className="hover:bg-slate-50">
                               <td className="px-3 py-1.5">{new Date(hist.date).toLocaleDateString()}</td>
                               <td className="px-3 py-1.5 font-mono text-slate-900">{hist.voucherNo}</td>
@@ -1378,7 +1428,7 @@ export default function SaleReturnForm({ onClose, initialData }: SaleReturnFormP
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg font-bold focus:bg-white outline-none"
                 >
                   <option value="">-- Select Bank Account --</option>
-                  {banks.map((b: any) => (
+                  {(banks || []).map((b: any) => (
                     <option key={b._id} value={b._id}>{b.name} ({b.accountNumber})</option>
                   ))}
                 </select>

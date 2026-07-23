@@ -1,28 +1,26 @@
-import JournalEntry from "@/models/JournalEntry";
-import Party from "@/models/Party";
-import Invoice from "@/models/Invoice";
-import CashPayment from "@/models/CashPayment";
-import BankPayment from "@/models/BankPayment";
-import CashReceipt from "@/models/CashReceipt";
-import BankReceipt from "@/models/BankReceipt";
-import Account from "@/models/Account";
-import Bank from "@/models/Bank";
+import { offlineDB } from "@/lib/dexie";
+import { calculateCustomerBalance, calculateBalanceFromTransactions } from "@/lib/customerBalance";
+import { calculateVendorBalance, calculateVendorBalanceFromTransactions } from "@/lib/vendorBalance";
 
 async function getOrCreateTaxAccount() {
-  let acc = await Account.findOne({
-    $or: [
-      { code: "Tax on Purchased Items" },
-      { code: "Tax on Purchased items" },
-      { title: { $regex: /^tax on purchased items$/i } }
-    ]
-  });
+  const allAccounts = await offlineDB.accounts.toArray();
+  let acc = allAccounts.find((a: any) => 
+    a.code === "Tax on Purchased Items" ||
+    a.code === "Tax on Purchased items" ||
+    (a.title && a.title.toLowerCase() === "tax on purchased items")
+  );
   if (!acc) {
-    acc = await Account.create({
+    const id = Date.now().toString();
+    acc = {
+      id,
       code: "Tax on Purchased Items",
       title: "Tax on Purchased Items",
       type: "expense",
-      openingBalance: 0
-    });
+      openingBalance: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    await offlineDB.accounts.add(acc as any);
   }
   return acc;
 }
@@ -30,12 +28,12 @@ async function getOrCreateTaxAccount() {
 export async function recalculatePartyBalance(partyId: string) {
   if (!partyId) return;
 
-  const party = await Party.findById(partyId);
+  const party = await offlineDB.parties.get(partyId) as any;
   if (!party) return;
 
   // Walk-in Customer Fix: always force balance, debit, and credit to 0
   if ((party.name || party.companyName || "").toLowerCase().includes("walk-in")) {
-    await Party.findByIdAndUpdate(partyId, { debit: 0, credit: 0, balance: 0 });
+    await offlineDB.parties.update(partyId, { debit: 0, credit: 0, balance: 0, updatedAt: new Date().toISOString() });
     return;
   }
 
@@ -48,7 +46,8 @@ export async function recalculatePartyBalance(partyId: string) {
   let totalAdjustments = 0; // payments to customer or receipts from vendor
 
   // 1. Sum up all invoices for this party
-  const invoices = await Invoice.find({ partyId, status: { $ne: "cancelled" } }).lean();
+  const allInvoices = await offlineDB.invoices.toArray();
+  const invoices = allInvoices.filter((inv: any) => inv.partyId === partyId && inv.status !== "cancelled");
   for (const inv of invoices) {
     const total = Number(inv.totalAmount) || 0;
     const type = inv.type;
@@ -65,11 +64,10 @@ export async function recalculatePartyBalance(partyId: string) {
 
   // 2. Sum up all receipts / payments for this party
   if (isCustomer) {
-    const cashReceipts = await CashReceipt.find({ partyId, status: { $ne: "Cancelled" } }).lean();
-    const bankReceipts = await BankReceipt.find({
-      $or: [{ party: partyId }, { party: String(partyId) }],
-      status: { $ne: "Cancelled" },
-    }).lean();
+    const allCashReceipts = await offlineDB.cashReceipts.toArray();
+    const cashReceipts = allCashReceipts.filter((cr: any) => cr.partyId === partyId && cr.status !== "Cancelled");
+    const allBankReceipts = await offlineDB.bankReceipts.toArray();
+    const bankReceipts = allBankReceipts.filter((br: any) => (br.party === partyId || br.party === String(partyId)) && br.status !== "Cancelled");
 
     const cashSum = cashReceipts.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
     const bankSum = bankReceipts.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
@@ -94,20 +92,18 @@ export async function recalculatePartyBalance(partyId: string) {
     totalReceiptsPayments = cashSum + bankSum + totalReceivedAtCreation;
 
     // Payments to Customer (Debit adjustments, e.g. CPV-00010)
-    const cashPayments = await CashPayment.find({
-      $or: [{ partyId }, { vendor: partyId }],
-      status: { $ne: "Cancelled" },
-    }).lean();
-    const bankPayments = await BankPayment.find({ vendor: partyId, status: { $ne: "Cancelled" } }).lean();
+    const allCashPayments = await offlineDB.cashPayments.toArray();
+    const cashPayments = allCashPayments.filter((cp: any) => (cp.partyId === partyId || cp.vendor === partyId) && cp.status !== "Cancelled");
+    const allBankPayments = await offlineDB.bankPayments.toArray();
+    const bankPayments = allBankPayments.filter((bp: any) => bp.vendor === partyId && bp.status !== "Cancelled");
     
     totalAdjustments = cashPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) +
                        bankPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
   } else {
-    const cashPayments = await CashPayment.find({
-      $or: [{ partyId }, { vendor: partyId }],
-      status: { $ne: "Cancelled" },
-    }).lean();
-    const bankPayments = await BankPayment.find({ vendor: partyId, status: { $ne: "Cancelled" } }).lean();
+    const allCashPayments = await offlineDB.cashPayments.toArray();
+    const cashPayments = allCashPayments.filter((cp: any) => (cp.partyId === partyId || cp.vendor === partyId) && cp.status !== "Cancelled");
+    const allBankPayments = await offlineDB.bankPayments.toArray();
+    const bankPayments = allBankPayments.filter((bp: any) => bp.vendor === partyId && bp.status !== "Cancelled");
     
     const cashSum = cashPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
     const bankSum = bankPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
@@ -132,11 +128,10 @@ export async function recalculatePartyBalance(partyId: string) {
     totalReceiptsPayments = cashSum + bankSum + totalPaidAtCreation;
 
     // Receipts from Vendor (Credit adjustments)
-    const cashReceipts = await CashReceipt.find({ partyId, status: { $ne: "Cancelled" } }).lean();
-    const bankReceipts = await BankReceipt.find({
-      $or: [{ party: partyId }, { party: String(partyId) }],
-      status: { $ne: "Cancelled" },
-    }).lean();
+    const allCashReceipts = await offlineDB.cashReceipts.toArray();
+    const cashReceipts = allCashReceipts.filter((cr: any) => cr.partyId === partyId && cr.status !== "Cancelled");
+    const allBankReceipts = await offlineDB.bankReceipts.toArray();
+    const bankReceipts = allBankReceipts.filter((br: any) => (br.party === partyId || br.party === String(partyId)) && br.status !== "Cancelled");
     
     totalAdjustments = cashReceipts.reduce((sum, r) => sum + (Number(r.amount) || 0), 0) +
                        bankReceipts.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
@@ -145,6 +140,17 @@ export async function recalculatePartyBalance(partyId: string) {
   let debit = 0;
   let credit = 0;
   let balance = 0;
+  let advanceBalance = 0;
+
+  // Use unified balance calculation helpers for consistency
+  let balanceResult;
+  if (isCustomer) {
+    balanceResult = await calculateCustomerBalance(party);
+    advanceBalance = balanceResult.advance;
+  } else {
+    balanceResult = await calculateVendorBalance(party);
+    advanceBalance = balanceResult.advance;
+  }
 
   if (isCustomer) {
     // Debit side = manual debit + period sales + period payments to customer
@@ -162,11 +168,21 @@ export async function recalculatePartyBalance(partyId: string) {
     balance = openingBalance + credit - debit;
   }
 
-  await Party.findByIdAndUpdate(partyId, { debit, credit, balance });
+  await offlineDB.parties.update(partyId, { 
+    debit, 
+    credit, 
+    balance, 
+    advanceBalance: advanceBalance,
+    updatedAt: new Date().toISOString() 
+  });
 }
 
 export async function generateInvoiceJournalEntries(invoice: any) {
-  await JournalEntry.deleteMany({ invoiceId: invoice._id });
+  const allJournalEntries = await offlineDB.journalEntries.toArray();
+  const entriesToDelete = allJournalEntries.filter((je: any) => je.invoiceId === invoice.id || je.invoiceId === invoice._id);
+  for (const entry of entriesToDelete) {
+    await offlineDB.journalEntries.delete(entry.id);
+  }
 
   const total = Number(invoice.totalAmount) || 0;
   if (total <= 0) {
@@ -176,14 +192,15 @@ export async function generateInvoiceJournalEntries(invoice: any) {
     return;
   }
 
-  const voucherNo = invoice.invoiceNo || `INV-${invoice._id}`;
+  const invoiceId = invoice.id || invoice._id;
+  const voucherNo = invoice.invoiceNo || `INV-${invoiceId}`;
   const date = invoice.date || invoice.createdAt || new Date();
   const paymentMethod = invoice.paymentMethod || invoice.paymentTerms || "Credit";
 
   // Check if customer is Walk-in Cash Customer
   let isWalkIn = false;
   if (invoice.partyId) {
-    const party = await Party.findById(invoice.partyId).lean() as any;
+    const party = await offlineDB.parties.get(invoice.partyId) as any;
     if (party && (party.name || party.companyName || "").toLowerCase().includes("walk-in")) {
       isWalkIn = true;
     }
@@ -278,10 +295,11 @@ export async function generateInvoiceJournalEntries(invoice: any) {
       });
     }
 
-    await JournalEntry.create(entries);
+    await offlineDB.journalEntries.bulkAdd(entries.map((e: any) => ({ ...e, id: Date.now().toString() + Math.random(), createdAt: new Date().toISOString() })) as any);
   } else if (invoice.type === "sale_return" || invoice.type === "non_tax_sale_return") {
-    await JournalEntry.create([
+    await offlineDB.journalEntries.bulkAdd([
       {
+        id: Date.now().toString() + Math.random(),
         invoiceId: invoice._id,
         voucherNo,
         date,
@@ -290,9 +308,11 @@ export async function generateInvoiceJournalEntries(invoice: any) {
         debit: total,
         credit: 0,
         remarks: `${invoice.type === "non_tax_sale_return" ? "Non-Tax " : ""}Sales return posted`,
-        partyId: invoice.partyId || null
+        partyId: invoice.partyId || null,
+        createdAt: new Date().toISOString()
       },
       {
+        id: Date.now().toString() + Math.random(),
         invoiceId: invoice._id,
         voucherNo,
         date,
@@ -301,9 +321,10 @@ export async function generateInvoiceJournalEntries(invoice: any) {
         debit: 0,
         credit: total,
         remarks: `${invoice.type === "non_tax_sale_return" ? "Non-Tax " : ""}Sales return posted`,
-        partyId: invoice.partyId || null
+        partyId: invoice.partyId || null,
+        createdAt: new Date().toISOString()
       }
-    ]);
+    ] as any);
   } else if (invoice.type === "purchase" || invoice.type === "non_tax_purchase" || invoice.type === "import_purchase") {
     const taxAmount = Number(invoice.taxAmount) || 0;
     const subTotal = Number(invoice.subTotal) || 0;
@@ -330,7 +351,7 @@ export async function generateInvoiceJournalEntries(invoice: any) {
       const taxAcc = await getOrCreateTaxAccount();
       let vendorName = "";
       if (invoice.partyId) {
-        const party = await Party.findById(invoice.partyId).lean();
+        const party = await offlineDB.parties.get(invoice.partyId);
         if (party) {
           vendorName = (party as any).companyName || (party as any).name || "";
         }
@@ -389,12 +410,12 @@ export async function generateInvoiceJournalEntries(invoice: any) {
       });
     }
 
-    await JournalEntry.create(entries);
+    await offlineDB.journalEntries.bulkAdd(entries.map((e: any) => ({ ...e, id: Date.now().toString() + Math.random(), createdAt: new Date().toISOString() })) as any);
   } else if (invoice.type === "purchase_order" || invoice.type === "grn") {
     if (invoice.amountReceived > 0) {
       const payMethod = invoice.paymentMethod === "Bank" ? "1110" : "1111";
       const payTitle = invoice.paymentMethod === "Bank" ? "Bank" : "Cash";
-      await JournalEntry.create([
+      await offlineDB.journalEntries.bulkAdd([
         {
           invoiceId: invoice._id,
           voucherNo,
@@ -417,11 +438,12 @@ export async function generateInvoiceJournalEntries(invoice: any) {
           remarks: `Payment made at ${invoice.type === "grn" ? "GRN" : "PO"}`,
           partyId: null
         }
-      ]);
+      ].map((e: any) => ({ ...e, id: Date.now().toString() + Math.random(), createdAt: new Date().toISOString() })) as any);
     }
   } else if (invoice.type === "purchase_return" || invoice.type === "non_tax_purchase_return") {
-    await JournalEntry.create([
+    await offlineDB.journalEntries.bulkAdd([
       {
+        id: Date.now().toString() + Math.random(),
         invoiceId: invoice._id,
         voucherNo,
         date,
@@ -430,9 +452,11 @@ export async function generateInvoiceJournalEntries(invoice: any) {
         debit: total,
         credit: 0,
         remarks: `${invoice.type === "non_tax_purchase_return" ? "Non-Tax " : ""}Purchase return posted`,
-        partyId: invoice.partyId || null
+        partyId: invoice.partyId || null,
+        createdAt: new Date().toISOString()
       },
       {
+        id: Date.now().toString() + Math.random(),
         invoiceId: invoice._id,
         voucherNo,
         date,
@@ -441,9 +465,10 @@ export async function generateInvoiceJournalEntries(invoice: any) {
         debit: 0,
         credit: total,
         remarks: `${invoice.type === "non_tax_purchase_return" ? "Non-Tax " : ""}Purchase return posted`,
-        partyId: invoice.partyId || null
+        partyId: invoice.partyId || null,
+        createdAt: new Date().toISOString()
       }
-    ]);
+    ] as any);
   }
 
   if (invoice.partyId) {
@@ -452,9 +477,11 @@ export async function generateInvoiceJournalEntries(invoice: any) {
 }
 
 export async function getCustomerAdvanceStats(customerId: string) {
-  const entries = await JournalEntry.find({ accountCode: "2120" }).lean();
+  const allJournalEntries = await offlineDB.journalEntries.toArray();
+  const entries = allJournalEntries.filter((je: any) => je.accountCode === "2120");
   // Filter entries linked to this customer's cash/bank receipts and payments
-  const customerReceipts = await CashReceipt.find({ partyId: customerId, status: { $ne: "Cancelled" }, partyReceiptType: { $in: ["Advance", "Deposit", "Extra Cash"] } }).lean();
+  const allCashReceipts = await offlineDB.cashReceipts.toArray();
+  const customerReceipts = allCashReceipts.filter((cr: any) => cr.partyId === customerId && cr.status !== "Cancelled" && ["Advance", "Deposit", "Extra Cash"].includes(cr.partyReceiptType));
   const receiptVouchers = new Set(customerReceipts.map((r: any) => r.receiptNumber));
   
   let totalAdvance = 0;
@@ -473,12 +500,15 @@ export async function getCustomerAdvanceStats(customerId: string) {
   }
 
   // Also check invoice-linked advance usage
-  const invoices = await Invoice.find({ partyId: customerId, useAdvance: true, advanceAmountUsed: { $gt: 0 } }).lean();
+  const allInvoices = await offlineDB.invoices.toArray();
+  const invoices = allInvoices.filter((inv: any) => inv.partyId === customerId && inv.useAdvance && inv.advanceAmountUsed > 0);
   totalUsed = invoices.reduce((sum: number, inv: any) => sum + (Number(inv.advanceAmountUsed) || 0), 0);
   
   // Total refunded from cash/bank payments marked as refund
-  const cashPaymentRefunds = await CashPayment.find({ partyId: customerId, isRefund: true, status: "Posted" }).lean();
-  const bankPaymentRefunds = await BankPayment.find({ vendor: customerId, isRefund: true, status: "Posted" }).lean();
+  const allCashPayments = await offlineDB.cashPayments.toArray();
+  const cashPaymentRefunds = allCashPayments.filter((cp: any) => cp.partyId === customerId && cp.isRefund && cp.status === "Posted");
+  const allBankPayments = await offlineDB.bankPayments.toArray();
+  const bankPaymentRefunds = allBankPayments.filter((bp: any) => bp.vendor === customerId && bp.isRefund && bp.status === "Posted");
   totalRefunded = cashPaymentRefunds.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) +
                   bankPaymentRefunds.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
 
@@ -488,7 +518,11 @@ export async function getCustomerAdvanceStats(customerId: string) {
 }
 
 export async function postCashReceiptJournalEntries(receipt: any) {
-  await JournalEntry.deleteMany({ voucherNo: receipt.receiptNumber });
+  const allJournalEntries = await offlineDB.journalEntries.toArray();
+  const entriesToDelete = allJournalEntries.filter((je: any) => je.voucherNo === receipt.receiptNumber);
+  for (const entry of entriesToDelete) {
+    await offlineDB.journalEntries.delete(entry.id);
+  }
 
   if (receipt.status !== "Posted") return;
 
@@ -498,7 +532,7 @@ export async function postCashReceiptJournalEntries(receipt: any) {
   let cashCode = "1111";
   let cashTitle = "Cash Hand";
   if (receipt.cashAccountId) {
-    const acc = await Account.findById(receipt.cashAccountId).lean();
+    const acc = await offlineDB.accounts.get(receipt.cashAccountId);
     if (acc) {
       cashCode = (acc as any).code || cashCode;
       cashTitle = (acc as any).title || cashTitle;
@@ -510,7 +544,7 @@ export async function postCashReceiptJournalEntries(receipt: any) {
   const remarks = receipt.narration || receipt.notes || "Cash Receipt";
 
   if (receipt.partyId) {
-    const party = await Party.findById(receipt.partyId).lean() as any;
+    const party = await offlineDB.parties.get(receipt.partyId) as any;
     const isCustomer = party ? party.type === "Customer" : true;
     const isAdvance = ["Advance", "Deposit", "Extra Cash"].includes(receipt.partyReceiptType);
     
@@ -562,7 +596,7 @@ export async function postCashReceiptJournalEntries(receipt: any) {
       let code = "40002001";
       let title = "Other Income";
       if (line.accountId) {
-        const acc = await Account.findById(line.accountId).lean();
+        const acc = await offlineDB.accounts.get(line.accountId);
         if (acc) {
           code = (acc as any).code || code;
           title = (acc as any).title || title;
@@ -593,7 +627,7 @@ export async function postCashReceiptJournalEntries(receipt: any) {
       partyType: ""
     });
     for (const line of receipt.partyLines) {
-      const party = await Party.findById(line.partyId).lean() as any;
+      const party = await offlineDB.parties.get(line.partyId) as any;
       const isCustomer = party ? party.type === "Customer" : true;
       const accountCode = isCustomer ? "1100" : "2100";
       const accountTitle = isCustomer ? "Accounts Receivable" : "Accounts Payable";
@@ -614,12 +648,16 @@ export async function postCashReceiptJournalEntries(receipt: any) {
   }
 
   if (entries.length > 0) {
-    await JournalEntry.create(entries);
+    await offlineDB.journalEntries.bulkAdd(entries.map((e: any) => ({ ...e, id: Date.now().toString() + Math.random(), createdAt: new Date().toISOString() })) as any);
   }
 }
 
 export async function postCashPaymentJournalEntries(payment: any) {
-  await JournalEntry.deleteMany({ voucherNo: payment.voucherNo });
+  const allJournalEntries = await offlineDB.journalEntries.toArray();
+  const entriesToDelete = allJournalEntries.filter((je: any) => je.voucherNo === payment.voucherNo);
+  for (const entry of entriesToDelete) {
+    await offlineDB.journalEntries.delete(entry.id);
+  }
 
   if (payment.status !== "Posted") return;
 
@@ -629,7 +667,7 @@ export async function postCashPaymentJournalEntries(payment: any) {
   let cashCode = "1111";
   let cashTitle = "Cash Hand";
   if (payment.cashAccountId) {
-    const acc = await Account.findById(payment.cashAccountId).lean();
+    const acc = await offlineDB.accounts.get(payment.cashAccountId);
     if (acc) {
       cashCode = (acc as any).code || cashCode;
       cashTitle = (acc as any).title || cashTitle;
@@ -641,7 +679,7 @@ export async function postCashPaymentJournalEntries(payment: any) {
   const remarks = payment.narration || payment.notes || "Cash Payment";
 
   if (paymentType === "party" && payment.partyId) {
-    const party = await Party.findById(payment.partyId).lean() as any;
+    const party = await offlineDB.parties.get(payment.partyId) as any;
     const isCustomer = party ? party.type === "Customer" : false;
     const isAdvanceRefund = isCustomer && (payment.isRefund || payment.partyPaymentType === "Refund");
     
@@ -693,7 +731,7 @@ export async function postCashPaymentJournalEntries(payment: any) {
       let code = "5100";
       let title = "Purchases";
       if (line.accountId) {
-        const acc = await Account.findById(line.accountId).lean();
+        const acc = await offlineDB.accounts.get(line.accountId);
         if (acc) {
           code = (acc as any).code || code;
           title = (acc as any).title || title;
@@ -714,13 +752,17 @@ export async function postCashPaymentJournalEntries(payment: any) {
   }
 
   if (entries.length > 0) {
-    await JournalEntry.create(entries);
+    await offlineDB.journalEntries.bulkAdd(entries.map((e: any) => ({ ...e, id: Date.now().toString() + Math.random(), createdAt: new Date().toISOString() })) as any);
   }
 }
 
 export async function postBankReceiptJournalEntries(receipt: any) {
   const vNo = receipt.receiptNumber || receipt.voucherNo;
-  await JournalEntry.deleteMany({ voucherNo: vNo });
+  const allJournalEntries = await offlineDB.journalEntries.toArray();
+  const entriesToDelete = allJournalEntries.filter((je: any) => je.voucherNo === vNo);
+  for (const entry of entriesToDelete) {
+    await offlineDB.journalEntries.delete(entry.id);
+  }
 
   if (receipt.status !== "Posted" && receipt.status !== "posted") return;
 
@@ -730,7 +772,7 @@ export async function postBankReceiptJournalEntries(receipt: any) {
   let bankCode = "1110";
   let bankTitle = "Bank";
   if (receipt.bankAccount) {
-    const b = await Bank.findById(receipt.bankAccount).lean();
+    const b = await offlineDB.banks.get(receipt.bankAccount);
     if (b) {
       bankCode = (b as any).code || bankCode;
       bankTitle = (b as any).name || (b as any).title || bankTitle;
@@ -742,7 +784,7 @@ export async function postBankReceiptJournalEntries(receipt: any) {
   const partyId = receipt.party || receipt.partyId;
 
   if (partyId) {
-    const party = await Party.findById(partyId).lean() as any;
+    const party = await offlineDB.parties.get(partyId) as any;
     const isCustomer = party ? party.type === "Customer" : true;
     const accountCode = isCustomer ? "1100" : "2100";
     const accountTitle = isCustomer ? "Accounts Receivable" : "Accounts Payable";
@@ -773,12 +815,16 @@ export async function postBankReceiptJournalEntries(receipt: any) {
   }
 
   if (entries.length > 0) {
-    await JournalEntry.create(entries);
+    await offlineDB.journalEntries.bulkAdd(entries.map((e: any) => ({ ...e, id: Date.now().toString() + Math.random(), createdAt: new Date().toISOString() })) as any);
   }
 }
 
 export async function postBankPaymentJournalEntries(payment: any) {
-  await JournalEntry.deleteMany({ voucherNo: payment.voucherNo });
+  const allJournalEntries = await offlineDB.journalEntries.toArray();
+  const entriesToDelete = allJournalEntries.filter((je: any) => je.voucherNo === payment.voucherNo);
+  for (const entry of entriesToDelete) {
+    await offlineDB.journalEntries.delete(entry.id);
+  }
 
   if (payment.status !== "Posted" && payment.status !== "posted") return;
 
@@ -788,7 +834,7 @@ export async function postBankPaymentJournalEntries(payment: any) {
   let bankCode = "1110";
   let bankTitle = "Bank";
   if (payment.bankAccount || payment.bankAccountId) {
-    const b = await Bank.findById(payment.bankAccount || payment.bankAccountId).lean();
+    const b = await offlineDB.banks.get(payment.bankAccount || payment.bankAccountId);
     if (b) {
       bankCode = (b as any).code || bankCode;
       bankTitle = (b as any).name || (b as any).title || bankTitle;
@@ -800,7 +846,7 @@ export async function postBankPaymentJournalEntries(payment: any) {
   const partyId = payment.vendor || payment.partyId;
 
   if (partyId) {
-    const party = await Party.findById(partyId).lean() as any;
+    const party = await offlineDB.parties.get(partyId) as any;
     const isCustomer = party ? party.type === "Customer" : false;
     const accountCode = isCustomer ? "1100" : "2100";
     const accountTitle = isCustomer ? "Accounts Receivable" : "Accounts Payable";
@@ -831,6 +877,6 @@ export async function postBankPaymentJournalEntries(payment: any) {
   }
 
   if (entries.length > 0) {
-    await JournalEntry.create(entries);
+    await offlineDB.journalEntries.bulkAdd(entries.map((e: any) => ({ ...e, id: Date.now().toString() + Math.random(), createdAt: new Date().toISOString() })) as any);
   }
 }

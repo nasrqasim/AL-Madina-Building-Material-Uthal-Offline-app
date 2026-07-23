@@ -22,7 +22,7 @@ export default function AdvanceRequestForm({ onClose, initialData }: any) {
 
   useEffect(() => {
     fetch("/api/employees").then(r => r.json()).then(data => {
-      if (data.ok) setEmployees(data.data);
+      if (data.ok) setEmployees(data.data || []);
     });
   }, []);
 
@@ -61,12 +61,12 @@ export default function AdvanceRequestForm({ onClose, initialData }: any) {
           <select 
             value={formData.employee}
             onChange={(e) => {
-              const emp = employees.find(emp => emp.name === e.target.value);
+              const emp = (employees || []).find(emp => emp.name === e.target.value);
               setFormData({...formData, employee: e.target.value, department: emp ? emp.department : ""})
             }}
             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" required>
             <option value="">Select Employee</option>
-            {employees.map(emp => (
+            {(employees || []).map(emp => (
               <option key={emp._id} value={emp.name}>{emp.name}</option>
             ))}
           </select>

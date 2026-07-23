@@ -21,7 +21,7 @@ export default function POSViewModal({ isOpen, onClose, sale }: POSViewModalProp
     fetch("/api/shop-profile")
       .then(res => res.json())
       .then(json => {
-        if (json.ok) setCompanyInfo(json.data);
+        if (json.ok) setCompanyInfo(json.data || []);
       })
       .catch(err => console.error(err));
     return () => setMounted(false);

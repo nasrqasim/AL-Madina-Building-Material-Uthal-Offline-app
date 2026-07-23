@@ -25,7 +25,6 @@ export default function QuickActions() {
     { title: "Add Employee", href: "/maintain/employees", icon: Users, color: "text-indigo-500", bg: "bg-indigo-50" },
     { title: "Purchase Invoice", href: "/purchases/purchase-invoice", icon: FileText, color: "text-rose-500", bg: "bg-rose-50" },
     { title: "Sale Invoice", href: "/sales/sale-invoice", icon: Receipt, color: "text-cyan-500", bg: "bg-cyan-50" },
-    { title: "Quotation", href: "/sales/quotation", icon: ClipboardList, color: "text-amber-500", bg: "bg-amber-50" },
     { title: "Purchase Order", href: "/purchases/purchase-order", icon: ShoppingCart, color: "text-violet-500", bg: "bg-violet-50" },
     { title: "Cash Receipt", href: "/receipts/cash-receipt", icon: Banknote, color: "text-green-500", bg: "bg-green-50" },
     { title: "Other Income", href: "/receipts/other-income", icon: Banknote, color: "text-amber-500", bg: "bg-amber-50" },

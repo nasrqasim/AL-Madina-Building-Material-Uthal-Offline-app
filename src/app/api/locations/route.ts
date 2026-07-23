@@ -1,22 +1,38 @@
 import { fail, ok } from "@/lib/api";
-import dbConnect from "@/lib/db";
-import Location from "@/models/Location";
+import { offlineDB } from "@/lib/dexie";
+import { generateUniqueId } from "@/lib/dexie";
 
 export async function GET() {
-  await dbConnect();
-  const rows = await Location.find().sort({ createdAt: -1 }).lean();
+  const rows = await offlineDB.locations.toArray();
+  // Sort by createdAt descending
+  rows.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   return ok(rows);
 }
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    await dbConnect();
+    
     if (body.isDefault) {
-      await Location.updateMany({}, { isDefault: false });
+      const allLocations = await offlineDB.locations.toArray();
+      for (const loc of allLocations) {
+        await offlineDB.locations.update(loc.id, { isDefault: false });
+      }
     }
-    const row = await Location.create(body);
-    return ok(row, 201);
+    
+    const id = generateUniqueId();
+    const locationRecord = {
+      id,
+      _id: id,
+      name: body.name || "",
+      address: body.address || "",
+      isDefault: body.isDefault || false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    
+    await offlineDB.locations.add(locationRecord);
+    return ok(locationRecord, 201);
   } catch (e) {
     return fail((e as Error).message);
   }

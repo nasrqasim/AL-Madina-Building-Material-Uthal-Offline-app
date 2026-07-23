@@ -63,8 +63,8 @@ export default function ItemProfitLossReportPage() {
     fetchData();
   }, []);
 
-  const totalRev = data.reduce((s, i) => s + i.revenue, 0);
-  const totalCost = data.reduce((s, i) => s + i.cost, 0);
+  const totalRev = (data || []).reduce((s, i) => s + i.revenue, 0);
+  const totalCost = (data || []).reduce((s, i) => s + i.cost, 0);
   const totalProfit = totalRev - totalCost;
 
   const stats = [
@@ -72,7 +72,7 @@ export default function ItemProfitLossReportPage() {
     { title: "Total Cost", value: `Rs. ${totalCost.toLocaleString()}`, icon: TrendingDown, iconColor: "text-rose-600", iconBg: "bg-rose-50" },
     { title: "Gross Profit", value: `Rs. ${totalProfit.toLocaleString()}`, icon: DollarSign, iconColor: "text-blue-600", iconBg: "bg-blue-50", valueColor: "text-blue-600" },
     { title: "Avg Margin", value: `${(totalRev > 0 ? (totalProfit / totalRev * 100).toFixed(2) : "0.00")}%`, icon: Percent, iconColor: "text-amber-600", iconBg: "bg-amber-50" },
-    { title: "Items", value: data.length.toString(), icon: Package, iconColor: "text-slate-600 dark:text-slate-300", iconBg: "bg-slate-50 dark:bg-slate-800/50" },
+    { title: "Items", value: (data || []).length.toString(), icon: Package, iconColor: "text-slate-600 dark:text-slate-300", iconBg: "bg-slate-50 dark:bg-slate-800/50" },
   ];
 
   const Filters = (
@@ -175,7 +175,7 @@ export default function ItemProfitLossReportPage() {
     </div>
   );
 
-  const barData = data.slice(0, 15).map(i => ({
+  const barData = (data || []).slice(0, 15).map(i => ({
     name: i.itemName,
     revenue: i.revenue,
     cost: i.cost,
@@ -209,7 +209,7 @@ export default function ItemProfitLossReportPage() {
             <div className="px-4">
               <div className="flex items-center gap-2 mb-4">
                 <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Item Profitability</h3>
-                <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded text-xs font-bold">{data.length} items</span>
+                <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded text-xs font-bold">{(data || []).length} items</span>
               </div>
               <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-lg">
                 <table className="w-full text-left border-collapse min-w-max">
@@ -226,7 +226,7 @@ export default function ItemProfitLossReportPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {data.map((row: any, i: number) => (
+                    {(data || []).map((row: any, i: number) => (
                       <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors">
                         <td className="px-4 py-3 text-[11px] font-medium text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500">{i + 1}</td>
                         <td className="px-4 py-3 text-[11px] font-medium text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50/50">{row.itemCode}</td>
@@ -240,7 +240,7 @@ export default function ItemProfitLossReportPage() {
                     ))}
                     <tr className="bg-slate-100 dark:bg-slate-800 font-black">
                       <td colSpan={3} className="px-4 py-3 text-right text-[10px] uppercase tracking-widest text-slate-800 dark:text-slate-100">TOTAL</td>
-                      <td className="px-4 py-3 text-[11px] text-center">{data.reduce((s, i) => s + i.qtySold, 0)}</td>
+                      <td className="px-4 py-3 text-[11px] text-center">{(data || []).reduce((s, i) => s + i.qtySold, 0)}</td>
                       <td className="px-4 py-3 text-[11px] text-right text-emerald-700">{totalRev.toLocaleString()}</td>
                       <td className="px-4 py-3 text-[11px] text-right text-rose-700">{totalCost.toLocaleString()}</td>
                       <td className="px-4 py-3 text-[11px] text-right text-blue-700">{totalProfit.toLocaleString()}</td>

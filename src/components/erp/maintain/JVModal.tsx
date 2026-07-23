@@ -76,7 +76,7 @@ export default function JVModal({
   );
 
   // Filter parties based on type
-  const filteredParties = parties.filter(
+  const filteredParties = (parties || []).filter(
     (p) => p.type?.toLowerCase() === partyType
   );
 

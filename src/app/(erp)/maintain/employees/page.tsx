@@ -20,7 +20,7 @@ export default function EmployeesPage() {
     try {
       const res = await fetch("/api/employees");
       const json = await res.json();
-      if (json.ok) setEmployees(json.data);
+      if (json.ok) setEmployees(json.data || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -93,7 +93,7 @@ export default function EmployeesPage() {
     }
   };
 
-  const filteredEmployees = employees.filter(emp => {
+  const filteredEmployees = (employees || []).filter(emp => {
     const q = searchTerm.toLowerCase();
     return (
       (emp.name || "").toLowerCase().includes(q) ||
@@ -140,9 +140,9 @@ export default function EmployeesPage() {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <ERPStatCard label="Total Staff" value={employees.length} icon={Users} variant="blue" />
-        <ERPStatCard label="Active" value={employees.filter(e => e.status === "Active").length} icon={UserCheck} variant="maroon" />
-        <ERPStatCard label="Inactive" value={employees.filter(e => e.status === "Inactive").length} icon={UserX} variant="slate" />
+        <ERPStatCard label="Total Staff" value={(employees || []).length} icon={Users} variant="blue" />
+        <ERPStatCard label="Active" value={(employees || []).filter(e => e.status === "Active").length} icon={UserCheck} variant="maroon" />
+        <ERPStatCard label="Inactive" value={(employees || []).filter(e => e.status === "Inactive").length} icon={UserX} variant="slate" />
       </div>
 
       <ERPDataTable 

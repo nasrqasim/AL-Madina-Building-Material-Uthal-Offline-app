@@ -18,7 +18,7 @@ export default function FinalSettlementPage() {
     try {
       const res = await fetch("/api/salary-settlements");
       const json = await res.json();
-      if (json.ok) setRecords(json.data);
+      if (json.ok) setRecords(json.data || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -31,7 +31,7 @@ export default function FinalSettlementPage() {
   }, [showForm]);
 
   const deleteRecord = async (id: string) => {
-    setRecords(records.filter(r => r._id !== id));
+    setRecords((records || []).filter(r => r._id !== id));
     try {
       await fetch(`/api/salary-settlements/${id}`, { method: "DELETE" });
     } catch (e) { console.error(e); }
@@ -41,7 +41,7 @@ export default function FinalSettlementPage() {
     return <FinalSettlementForm onClose={() => { setShowForm(false); setSelectedRecord(null); }} initialData={selectedRecord} />;
   }
 
-  const filteredRecords = records.filter(p => p.voucherNo?.toLowerCase().includes(searchQuery.toLowerCase()) || p.employee?.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredRecords = (records || []).filter(p => p.voucherNo?.toLowerCase().includes(searchQuery.toLowerCase()) || p.employee?.toLowerCase().includes(searchQuery.toLowerCase()));
 
   return (
     <div className="space-y-6">

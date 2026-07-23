@@ -3,20 +3,49 @@
 import ERPReportLayout from "@/components/erp/reports/ERPReportLayout";
 import { Clock, Download, Printer, Play, FileSpreadsheet } from "lucide-react";
 import { exportToExcel, printPage } from "@/lib/excel";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export default function InventoryLedgerReportPage() {
   const [hasSearched, setHasSearched] = useState(false);
+  const [availableItems, setAvailableItems] = useState<any[]>([]);
+  const [selectedItem, setSelectedItem] = useState("");
+  const [selectedUnit, setSelectedUnit] = useState("Per Piece");
+
+  useEffect(() => {
+    fetch("/api/items")
+      .then(res => res.json())
+      .then(data => {
+        if (data.ok) setAvailableItems(data.data || []);
+      })
+      .catch(e => console.error(e));
+  }, []);
+
+  const handleItemChange = (itemId: string) => {
+    setSelectedItem(itemId);
+    const item = availableItems.find(ai => ai._id === itemId);
+    if (item) {
+      // Determine unit from item configuration
+      const unit = item.saleUnit || item.purchaseUnit || item.baseUnit || "Per Piece";
+      setSelectedUnit(unit);
+    }
+  };
 
   const Filters = (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
         <div className="space-y-1.5 md:col-span-2">
           <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Item *</label>
-          <select className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/20 text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500">
-            <option>Select Item</option>
-            <option className="text-slate-900 dark:text-white">Engine Oil 5W-40</option>
-            <option className="text-slate-900 dark:text-white">Oil Filter OF-100</option>
+          <select 
+            className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/20 text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500"
+            value={selectedItem}
+            onChange={(e) => handleItemChange(e.target.value)}
+          >
+            <option value="">Select Item</option>
+            {availableItems.map((item) => (
+              <option key={item._id} value={item._id} className="text-slate-900 dark:text-white">
+                {item.name} ({item.code})
+              </option>
+            ))}
           </select>
         </div>
         <div className="space-y-1.5 md:col-span-1">
@@ -96,9 +125,9 @@ export default function InventoryLedgerReportPage() {
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Type</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Doc #</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Location</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest text-right">Qty In</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest text-right">Qty Out</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest text-right">Balance</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest text-right">Qty In ({selectedUnit?.replace(/^Per\s+/i, '') || 'Pcs'})</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest text-right">Qty Out ({selectedUnit?.replace(/^Per\s+/i, '') || 'Pcs'})</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest text-right">Balance ({selectedUnit?.replace(/^Per\s+/i, '') || 'Pcs'})</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">

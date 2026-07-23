@@ -44,13 +44,13 @@ export default function POSSalesReportPage() {
     fetchData();
   }, []);
 
-  const totalSales = data.reduce((s, r) => s + r.net, 0);
-  const cashCollected = data.filter(r => r.payment === 'Cash').reduce((s, r) => s + r.net, 0);
-  const cardCollected = data.filter(r => r.payment === 'Card').reduce((s, r) => s + r.net, 0);
-  const avgSale = data.length > 0 ? totalSales / data.length : 0;
+  const totalSales = (data || []).reduce((s, r) => s + r.net, 0);
+  const cashCollected = (data || []).filter(r => r.payment === 'Cash').reduce((s, r) => s + r.net, 0);
+  const cardCollected = (data || []).filter(r => r.payment === 'Card').reduce((s, r) => s + r.net, 0);
+  const avgSale = (data || []).length > 0 ? totalSales / (data || []).length : 0;
 
   const stats = [
-    { title: "Total Sales", value: `Rs. ${totalSales.toLocaleString()}`, subtitle: `${data.length} transactions`, icon: ShoppingCart, iconColor: "text-emerald-600", iconBg: "bg-emerald-50" },
+    { title: "Total Sales", value: `Rs. ${totalSales.toLocaleString()}`, subtitle: `${(data || []).length} transactions`, icon: ShoppingCart, iconColor: "text-emerald-600", iconBg: "bg-emerald-50" },
     { title: "Total Returns", value: "Rs. 0", subtitle: "0 transactions", icon: RotateLeft, iconColor: "text-rose-600", iconBg: "bg-rose-50" },
     { title: "Net Sales", value: `Rs. ${totalSales.toLocaleString()}`, icon: DollarSign, iconColor: "text-blue-600", iconBg: "bg-blue-50", valueColor: "text-blue-600" },
     { title: "Average Sale", value: `Rs. ${avgSale.toLocaleString()}`, icon: TrendingUp, iconColor: "text-slate-600 dark:text-slate-300", iconBg: "bg-slate-50 dark:bg-slate-800/50" },
@@ -108,7 +108,7 @@ export default function POSSalesReportPage() {
     { name: 'Card', value: cardCollected, color: '#3b82f6' },
   ].filter(d => d.value > 0);
 
-  const hourlyData = Object.entries(data.reduce((acc: any, curr) => {
+  const hourlyData = Object.entries((data || []).reduce((acc: any, curr) => {
     if (!acc[curr.hour]) acc[curr.hour] = { hour: curr.hour, sales: 0 };
     acc[curr.hour].sales += curr.net;
     return acc;
@@ -183,7 +183,7 @@ export default function POSSalesReportPage() {
             <div className="px-4">
               <div className="flex items-center gap-2 mb-4">
                 <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">POS Receipts</h3>
-                <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded text-xs font-bold">{data.length} records</span>
+                <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded text-xs font-bold">{(data || []).length} records</span>
               </div>
               <table className="w-full text-left border-collapse border-b border-slate-200 dark:border-slate-800">
                 <thead className="bg-slate-50 dark:bg-slate-800/50 border-y border-slate-200 dark:border-slate-800">
@@ -199,7 +199,7 @@ export default function POSSalesReportPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {data.map((row: any) => (
+                  {(data || []).map((row: any) => (
                     <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors">
                       <td className="px-4 py-3 text-[11px] font-medium text-slate-600 dark:text-slate-300">{row.date}</td>
                       <td className="px-4 py-3 text-[11px] font-bold text-maroon-800 cursor-pointer hover:underline">{row.receipt}</td>
@@ -216,9 +216,9 @@ export default function POSSalesReportPage() {
                     </tr>
                   ))}
                   <tr className="bg-slate-50 dark:bg-slate-800/50 font-black">
-                    <td colSpan={4} className="px-4 py-3 text-right text-[10px] uppercase tracking-widest text-slate-800 dark:text-slate-100">TOTAL ({data.length} records)</td>
-                    <td className="px-4 py-3 text-[11px] text-right">{data.reduce((s, r) => s + r.gross, 0).toLocaleString()}</td>
-                    <td className="px-4 py-3 text-[11px] text-right">{data.reduce((s, r) => s + r.tax, 0).toLocaleString()}</td>
+                    <td colSpan={4} className="px-4 py-3 text-right text-[10px] uppercase tracking-widest text-slate-800 dark:text-slate-100">TOTAL ({(data || []).length} records)</td>
+                    <td className="px-4 py-3 text-[11px] text-right">{(data || []).reduce((s, r) => s + r.gross, 0).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-[11px] text-right">{(data || []).reduce((s, r) => s + r.tax, 0).toLocaleString()}</td>
                     <td className="px-4 py-3 text-[11px] text-right text-blue-600">{totalSales.toLocaleString()}</td>
                     <td></td>
                   </tr>

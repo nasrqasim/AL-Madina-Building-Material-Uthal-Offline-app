@@ -3,13 +3,14 @@
 import { useState, useEffect, useMemo } from "react";
 import ItemSearchInput from "@/components/erp/ui/ItemSearchInput";
 import ItemDetailsPanel from "@/components/erp/ui/ItemDetailsPanel";
+import { getProductUnit } from "@/lib/dynamicUnits";
 import {
-  Plus, 
-  Trash2, 
-  Save, 
-  ArrowLeft, 
-  X, 
-  CheckCircle2, 
+  Plus,
+  Trash2,
+  Save,
+  ArrowLeft,
+  X,
+  CheckCircle2,
   ShoppingCart,
   MapPin,
   User,
@@ -24,14 +25,17 @@ interface POItem {
   itemId: string;
   itemCode?: string;
   description: string;
-  cartons: number;
-  gallons: number;
-  liters: number;
+  quantity: number; // Dynamic quantity
+  unit: string; // Product's unit
   unitPrice: number;
   discPercent: number;
   isTaxable: boolean;
   taxPercent: number;
   total: number;
+  // Legacy fields for backward compatibility
+  cartons?: number;
+  gallons?: number;
+  liters?: number;
 }
 
 interface PurchaseOrderFormProps {
@@ -41,21 +45,28 @@ interface PurchaseOrderFormProps {
 }
 
 export default function PurchaseOrderForm({ onClose, onSave, initialData }: PurchaseOrderFormProps) {
-  const [items, setItems] = useState<POItem[]>(initialData?.lines?.map((l: any, i: number) => ({
-    id: i.toString(),
-    itemId: l.itemId?._id || l.itemId || "",
-    itemCode: l.itemId?.code || "",
-    description: l.description || "",
-    cartons: l.cartons || l.qty || 0,
-    gallons: l.gallons || 0,
-    liters: l.liters || 0,
-    unitPrice: l.rate || 0,
-    discPercent: l.discountPercent || 0,
-    isTaxable: (l.taxPercent || 0) > 0,
-    taxPercent: l.taxPercent || 0,
-    total: l.netAmount || 0
-  })) || [
-    { id: "1", itemId: "", itemCode: "", description: "", cartons: 1, gallons: 4, liters: 16, unitPrice: 0, discPercent: 0, isTaxable: false, taxPercent: 0, total: 0 }
+  const [items, setItems] = useState<POItem[]>(initialData?.lines?.map((l: any, i: number) => {
+    const item = l.itemId?._id ? availableItems.find(ai => ai._id === l.itemId._id) : null;
+    const unit = getProductUnit(item);
+    return {
+      id: i.toString(),
+      itemId: l.itemId?._id || l.itemId || "",
+      itemCode: l.itemId?.code || "",
+      description: l.description || "",
+      quantity: l.cartons || l.qty || 0,
+      unit: unit,
+      unitPrice: l.rate || 0,
+      discPercent: l.discountPercent || 0,
+      isTaxable: (l.taxPercent || 0) > 0,
+      taxPercent: l.taxPercent || 0,
+      total: l.netAmount || 0,
+      // Legacy fields
+      cartons: l.cartons || l.qty || 0,
+      gallons: l.gallons || 0,
+      liters: l.liters || 0
+    };
+  }) || [
+    { id: "1", itemId: "", itemCode: "", description: "", quantity: 0, unit: "Per Piece", unitPrice: 0, discPercent: 0, isTaxable: false, taxPercent: 0, total: 0, cartons: 0, gallons: 0, liters: 0 }
   ]);
   
   const [formData, setFormData] = useState({
@@ -90,7 +101,7 @@ export default function PurchaseOrderForm({ onClose, onSave, initialData }: Purc
     try {
       const res = await fetch("/api/items");
       const json = await res.json();
-      if (json.ok) setAvailableItems(json.data);
+      if (json.ok) setAvailableItems(json.data || []);
     } catch (e) { console.error(e); }
   };
 
@@ -106,7 +117,7 @@ export default function PurchaseOrderForm({ onClose, onSave, initialData }: Purc
     try {
       const res = await fetch("/api/employees");
       const json = await res.json();
-      if (json.ok) setEmployees(json.data);
+      if (json.ok) setEmployees(json.data || []);
     } catch (e) { console.error(e); }
   };
 
@@ -114,7 +125,7 @@ export default function PurchaseOrderForm({ onClose, onSave, initialData }: Purc
     try {
       const res = await fetch("/api/jobs");
       const json = await res.json();
-      if (json.ok) setJobs(json.data);
+      if (json.ok) setJobs(json.data || []);
     } catch (e) { console.error(e); }
   };
 
@@ -122,7 +133,7 @@ export default function PurchaseOrderForm({ onClose, onSave, initialData }: Purc
     try {
       const res = await fetch("/api/locations");
       const json = await res.json();
-      if (json.ok) setLocations(json.data);
+      if (json.ok) setLocations(json.data || []);
     } catch (e) { console.error(e); }
   };
 
@@ -136,12 +147,12 @@ export default function PurchaseOrderForm({ onClose, onSave, initialData }: Purc
 
   const addItem = () => {
     const newId = Date.now().toString();
-    setItems([...items, { id: newId, itemId: "", itemCode: "", description: "", cartons: 1, gallons: 4, liters: 16, unitPrice: 0, discPercent: 0, isTaxable: false, taxPercent: 0, total: 0 }]);
+    setItems([...items, { id: newId, itemId: "", itemCode: "", description: "", quantity: 0, unit: "Per Piece", unitPrice: 0, discPercent: 0, isTaxable: false, taxPercent: 0, total: 0, cartons: 0, gallons: 0, liters: 0 }]);
     setSelectedLineId(newId);
   };
   
   const removeItem = (id: string) => {
-    const filtered = items.filter(i => i.id !== id);
+    const filtered = (items || []).filter(i => i.id !== id);
     setItems(filtered);
     if (selectedLineId === id && filtered.length > 0) {
       setSelectedLineId(filtered[0].id);
@@ -149,9 +160,9 @@ export default function PurchaseOrderForm({ onClose, onSave, initialData }: Purc
   };
   
   const selectedItemDetails = useMemo(() => {
-    const line = items.find(l => l.id === selectedLineId);
+    const line = (items || []).find(l => l.id === selectedLineId);
     if (!line || !line.itemId) return null;
-    return availableItems.find(i => i._id === line.itemId);
+    return (availableItems || []).find(i => i._id === line.itemId);
   }, [selectedLineId, items, availableItems]);
 
   const [showItemSearch, setShowItemSearch] = useState<string | null>(null);
@@ -160,7 +171,7 @@ export default function PurchaseOrderForm({ onClose, onSave, initialData }: Purc
   const handleItemKeyDown = (e: React.KeyboardEvent, lineId: string, filteredItems: any[]) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActiveIndex(prev => (prev < filteredItems.length - 1 ? prev + 1 : prev));
+      setActiveIndex(prev => (prev < (filteredItems || []).length - 1 ? prev + 1 : prev));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActiveIndex(prev => (prev > 0 ? prev - 1 : prev));
@@ -176,55 +187,49 @@ export default function PurchaseOrderForm({ onClose, onSave, initialData }: Purc
   };
 
   const updateItem = (id: string, field: keyof POItem, value: any) => {
-    setItems(items.map(i => {
+    setItems((items || []).map(i => {
       if (i.id === id) {
         let updated = { ...i, [field]: value };
-        
-        if (field === "cartons" || field === "gallons" || field === "liters") {
-          const selItem = availableItems.find(ai => ai._id === i.itemId);
-          const isFltr = selItem?.name?.toLowerCase().includes("filter") || selItem?.name?.toLowerCase().includes("fliter");
-          const galsInCtn = isFltr ? 1 : (selItem?.gallonsInCtn || 4);
-          const ltrsInCtn = isFltr ? 1 : (selItem?.litersInCtn || 16);
-          if (field === "cartons") {
-            updated.gallons = value * galsInCtn;
-            updated.liters = value * ltrsInCtn;
-          } else if (field === "gallons") {
-            updated.cartons = galsInCtn > 0 ? value / galsInCtn : 0;
-            updated.liters = galsInCtn > 0 ? (value / galsInCtn) * ltrsInCtn : 0;
-          } else if (field === "liters") {
-            updated.cartons = ltrsInCtn > 0 ? value / ltrsInCtn : 0;
-            updated.gallons = ltrsInCtn > 0 ? (value / ltrsInCtn) * galsInCtn : 0;
-          }
-        }
 
+        // Update unit when item is selected
         if (field === "itemId") {
-          const selected = availableItems.find(ai => ai._id === value);
+          const selected = (availableItems || []).find(ai => ai._id === value);
           if (selected) {
             updated.itemCode = selected.code;
             updated.description = selected.name;
+            updated.unit = getProductUnit(selected);
             updated.unitPrice = selected.purchaseRate || selected.rate || 0;
-            const isFilter = selected.name?.toLowerCase().includes("filter") || selected.name?.toLowerCase().includes("fliter");
-            const gallonsInCtn = isFilter ? 1 : (selected.gallonsInCtn || 4);
-            const litersInCtn = isFilter ? 1 : (selected.litersInCtn || 16);
-            updated.cartons = 1;
-            updated.gallons = gallonsInCtn;
-            updated.liters = litersInCtn;
+            updated.quantity = 1;
           }
         }
 
-        const base = (updated.cartons || 0) * (updated.unitPrice || 0);
-        const afterDisc = base - (base * (updated.discPercent || 0) / 100);
-        const tax = updated.isTaxable ? (afterDisc * (updated.taxPercent || 0) / 100) : 0;
-        updated.total = afterDisc + tax;
+        // Handle quantity changes
+        if (field === "quantity") {
+          // Update legacy cartons field for backward compatibility
+          updated.cartons = value;
+        }
+
+        // Calculate total when quantity, unitPrice, or discount changes
+        if (field === "quantity" || field === "unitPrice" || field === "discPercent" || field === "isTaxable" || field === "taxPercent") {
+          const qty = Number(updated.quantity) || 0;
+          const price = Number(updated.unitPrice) || 0;
+          const base = qty * price;
+          const afterDisc = base - (base * (updated.discPercent || 0) / 100);
+          const tax = updated.isTaxable ? (afterDisc * (updated.taxPercent || 0) / 100) : 0;
+          updated.total = afterDisc + tax;
+          // Update legacy cartons field
+          updated.cartons = qty;
+        }
+
         return updated;
       }
       return i;
     }));
   };
 
-  const subTotal = items.reduce((sum, i) => sum + ((i.cartons || 0) * (i.unitPrice || 0)), 0);
-  const totalDiscount = items.reduce((sum, i) => sum + (((i.cartons || 0) * (i.unitPrice || 0)) * (i.discPercent || 0) / 100), 0);
-  const totalTax = items.reduce((sum, i) => sum + (i.isTaxable ? (((i.cartons || 0) * (i.unitPrice || 0) - ((i.cartons || 0) * (i.unitPrice || 0) * (i.discPercent || 0) / 100)) * (i.taxPercent || 0) / 100) : 0), 0);
+  const subTotal = (items || []).reduce((sum, i) => sum + ((i.quantity || 0) * (i.unitPrice || 0)), 0);
+  const totalDiscount = (items || []).reduce((sum, i) => sum + (((i.quantity || 0) * (i.unitPrice || 0)) * (i.discPercent || 0) / 100), 0);
+  const totalTax = (items || []).reduce((sum, i) => sum + (i.isTaxable ? (((i.quantity || 0) * (i.unitPrice || 0) - ((i.quantity || 0) * (i.unitPrice || 0) * (i.discPercent || 0) / 100)) * (i.taxPercent || 0) / 100) : 0), 0);
   const grandTotal = subTotal - totalDiscount + totalTax;
 
   const handleSave = async (status: "Draft" | "Approved") => {
@@ -236,17 +241,19 @@ export default function PurchaseOrderForm({ onClose, onSave, initialData }: Purc
       date: formData.poDate,
       partyId: formData.vendorId,
       reference: formData.referenceNo,
-      lines: items.map(i => ({
+      lines: (items || []).map(i => ({
         itemId: i.itemId,
         description: i.description,
-        cartons: i.cartons,
-        gallons: i.gallons,
-        liters: i.liters,
-        qty: i.cartons,
+        qty: i.quantity || i.cartons,
+        unit: i.unit || "Per Piece",
         rate: i.unitPrice,
         discountPercent: i.discPercent,
         taxPercent: i.taxPercent,
-        netAmount: i.total
+        netAmount: i.total,
+        // Legacy fields for backward compatibility
+        cartons: i.cartons,
+        gallons: i.gallons,
+        liters: i.liters
       })),
       subTotal,
       discountAmount: totalDiscount,
@@ -340,7 +347,7 @@ export default function PurchaseOrderForm({ onClose, onSave, initialData }: Purc
               <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Vendor *</label>
               <select value={formData.vendorId} onChange={(e) => setFormData({...formData, vendorId: e.target.value})} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-maroon-800/5 focus:border-maroon-800 transition-all outline-none">
                 <option value="">-- Select Vendor --</option>
-                {vendors.map(v => (
+                {(vendors || []).map(v => (
                   <option key={v._id} value={v._id}>{v.companyName || v.name}</option>
                 ))}
               </select>
@@ -366,7 +373,7 @@ export default function PurchaseOrderForm({ onClose, onSave, initialData }: Purc
               <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Employee</label>
               <select value={formData.employeeId} onChange={(e) => setFormData({...formData, employeeId: e.target.value})} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold focus:border-maroon-800 outline-none">
                 <option value="">-- Select Employee --</option>
-                {employees.map(emp => (
+                {(employees || []).map(emp => (
                   <option key={emp._id} value={emp._id}>{emp.name}</option>
                 ))}
               </select>
@@ -376,7 +383,7 @@ export default function PurchaseOrderForm({ onClose, onSave, initialData }: Purc
               <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Job</label>
               <select value={formData.jobId} onChange={(e) => setFormData({...formData, jobId: e.target.value})} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold focus:border-maroon-800 outline-none">
                 <option value="">-- Select Job --</option>
-                {jobs.map(job => (
+                {(jobs || []).map(job => (
                   <option key={job._id} value={job._id}>{job.title || job.name}</option>
                 ))}
               </select>
@@ -385,7 +392,7 @@ export default function PurchaseOrderForm({ onClose, onSave, initialData }: Purc
               <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Location</label>
               <select value={formData.locationId} onChange={(e) => setFormData({...formData, locationId: e.target.value})} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold focus:border-maroon-800 outline-none">
                 <option value="">-- Select Location --</option>
-                {locations.map(loc => (
+                {(locations || []).map(loc => (
                   <option key={loc._id} value={loc._id}>{loc.name}</option>
                 ))}
               </select>
@@ -422,9 +429,9 @@ export default function PurchaseOrderForm({ onClose, onSave, initialData }: Purc
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50 font-bold">
-                  {items.map((item, index) => {
+                  {(items || []).map((item, index) => {
                     const query = (item.itemCode || "").toLowerCase();
-                    const filteredItems = availableItems.filter(i => 
+                    const filteredItems = (availableItems || []).filter(i => 
                       i.code.toLowerCase().includes(query) || i.name.toLowerCase().includes(query)
                     ).sort((a, b) => {
                       const aStart = a.name.toLowerCase().startsWith(query) || a.code.toLowerCase().startsWith(query);

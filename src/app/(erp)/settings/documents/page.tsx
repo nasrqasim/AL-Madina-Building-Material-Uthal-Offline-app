@@ -22,7 +22,7 @@ export default function DocumentSettingsPage() {
     fetch("/api/settings/documents")
       .then(res => res.json())
       .then(res => {
-        if (res.ok) setDocs(res.data);
+        if (res.ok) setDocs(res.data || []);
       })
       .finally(() => setIsLoading(false));
   }, []);
@@ -97,7 +97,7 @@ export default function DocumentSettingsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {docs.map((doc, idx) => (
+                {(docs || []).map((doc, idx) => (
                   <tr key={doc.type} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors">
                     <td className="px-8 py-6">
                       <div className="flex items-center gap-3">

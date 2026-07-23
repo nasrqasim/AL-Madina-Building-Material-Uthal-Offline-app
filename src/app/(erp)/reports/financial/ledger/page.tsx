@@ -19,7 +19,7 @@ export default function LedgerReportPage() {
       try {
         const res = await fetch("/api/accounts");
         const json = await res.json();
-        if (json.ok) setAccounts(json.data);
+        if (json.ok) setAccounts(json.data || []);
       } catch (e) {
         console.error(e);
       }
@@ -53,10 +53,10 @@ export default function LedgerReportPage() {
     }
   };
 
-  const totalDebit = data.reduce((s, r) => s + (r.debit || 0), 0);
-  const totalCredit = data.reduce((s, r) => s + (r.credit || 0), 0);
-  const closingBalance = data.length > 0 ? data[data.length - 1].balance : 0;
-  const closingType = data.length > 0 ? data[data.length - 1].balType : "Dr";
+  const totalDebit = (data || []).reduce((s, r) => s + (r.debit || 0), 0);
+  const totalCredit = (data || []).reduce((s, r) => s + (r.credit || 0), 0);
+  const closingBalance = (data || []).length > 0 ? data[(data || []).length - 1].balance : 0;
+  const closingType = (data || []).length > 0 ? data[(data || []).length - 1].balType : "Dr";
 
   const stats = [
     { title: "Opening Balance", value: "0.00", icon: Wallet, iconColor: "text-slate-600 dark:text-slate-300", iconBg: "bg-slate-50 dark:bg-slate-800/50", iconLabel: "Dr" },
@@ -83,12 +83,12 @@ export default function LedgerReportPage() {
           <select 
             className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/20"
             onChange={(e) => {
-              const acc = accounts.find(a => a.code === e.target.value);
+              const acc = (accounts || []).find(a => a.code === e.target.value);
               setSelectedAccount(acc);
             }}
           >
             <option value="">Select Account</option>
-            {accounts.map(acc => (
+            {(accounts || []).map(acc => (
               <option key={acc._id} value={acc.code}>{acc.code} - {acc.title || acc.name}</option>
             ))}
           </select>
@@ -188,7 +188,7 @@ export default function LedgerReportPage() {
                       <td colSpan={7} className="px-4 py-8 text-center text-slate-400 text-xs italic">No transactions found for this account</td>
                     </tr>
                   ) : (
-                    data.map((row, i) => (
+                    (data || []).map((row, i) => (
                       <tr key={i} className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors`}>
                         <td className="px-4 py-3 text-[11px] font-medium text-slate-600 dark:text-slate-300">{new Date(row.date).toLocaleDateString()}</td>
                         <td className="px-4 py-3 text-[11px] font-bold text-blue-600 cursor-pointer hover:underline">{row.voucherNo || '-'}</td>

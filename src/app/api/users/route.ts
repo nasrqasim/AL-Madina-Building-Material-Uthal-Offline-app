@@ -1,13 +1,19 @@
 import { fail, ok } from "@/lib/api";
-import dbConnect from "@/lib/db";
-import { User } from "@/models/User";
+import { offlineDB } from "@/lib/dexie";
+import { generateUniqueId } from "@/lib/dexie";
 import bcrypt from "bcryptjs";
 
 export async function GET() {
   try {
-    await dbConnect();
-    const users = await User.find({}).sort({ createdAt: -1 }).select("-password");
-    return ok(users);
+    const users = await offlineDB.users.toArray();
+    // Sort by createdAt descending
+    users.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    // Remove password from response
+    const usersWithoutPassword = users.map((u: any) => {
+      const { password, ...userWithoutPassword } = u;
+      return userWithoutPassword;
+    });
+    return ok(usersWithoutPassword);
   } catch (e) {
     return fail((e as Error).message);
   }
@@ -22,12 +28,9 @@ export async function POST(req: Request) {
       return fail("Missing required fields");
     }
 
-    await dbConnect();
-
     // Check if user already exists
-    const existingUser = await User.findOne({ 
-      $or: [{ email }, { username }] 
-    });
+    const existingUsers = await offlineDB.users.toArray();
+    const existingUser = existingUsers.find(u => u.email === email || u.username === username);
 
     if (existingUser) {
       return fail("Email or Username already exists");
@@ -36,17 +39,24 @@ export async function POST(req: Request) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const newUser = await User.create({
+    const id = generateUniqueId();
+    const newUser = {
+      id,
+      _id: id,
       name,
       email,
       username,
       password: hashedPassword,
       role,
       financialYear,
-      isActive: true
-    });
+      isActive: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
 
-    const { password: _, ...userWithoutPassword } = newUser.toObject();
+    await offlineDB.users.add(newUser);
+
+    const { password: _, ...userWithoutPassword } = newUser;
     return ok(userWithoutPassword);
   } catch (e) {
     return fail((e as Error).message);

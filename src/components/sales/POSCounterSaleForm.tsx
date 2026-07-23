@@ -1,17 +1,18 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { 
-  Plus, 
-  Trash2, 
-  Save, 
-  ArrowLeft, 
-  X, 
-  Search, 
-  User, 
-  ShoppingCart, 
-  CreditCard, 
-  Banknote, 
+import { getProductUnit } from "@/lib/dynamicUnits";
+import {
+  Plus,
+  Trash2,
+  Save,
+  ArrowLeft,
+  X,
+  Search,
+  User,
+  ShoppingCart,
+  CreditCard,
+  Banknote,
   Printer,
   ChevronRight,
   Calculator,
@@ -23,10 +24,13 @@ interface POSItem {
   id: string;
   name: string;
   price: number;
-  cartons: number;
-  gallons: number;
-  liters: number;
+  quantity: number; // Dynamic quantity
+  unit: string; // Product's unit
   total: number;
+  // Legacy fields for backward compatibility
+  cartons?: number;
+  gallons?: number;
+  liters?: number;
 }
 
 interface POSCounterSaleFormProps {
@@ -53,7 +57,7 @@ export default function POSCounterSaleForm({ onClose }: POSCounterSaleFormProps)
         partiesRes.json()
       ]);
       
-      if (itemsJson.ok) setAvailableItems(itemsJson.data);
+      if (itemsJson.ok) setAvailableItems(itemsJson.data || []);
       if (partiesJson.ok) {
         const custs = partiesJson.data.filter((p: any) => p.type === "Customer");
         setCustomers(custs);
@@ -75,17 +79,19 @@ export default function POSCounterSaleForm({ onClose }: POSCounterSaleFormProps)
       invoiceNo: `POS-${Date.now().toString().slice(-6)}`,
       partyId: selectedCustomerId,
       paymentMethod: method,
-      lines: cart.map(item => {
-        const originalItem = availableItems.find(ai => ai._id === item.id);
+      lines: (cart || []).map(item => {
+        const originalItem = (availableItems || []).find(ai => ai._id === item.id);
         return {
           itemId: item.id,
           description: item.name,
+          qty: item.quantity || item.cartons,
+          unit: item.unit || "Per Piece",
+          rate: item.price,
+          discountPercent: 0,
+          // Legacy fields for backward compatibility
           cartons: item.cartons,
           gallons: item.gallons,
-          liters: item.liters,
-          qty: item.cartons,
-          rate: item.price,
-          discountPercent: 0
+          liters: item.liters
         };
       })
     };
@@ -113,23 +119,24 @@ export default function POSCounterSaleForm({ onClose }: POSCounterSaleFormProps)
     }
   };
 
-  const filteredProducts = availableItems.filter(p => 
+  const filteredProducts = (availableItems || []).filter(p => 
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.code.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const addToCart = (product: any) => {
-    const existing = cart.find(item => item.id === product._id);
+    const existing = (cart || []).find(item => item.id === product._id);
     const stockAvailable = product.stockQtyCartons || 0;
-    
+    const unit = getProductUnit(product);
+
     if (existing) {
-      const newCartons = existing.cartons + 1;
-      if (newCartons > stockAvailable) {
+      const newQuantity = (existing.quantity || 0) + 1;
+      if (newQuantity > stockAvailable) {
         return alert(`Insufficient Stock! Only ${stockAvailable} in stock.`);
       }
-      setCart(cart.map(item => 
-        item.id === product._id 
-          ? { ...item, cartons: newCartons, gallons: newCartons * 4, liters: newCartons * 16, total: newCartons * item.price } 
+      setCart((cart || []).map(item =>
+        item.id === product._id
+          ? { ...item, quantity: newQuantity, unit: unit, total: newQuantity * item.price, cartons: newQuantity }
           : item
       ));
     } else {
@@ -137,28 +144,20 @@ export default function POSCounterSaleForm({ onClose }: POSCounterSaleFormProps)
         return alert("Item out of stock!");
       }
       const price = product.retailRate || product.wholesaleRate || 0;
-      setCart([...cart, { id: product._id, name: product.name, price: price, cartons: 1, gallons: 4, liters: 16, total: price }]);
+      setCart([...cart, { id: product._id, name: product.name, price: price, quantity: 1, unit: unit, total: price, cartons: 1, gallons: 0, liters: 0 }]);
     }
   };
 
-  const updateItem = (id: string, field: "cartons" | "gallons" | "liters", value: number) => {
-    const product = availableItems.find(p => p._id === id);
+  const updateItem = (id: string, field: "quantity", value: number) => {
+    const product = (availableItems || []).find(p => p._id === id);
     const stockAvailable = product?.stockQtyCartons || 0;
 
-    setCart(cart.map(item => {
+    setCart((cart || []).map(item => {
       if (item.id === id) {
         let updated = { ...item, [field]: value };
 
-        if (field === "cartons") {
-          updated.gallons = value * 4;
-          updated.liters = value * 16;
-        } else if (field === "gallons") {
-          updated.cartons = value / 4;
-          updated.liters = value * 4;
-        } else if (field === "liters") {
-          updated.cartons = value / 16;
-          updated.gallons = value / 4;
-        }
+        // Update legacy cartons field for backward compatibility
+        updated.cartons = value;
 
         if (updated.cartons > stockAvailable) {
           alert(`Insufficient Stock! Only ${stockAvailable} in stock.`);
@@ -174,10 +173,10 @@ export default function POSCounterSaleForm({ onClose }: POSCounterSaleFormProps)
   };
 
   const removeFromCart = (id: string) => {
-    setCart(cart.filter(item => item.id !== id));
+    setCart((cart || []).filter(item => item.id !== id));
   };
 
-  const subtotal = cart.reduce((sum, item) => sum + item.total, 0);
+  const subtotal = (cart || []).reduce((sum, item) => sum + item.total, 0);
   const tax = subtotal * 0.05; // 5% GST
   const grandTotal = subtotal + tax;
 
@@ -210,7 +209,7 @@ export default function POSCounterSaleForm({ onClose }: POSCounterSaleFormProps)
                onChange={(e) => setSelectedCustomerId(e.target.value)}
                className="px-4 py-2 bg-slate-50 dark:bg-slate-800/50 rounded-xl text-xs font-black text-slate-700 dark:text-slate-200 border border-slate-100 dark:border-slate-800 outline-none"
              >
-               {customers.map(c => <option key={c._id} value={c._id}>{c.companyName || c.name}</option>)}
+               {(customers || []).map(c => <option key={c._id} value={c._id}>{c.companyName || c.name}</option>)}
              </select>
           </div>
         </header>
@@ -254,7 +253,7 @@ export default function POSCounterSaleForm({ onClose }: POSCounterSaleFormProps)
             <ShoppingCart size={20} className="text-maroon-800" />
             <h2 className="text-sm font-black uppercase tracking-widest">Customer Cart</h2>
           </div>
-          <span className="bg-maroon-800 text-white text-[10px] font-black px-2 py-1 rounded-lg">{cart.length} Items</span>
+          <span className="bg-maroon-800 text-white text-[10px] font-black px-2 py-1 rounded-lg">{(cart || []).length} Items</span>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
@@ -266,7 +265,7 @@ export default function POSCounterSaleForm({ onClose }: POSCounterSaleFormProps)
               <p className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Cart is empty</p>
             </div>
           ) : (
-            cart.map(item => (
+            (cart || []).map(item => (
               <div key={item.id} className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-100 dark:border-slate-800 space-y-3 relative group">
                 <button 
                   onClick={() => removeFromCart(item.id)}
@@ -278,42 +277,24 @@ export default function POSCounterSaleForm({ onClose }: POSCounterSaleFormProps)
                   <h4 className="text-xs font-black text-slate-900 dark:text-white leading-tight flex-1">{item.name}</h4>
                   <span className="text-xs font-black text-slate-900 dark:text-white">Rs.{item.total.toLocaleString()}</span>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 gap-2">
                   <div className="flex flex-col items-center p-1 bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-800">
-                    <span className="text-[8px] font-black text-slate-400 uppercase">Ctns</span>
-                    <input 
-                      type="number" 
-                      value={item.cartons} 
-                      onChange={(e) => updateItem(item.id, "cartons", parseFloat(e.target.value) || 0)}
-                      className="w-full text-[10px] font-black text-center bg-transparent focus:outline-none"
-                    />
-                  </div>
-                  <div className="flex flex-col items-center p-1 bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-800">
-                    <span className="text-[8px] font-black text-slate-400 uppercase">Gals</span>
-                    <input 
-                      type="number" 
-                      value={item.gallons} 
-                      onChange={(e) => updateItem(item.id, "gallons", parseFloat(e.target.value) || 0)}
-                      className="w-full text-[10px] font-black text-center bg-transparent focus:outline-none"
-                    />
-                  </div>
-                  <div className="flex flex-col items-center p-1 bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-800">
-                    <span className="text-[8px] font-black text-slate-400 uppercase">Ltrs</span>
-                    <input 
-                      type="number" 
-                      value={item.liters} 
-                      onChange={(e) => updateItem(item.id, "liters", parseFloat(e.target.value) || 0)}
+                    <span className="text-[8px] font-black text-slate-400 uppercase">Qty ({item.unit?.replace(/^Per\s+/i, '') || 'Pcs'})</span>
+                    <input
+                      type="number"
+                      value={item.quantity}
+                      onChange={(e) => updateItem(item.id, "quantity", parseFloat(e.target.value) || 0)}
                       className="w-full text-[10px] font-black text-center bg-transparent focus:outline-none"
                     />
                   </div>
                 </div>
                 <div className="flex items-center justify-between pt-1">
                   <div className="flex items-center gap-1 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-1">
-                    <button onClick={() => updateItem(item.id, "cartons", item.cartons - 1)} className="w-6 h-6 flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 rounded-lg text-slate-400 dark:text-slate-500">-</button>
-                    <span className="w-8 text-center text-xs font-black">{item.cartons}</span>
-                    <button onClick={() => updateItem(item.id, "cartons", item.cartons + 1)} className="w-6 h-6 flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 rounded-lg text-slate-400 dark:text-slate-500">+</button>
+                    <button onClick={() => updateItem(item.id, "quantity", (item.quantity || 0) - 1)} className="w-6 h-6 flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 rounded-lg text-slate-400 dark:text-slate-500">-</button>
+                    <span className="w-8 text-center text-xs font-black">{item.quantity}</span>
+                    <button onClick={() => updateItem(item.id, "quantity", (item.quantity || 0) + 1)} className="w-6 h-6 flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 rounded-lg text-slate-400 dark:text-slate-500">+</button>
                   </div>
-                  <span className="text-[10px] font-bold text-slate-400">@ {item.price}/Ctn</span>
+                  <span className="text-[10px] font-bold text-slate-400">@ {item.price}/{item.unit?.replace(/^Per\s+/i, '') || 'Pcs'}</span>
                 </div>
               </div>
             ))

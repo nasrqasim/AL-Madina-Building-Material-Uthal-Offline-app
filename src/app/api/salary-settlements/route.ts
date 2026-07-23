@@ -1,19 +1,30 @@
 import { fail, ok } from "@/lib/api";
-import dbConnect from "@/lib/db";
-import SalarySettlement from "@/models/SalarySettlement";
+import { offlineDB } from "@/lib/dexie";
+import { generateUniqueId } from "@/lib/dexie";
 
 export async function GET() {
-  await dbConnect();
-  const rows = await SalarySettlement.find().sort({ createdAt: -1 }).lean();
-  return ok(rows);
+  const allSettings = await offlineDB.settings.toArray();
+  const salarySettlements = allSettings.filter((s: any) => s.key === "salarySettlement");
+  // Sort by createdAt descending
+  salarySettlements.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  return ok(salarySettlements.map((s: any) => s.value));
 }
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    await dbConnect();
-    const row = await SalarySettlement.create(body);
-    return ok(row, 201);
+
+    const id = generateUniqueId();
+    const salarySettlementRecord = {
+      id,
+      key: "salarySettlement",
+      value: body,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    await offlineDB.settings.add(salarySettlementRecord as any);
+    return ok(salarySettlementRecord.value, 201);
   } catch (e) {
     return fail((e as Error).message);
   }

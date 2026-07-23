@@ -83,7 +83,7 @@ export default function OtherIncomePage() {
       const res = await fetch(`/api/other-incomes?${params.toString()}`);
       const json = await res.json();
       if (json.ok) {
-        setIncomes(json.data);
+        setIncomes(json.data || []);
       }
     } catch (e) {
       console.error("Failed to fetch other incomes:", e);
@@ -335,7 +335,7 @@ export default function OtherIncomePage() {
                   </td>
                 </tr>
               ) : (
-                incomes.map((inc) => (
+                (incomes || []).map((inc) => (
                   <tr key={inc._id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-all">
                     <td className="px-6 py-4 font-mono text-xs whitespace-nowrap">
                       {inc.date ? new Date(inc.date).toLocaleDateString('en-GB') : "-"}

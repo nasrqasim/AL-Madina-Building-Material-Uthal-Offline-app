@@ -47,7 +47,7 @@ export default function ImportTemplatesPage() {
     const file = await triggerFileInput();
     if (file) {
       const data = await importFromExcel(file);
-      const newTemplates = data.map((row: any) => ({
+      const newTemplates = (data || []).map((row: any) => ({
         id: Date.now().toString() + Math.random().toString(),
         name: row["Name"] || row.name || "Unknown Template",
         type: row["Type"] || row.type || "Excel",
@@ -72,7 +72,7 @@ export default function ImportTemplatesPage() {
 
     // Simulate import processing
     setTimeout(() => {
-      const template = templates.find(t => t.id === importingId);
+      const template = (templates || []).find(t => t.id === importingId);
       setImportingId(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       
@@ -95,7 +95,7 @@ export default function ImportTemplatesPage() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  const filteredTemplates = templates.filter(t => {
+  const filteredTemplates = (templates || []).filter(t => {
     const q = searchTerm.toLowerCase();
     return (
       (t.name || "").toLowerCase().includes(q) ||

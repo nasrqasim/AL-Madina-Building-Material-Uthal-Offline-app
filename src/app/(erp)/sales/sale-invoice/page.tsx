@@ -34,13 +34,15 @@ export default function SaleInvoicePage() {
   const [waParty, setWaParty] = useState<any>(null);
   const [waDocData, setWaDocData] = useState<any>(null);
   const [shopProfile, setShopProfile] = useState<any>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(1000);
 
   const fetchInvoices = async () => {
     setIsLoading(true);
     try {
       const res = await fetch("/api/invoices?type=sale", { cache: "no-store" });
       const json = await res.json();
-      if (json.ok) setInvoices(json.data);
+      if (json.ok) setInvoices(json.data || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -52,7 +54,7 @@ export default function SaleInvoicePage() {
     try {
       const res = await fetch("/api/shop-profile");
       const json = await res.json();
-      if (json.ok) setShopProfile(json.data);
+      if (json.ok) setShopProfile(json.data || []);
     } catch (e) {
       console.error(e);
     }
@@ -75,6 +77,28 @@ export default function SaleInvoicePage() {
     } catch (e) { console.error(e); }
   };
 
+  const filteredInvoices = (invoices || []).filter(inv => {
+    const matchesSearch = !searchQuery || 
+      inv.invoiceNo?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      inv.partyId?.companyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      inv.partyId?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      inv.reference?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      inv.regNo?.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesStatus = !statusFilter || inv.status?.toLowerCase() === statusFilter.toLowerCase();
+    
+    const invDateStr = inv.date ? new Date(inv.date).toISOString().split('T')[0] : "";
+    const matchesDate = !filterDate || invDateStr === filterDate;
+    
+    return matchesSearch && matchesStatus && matchesDate;
+  });
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filterDate, statusFilter]);
+
+  // Early returns after all hooks
   if (showForm) {
     return <SaleInvoiceForm 
       onClose={() => {
@@ -99,21 +123,29 @@ export default function SaleInvoicePage() {
     );
   }
 
-  const filteredInvoices = invoices.filter(inv => {
-    const matchesSearch = !searchQuery || 
-      inv.invoiceNo?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      inv.partyId?.companyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      inv.partyId?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      inv.reference?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      inv.regNo?.toLowerCase().includes(searchQuery.toLowerCase());
+  // Pagination logic
+  const totalPages = Math.ceil((filteredInvoices || []).length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentInvoices = (filteredInvoices || []).slice(startIndex, endIndex);
+
+  // Generate page range for display (show max 5 page numbers at a time)
+  const getPageRange = () => {
+    const range: number[] = [];
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
     
-    const matchesStatus = !statusFilter || inv.status?.toLowerCase() === statusFilter.toLowerCase();
+    if (endPage - startPage + 1 < maxVisiblePages) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
     
-    const invDateStr = inv.date ? new Date(inv.date).toISOString().split('T')[0] : "";
-    const matchesDate = !filterDate || invDateStr === filterDate;
+    for (let i = startPage; i <= endPage; i++) {
+      range.push(i);
+    }
     
-    return matchesSearch && matchesStatus && matchesDate;
-  });
+    return range;
+  };
 
   return (
     <div className="space-y-6">
@@ -134,7 +166,7 @@ export default function SaleInvoicePage() {
           </div>
           <div>
             <p className="text-xs font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Total Invoices</p>
-            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{invoices.length}</h4>
+            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{(invoices || []).length}</h4>
           </div>
         </div>
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
@@ -143,7 +175,7 @@ export default function SaleInvoicePage() {
           </div>
           <div>
             <p className="text-xs font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Fully Paid</p>
-            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{invoices.filter(i => i.status?.toLowerCase() === "paid").length}</h4>
+            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{(invoices || []).filter(i => i.status?.toLowerCase() === "paid").length}</h4>
           </div>
         </div>
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
@@ -152,7 +184,7 @@ export default function SaleInvoicePage() {
           </div>
           <div>
             <p className="text-xs font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Posted</p>
-            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{invoices.filter(i => i.status?.toLowerCase() === "posted").length}</h4>
+            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{(invoices || []).filter(i => i.status?.toLowerCase() === "posted").length}</h4>
           </div>
         </div>
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
@@ -161,7 +193,7 @@ export default function SaleInvoicePage() {
           </div>
           <div>
             <p className="text-xs font-black text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">Drafts</p>
-            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{invoices.filter(i => i.status?.toLowerCase() === "draft").length}</h4>
+            <h4 className="text-2xl font-black text-slate-900 dark:text-white">{(invoices || []).filter(i => i.status?.toLowerCase() === "draft").length}</h4>
           </div>
         </div>
       </div>
@@ -232,10 +264,10 @@ export default function SaleInvoicePage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {filteredInvoices.length > 0 ? (
-                filteredInvoices.map((inv, i) => (
+              {(currentInvoices || []).length > 0 ? (
+                (currentInvoices || []).map((inv, i) => (
                   <tr key={inv._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group text-[11px]">
-                    <td className="px-6 py-4 text-slate-500 font-medium">{i + 1}</td>
+                    <td className="px-6 py-4 text-slate-500 font-medium">{startIndex + i + 1}</td>
                     <td className="px-6 py-4">
                       <span className="font-bold text-slate-900 group-hover:text-maroon-800 transition-colors">{inv.invoiceNo}</span>
                       {inv.reference && <span className="block text-[9px] text-maroon-600 mt-1">Ref: {inv.reference}</span>}
@@ -336,24 +368,93 @@ export default function SaleInvoicePage() {
             </tbody>
             <tfoot>
               <tr className="bg-slate-800 dark:bg-slate-950 text-white">
-                <td colSpan={11} className="px-6 py-3 text-xs font-black uppercase tracking-widest">Grand Total ({filteredInvoices.length} Invoices)</td>
-                <td className="px-6 py-3 text-right text-xs font-black">{filteredInvoices.reduce((s, i) => s + (i.totalAmount || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                <td className="px-6 py-3 text-right text-xs font-black">{filteredInvoices.reduce((s, i) => s + ((i.totalAmount || 0) - (i.amountReceived || 0)), 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                <td colSpan={11} className="px-6 py-3 text-xs font-black uppercase tracking-widest">Grand Total ({(filteredInvoices || []).length} Invoices)</td>
+                <td className="px-6 py-3 text-right text-xs font-black">{(filteredInvoices || []).reduce((s, i) => s + (i.totalAmount || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                <td className="px-6 py-3 text-right text-xs font-black">{(filteredInvoices || []).reduce((s, i) => s + ((i.totalAmount || 0) - (i.amountReceived || 0)), 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
                 <td colSpan={2}></td>
               </tr>
             </tfoot>
           </table>
         </div>
 
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <div className="text-xs text-slate-500 dark:text-slate-400">
+              Showing {startIndex + 1} to {Math.min(endIndex, (filteredInvoices || []).length)} of {(filteredInvoices || []).length} invoices
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1.5 text-xs font-bold border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                Previous
+              </button>
+              
+              {/* First page */}
+              {getPageRange()[0] > 1 && (
+                <>
+                  <button
+                    onClick={() => setCurrentPage(1)}
+                    className="px-3 py-1.5 text-xs font-bold border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                  >
+                    1
+                  </button>
+                  {getPageRange()[0] > 2 && <span className="px-2 text-xs text-slate-400">...</span>}
+                </>
+              )}
+              
+              {/* Page range */}
+              <div className="flex items-center gap-1">
+                {getPageRange().map(page => (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                      currentPage === page
+                        ? "bg-maroon-800 text-white"
+                        : "border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800"
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+              </div>
+              
+              {/* Last page */}
+              {getPageRange()[getPageRange().length - 1] < totalPages && (
+                <>
+                  {getPageRange()[getPageRange().length - 1] < totalPages - 1 && <span className="px-2 text-xs text-slate-400">...</span>}
+                  <button
+                    onClick={() => setCurrentPage(totalPages)}
+                    className="px-3 py-1.5 text-xs font-bold border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                  >
+                    {totalPages}
+                  </button>
+                </>
+              )}
+              
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1.5 text-xs font-bold border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Footer info */}
         <div className="p-4 border-t border-slate-50 bg-slate-50 dark:bg-slate-800/50/30 flex justify-between items-center text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">
-          <span>Total: {invoices.length} invoice(s)</span>
+          <span>Total: {(invoices || []).length} invoice(s)</span>
           <div className="flex gap-4">
             <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-blue-400"></span> Posted: {invoices.filter(i => i.status?.toLowerCase() === "posted").length}
+              <span className="w-2 h-2 rounded-full bg-blue-400"></span> Posted: {(invoices || []).filter(i => i.status?.toLowerCase() === "posted").length}
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400"></span> Paid: {invoices.filter(i => i.status?.toLowerCase() === "paid").length}
+              <span className="w-2 h-2 rounded-full bg-emerald-400"></span> Paid: {(invoices || []).filter(i => i.status?.toLowerCase() === "paid").length}
             </span>
           </div>
         </div>

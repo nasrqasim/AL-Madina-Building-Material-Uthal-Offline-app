@@ -30,7 +30,7 @@ export default function StaffLoanAdvanceReportPage() {
       let empByName = new Map();
       let empByCode = new Map();
       if (empJson.ok) {
-        setEmployees(empJson.data);
+        setEmployees(empJson.data || []);
         empMap = new Map(empJson.data.map((e: any) => [e._id, e]));
         empByName = new Map(empJson.data.map((e: any) => [e.name, e]));
         empByCode = new Map(empJson.data.map((e: any) => [e.code, e]));
@@ -82,7 +82,7 @@ export default function StaffLoanAdvanceReportPage() {
     }
   };
 
-  const outstandingData = reportData.filter(r => r.balance > 0);
+  const outstandingData = (reportData || []).filter(r => r.balance > 0);
 
   const totalLoanOutstanding = outstandingData.filter(r => r.type === "Loan").reduce((sum, r) => sum + r.balance, 0);
   const totalAdvanceOutstanding = outstandingData.filter(r => r.type === "Advance").reduce((sum, r) => sum + r.balance, 0);

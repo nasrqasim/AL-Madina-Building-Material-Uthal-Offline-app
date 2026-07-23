@@ -2,18 +2,14 @@
 
 import { useState, useEffect } from "react";
 import ItemSearchInput from "@/components/erp/ui/ItemSearchInput";
+import { getProductUnit } from "@/lib/dynamicUnits";
 import {
-  applyPurchaseUnitFieldUpdate,
-  defaultPurchaseUnitsForItem,
-  resolveCatalogItem,
-} from "@/lib/itemUnits";
-import {
-  Plus, 
-  Trash2, 
-  Save, 
-  ArrowLeft, 
-  X, 
-  CheckCircle2, 
+  Plus,
+  Trash2,
+  Save,
+  ArrowLeft,
+  X,
+  CheckCircle2,
   RotateCcw,
   Link2,
   Calendar,
@@ -27,12 +23,15 @@ interface PRItem {
   itemId: string;
   itemCode?: string;
   description: string;
-  cartons: number | string;
-  gallons: number | string;
-  liters: number | string;
+  quantity: number; // Dynamic quantity
+  unit: string; // Product's unit
   unitCost: number;
   reason: string;
   total: number;
+  // Legacy fields for backward compatibility
+  cartons?: number;
+  gallons?: number;
+  liters?: number;
 }
 
 interface PurchaseReturnFormProps {
@@ -42,19 +41,26 @@ interface PurchaseReturnFormProps {
 }
 
 export default function PurchaseReturnForm({ onClose, onSave, initialData }: PurchaseReturnFormProps) {
-  const [items, setItems] = useState<PRItem[]>(initialData?.lines?.map((l: any, i: number) => ({
-    id: i.toString(),
-    itemId: l.itemId?._id || l.itemId || "",
-    itemCode: l.itemId?.code || "",
-    description: l.description || "",
-    cartons: l.cartons || l.qty || 0,
-    gallons: l.gallons || 0,
-    liters: l.liters || 0,
-    unitCost: l.rate || 0,
-    reason: l.notes || "",
-    total: l.netAmount || 0
-  })) || [
-    { id: "1", itemId: "", itemCode: "", description: "", cartons: 1, gallons: 4, liters: 16, unitCost: 0, reason: "", total: 0 }
+  const [items, setItems] = useState<PRItem[]>(initialData?.lines?.map((l: any, i: number) => {
+    const item = l.itemId?._id ? availableItems.find(ai => ai._id === l.itemId._id) : null;
+    const unit = getProductUnit(item);
+    return {
+      id: i.toString(),
+      itemId: l.itemId?._id || l.itemId || "",
+      itemCode: l.itemId?.code || "",
+      description: l.description || "",
+      quantity: l.cartons || l.qty || 0,
+      unit: unit,
+      unitCost: l.rate || 0,
+      reason: l.notes || "",
+      total: l.netAmount || 0,
+      // Legacy fields
+      cartons: l.cartons || l.qty || 0,
+      gallons: l.gallons || 0,
+      liters: l.liters || 0
+    };
+  }) || [
+    { id: "1", itemId: "", itemCode: "", description: "", quantity: 0, unit: "Per Piece", unitCost: 0, reason: "", total: 0, cartons: 0, gallons: 0, liters: 0 }
   ]);
   
   const [formData, setFormData] = useState({
@@ -91,10 +97,10 @@ export default function PurchaseReturnForm({ onClose, onSave, initialData }: Pur
         locationsRes.json()
       ]);
       
-      if (itemsJson.ok) setAvailableItems(itemsJson.data);
+      if (itemsJson.ok) setAvailableItems(itemsJson.data || []);
       if (partiesJson.ok) setVendors(partiesJson.data.filter((p: any) => p.type === "Vendor"));
-      if (jobsJson.ok) setJobs(jobsJson.data);
-      if (locationsJson.ok) setLocations(locationsJson.data);
+      if (jobsJson.ok) setJobs(jobsJson.data || []);
+      if (locationsJson.ok) setLocations(locationsJson.data || []);
     } catch (e) { console.error(e); }
   };
 
@@ -102,8 +108,8 @@ export default function PurchaseReturnForm({ onClose, onSave, initialData }: Pur
     fetchData();
   }, []);
 
-  const addItem = () => setItems([...items, { id: Date.now().toString(), itemId: "", description: "", cartons: 0, gallons: 0, liters: 0, unitCost: 0, reason: "", total: 0 }]);
-  const removeItem = (id: string) => setItems(items.filter(i => i.id !== id));
+  const addItem = () => setItems([...items, { id: Date.now().toString(), itemId: "", description: "", quantity: 0, unit: "Per Piece", unitCost: 0, reason: "", total: 0, cartons: 0, gallons: 0, liters: 0 }]);
+  const removeItem = (id: string) => setItems((items || []).filter(i => i.id !== id));
   
   const [showItemSearch, setShowItemSearch] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -111,7 +117,7 @@ export default function PurchaseReturnForm({ onClose, onSave, initialData }: Pur
   const handleItemKeyDown = (e: React.KeyboardEvent, lineId: string, filteredItems: any[]) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActiveIndex(prev => (prev < filteredItems.length - 1 ? prev + 1 : prev));
+      setActiveIndex(prev => (prev < (filteredItems || []).length - 1 ? prev + 1 : prev));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActiveIndex(prev => (prev > 0 ? prev - 1 : prev));
@@ -131,38 +137,47 @@ export default function PurchaseReturnForm({ onClose, onSave, initialData }: Pur
       if (i.id === id) {
         let updated = { ...i, [field]: value };
 
-
-
+        // Update unit when item is selected
         if (field === "itemId") {
-          const selected = availableItems.find(ai => ai._id === value);
+          const selected = (availableItems || []).find(ai => ai._id === value);
           if (selected) {
             updated.itemCode = selected.code;
             updated.description = selected.name;
+            updated.unit = getProductUnit(selected);
             updated.unitCost = selected.purchaseRate || selected.rate || 0;
-            updated = defaultPurchaseUnitsForItem(updated, selected);
+            updated.quantity = 1;
           }
         }
 
-        if (field === "cartons" || field === "gallons" || field === "liters") {
-          const selected = resolveCatalogItem(availableItems, updated);
-          updated = applyPurchaseUnitFieldUpdate(updated, field, value, selected);
+        // Handle quantity changes
+        if (field === "quantity") {
+          // Update legacy cartons field for backward compatibility
+          updated.cartons = value;
         }
 
-        updated.total = (Number(updated.cartons) || 0) * (updated.unitCost || 0);
+        // Calculate total when quantity or cost changes
+        if (field === "quantity" || field === "unitCost") {
+          const qty = Number(updated.quantity) || 0;
+          const cost = Number(updated.unitCost) || 0;
+          updated.total = qty * cost;
+          // Update legacy cartons field
+          updated.cartons = qty;
+        }
+
         return updated;
       }
       return i;
     }));
   };
 
-  const totalAmount = items.reduce((sum, i) => sum + i.total, 0);
+  const totalAmount = (items || []).reduce((sum, i) => sum + i.total, 0);
 
   const handleSave = async (status: "Draft" | "Posted") => {
     if (!formData.vendorId) {
       alert("Please select a vendor.");
       return;
     }
-    const validLines = items.filter(i => i.itemId);
+    const validLines = (items || []).filter(i => i.itemId);
     if (validLines.length === 0) {
       alert("Please add at least one item.");
       return;
@@ -178,13 +193,15 @@ export default function PurchaseReturnForm({ onClose, onSave, initialData }: Pur
       lines: validLines.map(i => ({
         itemId: i.itemId,
         description: i.description,
-        cartons: Number(i.cartons) || 0,
-        gallons: Number(i.gallons) || 0,
-        liters: Number(i.liters) || 0,
-        qty: Number(i.cartons) || 0,
+        qty: Number(i.quantity || i.cartons) || 0,
+        unit: i.unit || "Per Piece",
         rate: Number(i.unitCost) || 0,
         grossAmount: i.total,
-        netAmount: i.total
+        netAmount: i.total,
+        // Legacy fields for backward compatibility
+        cartons: Number(i.cartons) || 0,
+        gallons: Number(i.gallons) || 0,
+        liters: Number(i.liters) || 0
       })),
       subTotal: totalAmount,
       totalAmount,
@@ -274,7 +291,7 @@ export default function PurchaseReturnForm({ onClose, onSave, initialData }: Pur
               <select
                 value={formData.vendorId}
                 onChange={(e) => {
-                  const v = vendors.find(x => x._id === e.target.value);
+                  const v = (vendors || []).find(x => x._id === e.target.value);
                   setFormData({
                     ...formData,
                     vendorId: e.target.value,
@@ -284,7 +301,7 @@ export default function PurchaseReturnForm({ onClose, onSave, initialData }: Pur
                 className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold focus:border-maroon-800 outline-none transition-all"
               >
                 <option value="">-- Select Vendor --</option>
-                {vendors.map(v => (
+                {(vendors || []).map(v => (
                   <option key={v._id} value={v._id}>{v.companyName || v.name}</option>
                 ))}
               </select>
@@ -296,7 +313,7 @@ export default function PurchaseReturnForm({ onClose, onSave, initialData }: Pur
               <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Location *</label>
               <select value={formData.locationId} onChange={(e) => setFormData({...formData, locationId: e.target.value})} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold focus:border-maroon-800 outline-none transition-all">
                 <option value="">-- Select Location --</option>
-                {locations.map(loc => (
+                {(locations || []).map(loc => (
                   <option key={loc._id} value={loc._id}>{loc.name}</option>
                 ))}
               </select>
@@ -305,7 +322,7 @@ export default function PurchaseReturnForm({ onClose, onSave, initialData }: Pur
               <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Job</label>
               <select value={formData.jobId} onChange={(e) => setFormData({...formData, jobId: e.target.value})} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold focus:border-maroon-800 outline-none">
                 <option value="">-- Select Job --</option>
-                {jobs.map(job => (
+                {(jobs || []).map(job => (
                   <option key={job._id} value={job._id}>{job.title || job.name}</option>
                 ))}
               </select>
@@ -339,9 +356,9 @@ export default function PurchaseReturnForm({ onClose, onSave, initialData }: Pur
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50 font-bold">
-                {items.map((item, index) => {
+                {(items || []).map((item, index) => {
                   const query = (item.itemCode || "").toLowerCase();
-                  const filteredItems = availableItems.filter(i => 
+                  const filteredItems = (availableItems || []).filter(i => 
                     i.code.toLowerCase().includes(query) || i.name.toLowerCase().includes(query)
                   ).sort((a, b) => {
                     const aStart = a.name.toLowerCase().startsWith(query) || a.code.toLowerCase().startsWith(query);

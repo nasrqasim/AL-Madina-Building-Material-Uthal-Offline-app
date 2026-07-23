@@ -9,7 +9,7 @@ import {
   RefreshCw,
   LogOut
 } from "lucide-react";
-import { signOut } from "next-auth/react";
+import { useAuthActions } from "@/components/providers/SessionProvider";
 import { useState, useEffect } from "react";
 import WidgetVisibilityPanel, { WidgetKey } from "@/components/dashboard/WidgetVisibilityPanel";
 import { COMPANY_NAME } from "@/lib/company";
@@ -27,6 +27,7 @@ interface TopBarProps {
 }
 
 export default function TopBar({ title, user, onSearchClick, widgetVisibility, onWidgetToggle }: TopBarProps) {
+  const { signOut } = useAuthActions();
   const [theme, setTheme] = useState<"light" | "dark">("light");
 
   useEffect(() => {

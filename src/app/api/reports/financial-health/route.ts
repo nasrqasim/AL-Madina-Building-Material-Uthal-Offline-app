@@ -1,25 +1,31 @@
 import { ok } from "@/lib/api";
-import dbConnect from "@/lib/db";
-import Account from "@/models/Account";
-import JournalEntry from "@/models/JournalEntry";
+import { offlineDB } from "@/lib/dexie";
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const date = searchParams.get("date") || new Date().toISOString();
 
-    await dbConnect();
+    const accounts = await offlineDB.accounts.toArray();
+    const journalEntries = await offlineDB.journalEntries.toArray();
 
-    // 1. Get Balances for all accounts
-    const match: any = { date: { $lte: new Date(date) } };
-    const balances = await JournalEntry.aggregate([
-      { $match: match },
-      { $group: { _id: "$accountCode", balance: { $sum: { $subtract: ["$debit", "$credit"] } } } }
-    ]);
+    // Filter journal entries up to the specified date
+    const filteredEntries = journalEntries.filter(entry => {
+      const entryDate = entry.date.split("T")[0];
+      const targetDate = date.split("T")[0];
+      return entryDate <= targetDate;
+    });
 
-    const balanceMap = new Map(balances.map(b => [b._id, b.balance]));
-    const accounts = await Account.find().lean();
-    const accountMap = new Map(accounts.map((a: any) => [a.code, a]));
+    // Group balances by code
+    const balanceMap: Record<string, number> = {};
+    filteredEntries.forEach(entry => {
+      if (!balanceMap[entry.accountCode]) {
+        balanceMap[entry.accountCode] = 0;
+      }
+      balanceMap[entry.accountCode] += (entry.debit || 0) - (entry.credit || 0);
+    });
+
+    const accountMap = new Map(accounts.map(a => [a.code, a]));
 
     let currentAssets = 0;
     let quickAssets = 0; // Cash + Bank + Receivables
@@ -30,17 +36,17 @@ export async function GET(req: Request) {
     let revenue = 0;
     let expenses = 0;
 
-    balanceMap.forEach((balance, code) => {
+    Object.entries(balanceMap).forEach(([code, balance]) => {
       const acc = accountMap.get(code);
       let type = acc ? acc.type.toLowerCase() : "";
 
       if (!type) {
-         if (code.startsWith("1")) type = "asset";
-         else if (code.startsWith("2")) type = "payable";
-         else if (code.startsWith("3")) type = "equity";
-         else if (code.startsWith("4")) type = "income";
-         else if (code.startsWith("5")) type = "expense";
-         else return;
+        if (code.startsWith("1")) type = "asset";
+        else if (code.startsWith("2")) type = "payable";
+        else if (code.startsWith("3")) type = "equity";
+        else if (code.startsWith("4")) type = "income";
+        else if (code.startsWith("5")) type = "expense";
+        else return;
       } else if (type === "revenue") type = "income";
       else if (type === "liability") type = "payable";
 

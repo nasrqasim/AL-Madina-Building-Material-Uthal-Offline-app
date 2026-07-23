@@ -83,7 +83,7 @@ export default function Report({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-[10px] font-bold text-slate-700">
-            {items.map((item: any, i: number) => (
+            {(items || []).map((item: any, i: number) => (
               <tr key={i} className="hover:bg-slate-50/50">
                 <td className="py-2 px-2 text-slate-400 font-medium">{i + 1}</td>
                 {data.rowAccessor ? (
@@ -115,13 +115,13 @@ export default function Report({
       </div>
 
       {/* Totals / Summary Row */}
-      {data.showTotals !== false && items.length > 0 && (
+      {data.showTotals !== false && (items || []).length > 0 && (
         <div className="border-t border-slate-200 mt-6 pt-4 flex justify-between items-center text-[11px] font-black">
           <span className="text-slate-450 uppercase tracking-widest text-[9px]">Report Summary</span>
           <div className="flex gap-6">
             {data.totalCountLabel && (
               <span className="text-slate-600">
-                {data.totalCountLabel}: <span className="text-slate-900">{items.length}</span>
+                {data.totalCountLabel}: <span className="text-slate-900">{(items || []).length}</span>
               </span>
             )}
             {data.totalAmount !== undefined && (

@@ -42,19 +42,13 @@ export default function AIStudioPage() {
 
   const routeMap: Record<string, string> = {
     pi: "/purchases/purchase-invoice",
-    ntpi: "/purchases/non-tax-purchase-invoice",
-    grn: "/purchases/goods-receipt",
     si: "/sales/sale-invoice",
-    dc: "/sales/delivery-challan",
     so: "/sales/sale-order",
   };
 
   const docTypes = [
     { id: "pi", label: "Purchase Invoice", desc: "Vendor invoice / bill", icon: FileText },
-    { id: "ntpi", label: "Non-Tax Purchase Invoice", desc: "Vendor bill without GST", icon: FileText },
-    { id: "grn", label: "Goods Receipt", desc: "Delivery note from vendor", icon: FileCheck },
     { id: "si", label: "Sale Invoice", desc: "Invoice to customer", icon: Receipt },
-    { id: "dc", label: "Delivery Challan", desc: "Goods dispatched to customer", icon: Truck },
     { id: "so", label: "Sale Order", desc: "Customer purchase order", icon: ShoppingCart },
   ];
 

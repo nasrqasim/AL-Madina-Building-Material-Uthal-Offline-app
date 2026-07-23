@@ -40,8 +40,8 @@ export default function CashBanksPage() {
       ]);
       const accJson = await accRes.json();
       const jvJson = await jvRes.json();
-      if (accJson.ok) setAccounts(accJson.data);
-      if (jvJson.ok) setJournalEntries(jvJson.data);
+      if (accJson.ok) setAccounts(accJson.data || []);
+      if (jvJson.ok) setJournalEntries(jvJson.data || []);
     } catch (e) {
       console.error("Error fetching cash banks data:", e);
     } finally {
@@ -92,18 +92,21 @@ export default function CashBanksPage() {
 
   // Filter Cash and Bank accounts & codes
   const { cashBankAccounts, cashBankCodes, initialOpening } = useMemo(() => {
-    const filtered = accounts.filter((a: any) => 
-      ["cash", "bank"].includes(String(a.type || "").toLowerCase()) ||
-      ["1111", "1110"].includes(a.code)
+    const filtered = (accounts || []).filter((a: any) => 
+      a && (["cash", "bank"].includes(String(a.type || "").toLowerCase()) ||
+      ["1111", "1110", "1000", "1010"].includes(a.code))
     );
-    const codes = filtered.map(a => a.code);
+    // Always include known cash/bank codes even if not in accounts table
+    const knownCodes = ["1111", "1110", "1000", "1010"];
+    const accountCodes = filtered.map(a => a.code);
+    const codes = Array.from(new Set([...knownCodes, ...accountCodes]));
     const opBalance = filtered.reduce((sum, a) => sum + (a.openingBalance ?? 0), 0);
     return { cashBankAccounts: filtered, cashBankCodes: codes, initialOpening: opBalance };
   }, [accounts]);
 
   // Filter journal entries for Cash & Bank accounts
   const cashBankEntries = useMemo(() => {
-    return journalEntries.filter(e => cashBankCodes.includes(e.accountCode));
+    return (journalEntries || []).filter(e => e && (cashBankCodes || []).includes(e.accountCode));
   }, [journalEntries, cashBankCodes]);
 
   // Classify transactions in a given range into the required categories
@@ -117,7 +120,7 @@ export default function CashBanksPage() {
     let withdrawals = 0;
     let deposits = 0;
 
-    entries.forEach(entry => {
+    (entries || []).forEach(entry => {
       const entryDate = new Date(entry.date);
       if (entryDate.getTime() >= start.getTime() && entryDate.getTime() <= end.getTime()) {
         const debit = Number(entry.debit) || 0;
@@ -190,7 +193,7 @@ export default function CashBanksPage() {
     let beforeDebit = 0;
     let beforeCredit = 0;
 
-    cashBankEntries.forEach(entry => {
+    (cashBankEntries || []).forEach(entry => {
       const entryDate = new Date(entry.date);
       if (entryDate.getTime() < start.getTime()) {
         beforeDebit += entry.debit || 0;
@@ -250,7 +253,7 @@ export default function CashBanksPage() {
   // 1. Daily Tab Rows
   const dailyRows = useMemo(() => {
     const dates: Record<string, Date> = {};
-    cashBankEntries.forEach(entry => {
+    (cashBankEntries || []).forEach(entry => {
       const d = new Date(entry.date);
       if (d.getTime() >= dateRange.start.getTime() && d.getTime() <= dateRange.end.getTime()) {
         const str = d.toISOString().split("T")[0];
@@ -275,7 +278,7 @@ export default function CashBanksPage() {
   // 2. Monthly Tab Rows
   const monthlyRows = useMemo(() => {
     const months: Record<string, { year: number; month: number }> = {};
-    cashBankEntries.forEach(entry => {
+    (cashBankEntries || []).forEach(entry => {
       const d = new Date(entry.date);
       if (d.getTime() >= dateRange.start.getTime() && d.getTime() <= dateRange.end.getTime()) {
         const key = `${d.getFullYear()}-${d.getMonth()}`;
@@ -301,7 +304,7 @@ export default function CashBanksPage() {
   // 3. Yearly Tab Rows
   const yearlyRows = useMemo(() => {
     const years: Record<number, number> = {};
-    cashBankEntries.forEach(entry => {
+    (cashBankEntries || []).forEach(entry => {
       const d = new Date(entry.date);
       if (d.getTime() >= dateRange.start.getTime() && d.getTime() <= dateRange.end.getTime()) {
         years[d.getFullYear()] = d.getFullYear();
@@ -324,10 +327,10 @@ export default function CashBanksPage() {
 
   // 4. Overall Accounts
   const overallAccounts = useMemo(() => {
-    return cashBankAccounts.map(acc => {
+    return (cashBankAccounts || []).map(acc => {
       let debit = 0;
       let credit = 0;
-      journalEntries.forEach(e => {
+      (journalEntries || []).forEach(e => {
         const entryDate = new Date(e.date);
         if (e.accountCode === acc.code && entryDate.getTime() >= dateRange.start.getTime() && entryDate.getTime() <= dateRange.end.getTime()) {
           debit += e.debit || 0;
@@ -338,7 +341,7 @@ export default function CashBanksPage() {
       // Calculate account opening before dateRange.start
       let beforeD = 0;
       let beforeC = 0;
-      journalEntries.forEach(e => {
+      (journalEntries || []).forEach(e => {
         const entryDate = new Date(e.date);
         if (e.accountCode === acc.code && entryDate.getTime() < dateRange.start.getTime()) {
           beforeD += e.debit || 0;
@@ -432,7 +435,7 @@ export default function CashBanksPage() {
   // Excel Export Handler
   const handleExportExcel = () => {
     if (activeViewTab === "overall") {
-      const data = overallAccounts.map(acc => ({
+      const data = (overallAccounts || []).map(acc => ({
         "Account Code": acc.code,
         "Account Title": acc.title || acc.name,
         "Type": acc.type,
@@ -444,7 +447,7 @@ export default function CashBanksPage() {
       exportToExcel(data, `Cash_Banks_Accounts_${selectedPeriod}.xlsx`);
     } else {
       const rows = activeViewTab === "daily" ? dailyRows : activeViewTab === "monthly" ? monthlyRows : yearlyRows;
-      const data = rows.map(r => ({
+      const data = (rows || []).map(r => ({
         "Period": r.label,
         "Opening Balance": r.opening,
         "Cash Receipts": r.cashReceipts,
@@ -475,7 +478,7 @@ export default function CashBanksPage() {
           { header: "Credit Sum", key: "fmtCredit" },
           { header: "Closing Balance", key: "fmtBalance" }
         ],
-        rows: overallAccounts.map(acc => ({
+        rows: (overallAccounts || []).map(acc => ({
           code: acc.code,
           title: acc.title || acc.name,
           type: acc.type,
@@ -488,10 +491,10 @@ export default function CashBanksPage() {
           code: "TOTAL",
           title: "",
           type: "",
-          fmtOpening: `PKR ${fmt(overallAccounts.reduce((s,a) => s + a.opening, 0))}`,
-          fmtDebit: `PKR ${fmt(overallAccounts.reduce((s,a) => s + a.debit, 0))}`,
-          fmtCredit: `PKR ${fmt(overallAccounts.reduce((s,a) => s + a.credit, 0))}`,
-          fmtBalance: `PKR ${fmt(overallAccounts.reduce((s,a) => s + a.balance, 0))}`
+          fmtOpening: `PKR ${fmt((overallAccounts || []).reduce((s,a) => s + a.opening, 0))}`,
+          fmtDebit: `PKR ${fmt((overallAccounts || []).reduce((s,a) => s + a.debit, 0))}`,
+          fmtCredit: `PKR ${fmt((overallAccounts || []).reduce((s,a) => s + a.credit, 0))}`,
+          fmtBalance: `PKR ${fmt((overallAccounts || []).reduce((s,a) => s + a.balance, 0))}`
         }
       });
     } else {
@@ -509,7 +512,7 @@ export default function CashBanksPage() {
           { header: "Expenses", key: "fmtExpenses" },
           { header: "Closing Balance", key: "fmtClosing" }
         ],
-        rows: rows.map(r => ({
+        rows: (rows || []).map(r => ({
           label: r.label,
           fmtOpening: `PKR ${fmt(r.opening)}`,
           fmtCashRec: `PKR ${fmt(r.cashReceipts)}`,
@@ -523,13 +526,13 @@ export default function CashBanksPage() {
         totals: {
           label: "TOTAL / SUMMARY",
           fmtOpening: `PKR ${fmt(rows[0]?.opening || 0)}`,
-          fmtCashRec: `PKR ${fmt(rows.reduce((s,r) => s + r.cashReceipts, 0))}`,
-          fmtBankRec: `PKR ${fmt(rows.reduce((s,r) => s + r.bankReceipts, 0))}`,
-          fmtSalesRec: `PKR ${fmt(rows.reduce((s,r) => s + r.salesReceipts, 0))}`,
-          fmtOtherIncome: `PKR ${fmt(rows.reduce((s,r) => s + r.otherIncome, 0))}`,
-          fmtPayments: `PKR ${fmt(rows.reduce((s,r) => s + r.payments, 0))}`,
-          fmtExpenses: `PKR ${fmt(rows.reduce((s,r) => s + r.expenses, 0))}`,
-          fmtClosing: `PKR ${fmt(rows[rows.length - 1]?.current || 0)}`
+          fmtCashRec: `PKR ${fmt((rows || []).reduce((s,r) => s + r.cashReceipts, 0))}`,
+          fmtBankRec: `PKR ${fmt((rows || []).reduce((s,r) => s + r.bankReceipts, 0))}`,
+          fmtSalesRec: `PKR ${fmt((rows || []).reduce((s,r) => s + r.salesReceipts, 0))}`,
+          fmtOtherIncome: `PKR ${fmt((rows || []).reduce((s,r) => s + r.otherIncome, 0))}`,
+          fmtPayments: `PKR ${fmt((rows || []).reduce((s,r) => s + r.payments, 0))}`,
+          fmtExpenses: `PKR ${fmt((rows || []).reduce((s,r) => s + r.expenses, 0))}`,
+          fmtClosing: `PKR ${fmt(rows[(rows || []).length - 1]?.current || 0)}`
         }
       });
     }
@@ -747,7 +750,7 @@ export default function CashBanksPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-850 font-bold text-slate-700 dark:text-slate-300">
-                        {overallAccounts.map((acc, idx) => (
+                        {(overallAccounts || []).map((acc, idx) => (
                           <tr 
                             key={idx} 
                             onClick={() => router.push(`/maintain/accounts?accountCode=${acc.code}`)}
@@ -797,8 +800,8 @@ export default function CashBanksPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-850 font-bold text-slate-700 dark:text-slate-300 font-mono">
-              {periodTransactions.length > 0 ? (
-                periodTransactions.map((tx, idx) => (
+              {(periodTransactions || []).length > 0 ? (
+                (periodTransactions || []).map((tx, idx) => (
                   <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                     <td className="px-4 py-3.5 font-bold">{new Date(tx.date).toLocaleDateString()}</td>
                     <td className="px-4 py-3.5 text-blue-650 font-extrabold">{tx.voucherNo}</td>

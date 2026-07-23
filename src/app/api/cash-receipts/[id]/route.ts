@@ -1,28 +1,38 @@
 import { fail, ok } from "@/lib/api";
-import dbConnect from "@/lib/db";
-import CashReceipt from "@/models/CashReceipt";
-import JournalEntry from "@/models/JournalEntry";
-import { recalculatePartyBalance, postCashReceiptJournalEntries } from "@/services/posting/invoicePostingHelper";
+import { offlineDB } from "@/lib/dexie";
+
+// TODO: Update these service functions to use IndexedDB
+// import { recalculatePartyBalance, postCashReceiptJournalEntries } from "@/services/posting/invoicePostingHelper";
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   try {
     const body = await req.json();
-    await dbConnect();
-    const oldDoc = await CashReceipt.findById(params.id).lean() as any;
-    const row = await CashReceipt.findByIdAndUpdate(params.id, body, { new: true });
+    const oldDoc = await offlineDB.cashReceipts.get(params.id) as any;
+    const updatedReceipt = {
+      ...body,
+      updatedAt: new Date().toISOString()
+    };
+    await offlineDB.cashReceipts.update(params.id, updatedReceipt);
+    const row = await offlineDB.cashReceipts.get(params.id);
     if (!row) return fail("Not found", 404);
 
-    if (row.status === "Posted") {
-      await postCashReceiptJournalEntries(row);
+    if ((row as any).status === "Posted") {
+      // TODO: await postCashReceiptJournalEntries(row);
     } else {
-      await JournalEntry.deleteMany({ voucherNo: row.receiptNumber });
+      const allJournalEntries = await offlineDB.journalEntries.toArray();
+      const entriesToDelete = allJournalEntries.filter((je: any) => je.voucherNo === (row as any).receiptNumber);
+      for (const entry of entriesToDelete) {
+        await offlineDB.journalEntries.delete(entry.id);
+      }
     }
 
     const oldPartyId = oldDoc?.partyId || oldDoc?.party;
-    const newPartyId = row.partyId || row.party;
-    if (oldPartyId) await recalculatePartyBalance(String(oldPartyId));
+    const newPartyId = (row as any).partyId || (row as any).party;
+    if (oldPartyId) {
+      // TODO: await recalculatePartyBalance(String(oldPartyId));
+    }
     if (newPartyId && String(newPartyId) !== String(oldPartyId)) {
-      await recalculatePartyBalance(String(newPartyId));
+      // TODO: await recalculatePartyBalance(String(newPartyId));
     }
     return ok(row);
   } catch (e) {
@@ -32,13 +42,18 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 
 export async function DELETE(_: Request, { params }: { params: { id: string } }) {
   try {
-    await dbConnect();
-    const oldDoc = await CashReceipt.findById(params.id).lean() as any;
+    const oldDoc = await offlineDB.cashReceipts.get(params.id) as any;
     if (oldDoc) {
-      await JournalEntry.deleteMany({ voucherNo: oldDoc.receiptNumber });
-      await CashReceipt.findByIdAndDelete(params.id);
+      const allJournalEntries = await offlineDB.journalEntries.toArray();
+      const entriesToDelete = allJournalEntries.filter((je: any) => je.voucherNo === oldDoc.receiptNumber);
+      for (const entry of entriesToDelete) {
+        await offlineDB.journalEntries.delete(entry.id);
+      }
+      await offlineDB.cashReceipts.delete(params.id);
       const partyId = oldDoc.partyId || oldDoc.party;
-      if (partyId) await recalculatePartyBalance(String(partyId));
+      if (partyId) {
+        // TODO: await recalculatePartyBalance(String(partyId));
+      }
     }
     return ok({ deleted: true });
   } catch (e) {

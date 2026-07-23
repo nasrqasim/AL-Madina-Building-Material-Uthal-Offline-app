@@ -34,10 +34,10 @@ export default function LowStockAlertReportPage() {
         const catsJson = await catsRes.json();
         
         if (itemsJson.ok) {
-          setItems(itemsJson.data);
+          setItems(itemsJson.data || []);
         }
         if (catsJson.ok) {
-          setCategories(catsJson.data);
+          setCategories(catsJson.data || []);
         }
       } catch (e) {
         console.error("Error fetching report data:", e);
@@ -48,10 +48,10 @@ export default function LowStockAlertReportPage() {
     fetchData();
   }, []);
 
-  const categoryMap = new Map(categories.map(c => [c._id, c]));
+  const categoryMap = new Map((categories || []).map(c => [c._id, c]));
 
   // 1. First calculate full items with category names and stock status
-  const mappedItems = items.map(item => {
+  const mappedItems = (items || []).map(item => {
     const stock = item.stockQtyCartons || 0;
     const reorder = item.reorderLevel || 0;
     const safety = Math.floor(reorder * 0.5); // Placeholder safety stock
@@ -117,13 +117,13 @@ export default function LowStockAlertReportPage() {
   });
 
   // 3. Final display list filtered by reorder level toggle
-  const lowStockItems = filteredItems.filter(item => !showOnlyBelowReorder || item.stock <= item.reorder);
+  const lowStockItems = (filteredItems || []).filter(item => !showOnlyBelowReorder || item.stock <= item.reorder);
 
   const stats = [
-    { title: "Total Items", value: filteredItems.length.toString(), icon: Box, iconColor: "text-slate-600 dark:text-slate-300", iconBg: "bg-slate-50 dark:bg-slate-800/50" },
-    { title: "Items Below Reorder", value: filteredItems.filter(i => i.stock <= i.reorder).length.toString(), icon: AlertTriangle, iconColor: "text-amber-600", iconBg: "bg-amber-50", wrapperClass: "border-l-4 border-l-amber-500" },
-    { title: "Items Out of Stock", value: filteredItems.filter(i => i.stock === 0).length.toString(), icon: XCircle, iconColor: "text-rose-600", iconBg: "bg-rose-50", wrapperClass: "border-l-4 border-l-rose-500" },
-    { title: "Warning / Critical", value: filteredItems.filter(i => i.stock <= i.reorder * 1.2).length.toString(), icon: AlertCircle, iconColor: "text-orange-600", iconBg: "bg-orange-50", wrapperClass: "border-l-4 border-l-orange-500" },
+    { title: "Total Items", value: (filteredItems || []).length.toString(), icon: Box, iconColor: "text-slate-600 dark:text-slate-300", iconBg: "bg-slate-50 dark:bg-slate-800/50" },
+    { title: "Items Below Reorder", value: (filteredItems || []).filter(i => i.stock <= i.reorder).length.toString(), icon: AlertTriangle, iconColor: "text-amber-600", iconBg: "bg-amber-50", wrapperClass: "border-l-4 border-l-amber-500" },
+    { title: "Items Out of Stock", value: (filteredItems || []).filter(i => i.stock === 0).length.toString(), icon: XCircle, iconColor: "text-rose-600", iconBg: "bg-rose-50", wrapperClass: "border-l-4 border-l-rose-500" },
+    { title: "Warning / Critical", value: (filteredItems || []).filter(i => i.stock <= i.reorder * 1.2).length.toString(), icon: AlertCircle, iconColor: "text-orange-600", iconBg: "bg-orange-50", wrapperClass: "border-l-4 border-l-orange-500" },
   ];
 
   const Filters = (
@@ -140,7 +140,7 @@ export default function LowStockAlertReportPage() {
             className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/20 dark:text-white"
           >
             <option value="All">All Categories</option>
-            {categories.filter(c => c.type === "main").map(c => (
+            {(categories || []).filter(c => c.type === "main").map(c => (
               <option key={c._id} value={c._id}>{c.name}</option>
             ))}
           </select>
@@ -241,10 +241,10 @@ export default function LowStockAlertReportPage() {
   );
 
   const pieData = [
-    { name: 'Critical', value: items.filter(i => i.stockQtyCartons > 0 && i.stockQtyCartons <= i.reorderLevel).length, color: '#e11d48' },
-    { name: 'Warning', value: items.filter(i => i.stockQtyCartons > i.reorderLevel && i.stockQtyCartons <= i.reorderLevel * 1.2).length, color: '#f59e0b' },
-    { name: 'Adequate', value: items.filter(i => i.stockQtyCartons > i.reorderLevel * 1.2).length, color: '#10b981' },
-    { name: 'Out of Stock', value: items.filter(i => i.stockQtyCartons === 0).length, color: '#000000' },
+    { name: 'Critical', value: (items || []).filter(i => i.stockQtyCartons > 0 && i.stockQtyCartons <= i.reorderLevel).length, color: '#e11d48' },
+    { name: 'Warning', value: (items || []).filter(i => i.stockQtyCartons > i.reorderLevel && i.stockQtyCartons <= i.reorderLevel * 1.2).length, color: '#f59e0b' },
+    { name: 'Adequate', value: (items || []).filter(i => i.stockQtyCartons > i.reorderLevel * 1.2).length, color: '#10b981' },
+    { name: 'Out of Stock', value: (items || []).filter(i => i.stockQtyCartons === 0).length, color: '#000000' },
   ].filter(d => d.value > 0);
 
   return (
@@ -275,7 +275,7 @@ export default function LowStockAlertReportPage() {
             <div className="px-4">
               <div className="flex items-center gap-2 mb-4">
                 <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-widest text-rose-800">Critical Stock Alerts</h3>
-                <span className="px-2 py-0.5 bg-rose-100 text-rose-600 rounded text-xs font-bold">{lowStockItems.length} alerts</span>
+                <span className="px-2 py-0.5 bg-rose-100 text-rose-600 rounded text-xs font-bold">{(lowStockItems || []).length} alerts</span>
               </div>
               <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-lg">
                 <table className="w-full text-left border-collapse min-w-max">
@@ -293,7 +293,7 @@ export default function LowStockAlertReportPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {lowStockItems.map((row, i) => (
+                    {(lowStockItems || []).map((row, i) => (
                       <tr key={row._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors">
                         <td className="px-4 py-3 text-[11px] font-medium text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500">{i + 1}</td>
                         <td className="px-4 py-3 text-[11px] font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800/50/50">{row.code}</td>

@@ -34,7 +34,7 @@ export default function CashPaymentPage() {
     try {
       const res = await fetch("/api/cash-payments");
       const json = await res.json();
-      if (json.ok) setPayments(json.data);
+      if (json.ok) setPayments(json.data || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -46,7 +46,7 @@ export default function CashPaymentPage() {
     try {
       const res = await fetch("/api/shop-profile");
       const json = await res.json();
-      if (json.ok) setShopProfile(json.data);
+      if (json.ok) setShopProfile(json.data || []);
     } catch (e) {
       console.error(e);
     }
@@ -76,7 +76,7 @@ export default function CashPaymentPage() {
     );
   }
 
-  const filteredPayments = payments.filter((p) => {
+  const filteredPayments = (payments || []).filter((p) => {
     const partyName =
       p.partyId?.companyName ||
       p.partyId?.name ||

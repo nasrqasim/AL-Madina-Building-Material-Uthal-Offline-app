@@ -43,7 +43,7 @@ export default function PrintFormatsPage() {
     fetch("/api/shop-profile")
       .then(res => res.json())
       .then(res => {
-        if (res.ok) setCompanyInfo(res.data);
+        if (res.ok) setCompanyInfo(res.data || []);
       });
   }, []);
 
@@ -54,7 +54,7 @@ export default function PrintFormatsPage() {
       .then(res => res.json())
       .then(res => {
         if (res.ok) {
-          setConfig(res.data);
+          setConfig(res.data || []);
         }
       })
       .finally(() => setIsLoading(false));
@@ -130,7 +130,7 @@ export default function PrintFormatsPage() {
               Select Format
             </h3>
             <div className="grid grid-cols-1 gap-1">
-              {formats.map((f) => (
+              {(formats || []).map((f) => (
                 <button
                   key={f}
                   onClick={() => setActiveTab(f)}

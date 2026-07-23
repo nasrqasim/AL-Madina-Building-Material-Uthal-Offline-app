@@ -1,24 +1,40 @@
 import { fail, ok } from "@/lib/api";
-import dbConnect from "@/lib/db";
+import { offlineDB } from "@/lib/dexie";
 import { DEFAULT_COMPANY_FORM } from "@/lib/company";
-import ShopProfile from "@/models/ShopProfile";
+import { generateUniqueId } from "@/lib/dexie";
 
 export async function GET() {
-  await dbConnect();
-  const profile = await ShopProfile.findOne().lean();
+  const profiles = await offlineDB.shopProfiles.toArray();
+  const profile = profiles.length > 0 ? profiles[0] : null;
   return ok(profile ?? DEFAULT_COMPANY_FORM);
 }
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    await dbConnect();
-    let profile = await ShopProfile.findOne();
-    if (!profile) profile = await ShopProfile.create(body);
-    else {
-      profile.set(body);
-      await profile.save();
+    const profiles = await offlineDB.shopProfiles.toArray();
+    let profile;
+
+    if (profiles.length === 0) {
+      const id = generateUniqueId();
+      profile = {
+        id,
+        _id: id,
+        ...body,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      await offlineDB.shopProfiles.add(profile);
+    } else {
+      const existingProfile = profiles[0];
+      const updatedProfile = {
+        ...body,
+        updatedAt: new Date().toISOString()
+      };
+      await offlineDB.shopProfiles.update(existingProfile.id, updatedProfile);
+      profile = await offlineDB.shopProfiles.get(existingProfile.id);
     }
+
     return ok(profile);
   } catch (e) {
     return fail((e as Error).message);

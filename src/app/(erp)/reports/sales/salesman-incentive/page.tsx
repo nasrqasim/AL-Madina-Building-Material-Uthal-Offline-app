@@ -66,8 +66,8 @@ export default function SalesmanIncentiveReportPage() {
     fetchData();
   }, []);
 
-  const totalCollected = data.reduce((s, r) => s + r.collected, 0);
-  const totalIncentive = data.reduce((s, r) => s + parseFloat(r.incentive), 0);
+  const totalCollected = (data || []).reduce((s, r) => s + r.collected, 0);
+  const totalIncentive = (data || []).reduce((s, r) => s + parseFloat(r.incentive), 0);
 
   const Filters = (
     <div className="flex flex-col md:flex-row justify-between items-end gap-4 w-full">
@@ -123,7 +123,7 @@ export default function SalesmanIncentiveReportPage() {
     </div>
   );
 
-  const barData = Object.entries(data.reduce((acc: any, curr) => {
+  const barData = Object.entries((data || []).reduce((acc: any, curr) => {
     if (!acc[curr.salesman]) acc[curr.salesman] = { name: curr.salesman, collected: 0, incentive: 0 };
     acc[curr.salesman].collected += curr.collected;
     acc[curr.salesman].incentive += parseFloat(curr.incentive);
@@ -197,7 +197,7 @@ export default function SalesmanIncentiveReportPage() {
             <div className="px-4">
               <div className="flex items-center gap-2 mb-4">
                 <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Incentive Details</h3>
-                <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded text-xs font-bold">{data.length} records</span>
+                <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded text-xs font-bold">{(data || []).length} records</span>
               </div>
               <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-lg">
                 <table className="w-full text-left border-collapse min-w-max">
@@ -216,7 +216,7 @@ export default function SalesmanIncentiveReportPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {data.map((row, i) => (
+                    {(data || []).map((row, i) => (
                       <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors">
                         <td className="px-4 py-3 text-[11px] font-medium text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500">{i + 1}</td>
                         <td className="px-4 py-3 text-[11px] font-bold text-slate-800 dark:text-slate-100">{row.salesman}</td>

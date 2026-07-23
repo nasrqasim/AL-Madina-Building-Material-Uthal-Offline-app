@@ -1,79 +1,65 @@
 import { fail, ok } from "@/lib/api";
-import dbConnect from "@/lib/db";
-import CashReceipt from "@/models/CashReceipt";
-import { recalculatePartyBalance, postCashReceiptJournalEntries } from "@/services/posting/invoicePostingHelper";
-import Party from "@/models/Party";
-import Account from "@/models/Account";
-import Employee from "@/models/Employee";
-import Job from "@/models/Job";
+import { offlineDB, generateUniqueId } from "@/lib/dexie";
+import { recalculatePartyBalance, postCashReceiptJournalEntries } from "@/lib/offline/postingService";
 
 export async function GET(req: Request) {
   try {
-    await dbConnect();
     const url = new URL(req.url);
     const search = url.searchParams.get("search") || "";
-    const rangeType = url.searchParams.get("rangeType") || ""; // "today", "week", "month", "custom"
+    const rangeType = url.searchParams.get("rangeType") || "";
     const fromDate = url.searchParams.get("fromDate") || "";
     const toDate = url.searchParams.get("toDate") || "";
 
-    const matchQuery: any = {};
+    let receipts = await offlineDB.cashReceipts.toArray();
 
     // Date filtering
-    let start: Date | null = null;
-    let end: Date | null = null;
-    const now = new Date();
-
     if (rangeType === "today") {
-      start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      const today = new Date().toISOString().split("T")[0];
+      receipts = receipts.filter(r => r.date?.startsWith(today));
     } else if (rangeType === "week") {
-      start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
-      end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay() + 6, 23, 59, 59, 999);
+      const now = new Date();
+      const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
+      const weekEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay() + 6);
+      receipts = receipts.filter(r => {
+        const d = new Date(r.date);
+        return d >= weekStart && d <= weekEnd;
+      });
     } else if (rangeType === "month") {
-      start = new Date(now.getFullYear(), now.getMonth(), 1);
-      end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      receipts = receipts.filter(r => {
+        const d = new Date(r.date);
+        return d >= monthStart && d <= monthEnd;
+      });
     } else if (rangeType === "custom" && fromDate && toDate) {
-      start = new Date(fromDate);
-      end = new Date(toDate);
-      end.setHours(23, 59, 59, 999);
+      receipts = receipts.filter(r => {
+        const d = r.date?.split("T")[0] || "";
+        return d >= fromDate && d <= toDate;
+      });
     }
-
-    if (start && end) {
-      const startStr = start.toISOString().split("T")[0];
-      const endStr = end.toISOString().split("T")[0];
-      matchQuery.date = { $gte: startStr, $lte: endStr };
-    }
-
-    let rows = await CashReceipt.find(matchQuery)
-      .populate("partyId", "name companyName type code")
-      .populate("cashAccountId", "title code")
-      .populate("employeeId", "name")
-      .populate("jobId", "title name")
-      .sort({ createdAt: -1 })
-      .lean();
 
     if (search) {
       const q = search.toLowerCase();
-      rows = rows.filter((r: any) => {
+      receipts = receipts.filter(r => {
         const num = r.receiptNumber || "";
         const ref = r.reference || "";
         const narr = r.narration || "";
         const amt = String(r.amount || "");
         const rType = r.receiptType || "";
-        const partyName = r.partyId ? (r.partyId.companyName || r.partyId.name || "") : "";
-        const cashAcc = r.cashAccountId ? r.cashAccountId.title || "" : "";
         
         return num.toLowerCase().includes(q) ||
                ref.toLowerCase().includes(q) ||
                narr.toLowerCase().includes(q) ||
                amt.includes(q) ||
-               rType.toLowerCase().includes(q) ||
-               cashAcc.toLowerCase().includes(q) ||
-               partyName.toLowerCase().includes(q);
+               rType.toLowerCase().includes(q);
       });
     }
 
-    return ok(rows);
+    // Sort by createdAt descending
+    receipts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    return ok(receipts);
   } catch (e) {
     return fail((e as Error).message);
   }
@@ -82,17 +68,21 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    await dbConnect();
+    const id = generateUniqueId();
 
     // Auto-generate receipt number
     if (!body.receiptNumber || body.receiptNumber === "Auto-generated") {
-      let attempt = (await CashReceipt.countDocuments()) + 1;
+      let attempt = (await offlineDB.cashReceipts.count()) + 1;
       let isUnique = false;
       while (!isUnique) {
         const candidate = `CRV-${attempt.toString().padStart(5, "0")}`;
-        const existing = await CashReceipt.findOne({ receiptNumber: candidate });
-        if (!existing) { body.receiptNumber = candidate; isUnique = true; }
-        else attempt++;
+        const existing = await offlineDB.cashReceipts.where("receiptNumber").equals(candidate).first();
+        if (!existing) {
+          body.receiptNumber = candidate;
+          isUnique = true;
+        } else {
+          attempt++;
+        }
       }
     }
 
@@ -107,20 +97,42 @@ export async function POST(req: Request) {
       body.netAmount = body.amount;
     }
 
-    const payload = {
-      ...body,
-      partyReceiptType: body.partyReceiptType || "Standard"
+    const receiptRecord = {
+      id,
+      _id: id,
+      receiptNumber: body.receiptNumber,
+      receiptType: body.receiptType || "party",
+      date: body.date || new Date().toISOString(),
+      partyId: body.partyId || null,
+      cashAccountId: body.cashAccountId || null,
+      cashAccountTitle: body.cashAccountTitle || "",
+      reference: body.reference || "",
+      narration: body.narration || "",
+      employeeId: body.employeeId || null,
+      jobId: body.jobId || null,
+      amount: Number(body.amount) || 0,
+      whtAmount: Number(body.whtAmount) || 0,
+      netAmount: Number(body.netAmount) || 0,
+      notes: body.notes || "",
+      status: body.status || "Posted",
+      partyReceiptType: body.partyReceiptType || "Standard",
+      contraLines: body.contraLines || [],
+      partyLines: body.partyLines || [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
 
-    const row = await CashReceipt.create(payload);
-    const partyId = row.partyId?.toString?.() || row.partyId;
-    if (row.status === "Posted" || !row.status) {
-      await postCashReceiptJournalEntries(row);
+    await offlineDB.cashReceipts.add(receiptRecord);
+
+    const partyId = receiptRecord.partyId;
+    if (receiptRecord.status === "Posted" || !receiptRecord.status) {
+      await postCashReceiptJournalEntries(receiptRecord);
       if (partyId) {
-        await recalculatePartyBalance(String(partyId));
+        await recalculatePartyBalance(partyId);
       }
     }
-    return ok(row, 201);
+
+    return ok(receiptRecord, 201);
   } catch (e) {
     return fail((e as Error).message);
   }

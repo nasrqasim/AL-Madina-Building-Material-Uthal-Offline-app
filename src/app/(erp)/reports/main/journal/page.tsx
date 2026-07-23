@@ -55,7 +55,7 @@ export default function JournalReportPage() {
             const totalCredit = g.entries.reduce((sum: number, e: any) => sum + (e.credit || 0), 0);
             return {
               ...g,
-              linesCount: g.entries.length,
+              linesCount: (g.entries || []).length,
               debit: totalDebit,
               credit: totalCredit
             };
@@ -81,7 +81,7 @@ export default function JournalReportPage() {
   };
 
   // Dynamically filter data
-  const filteredData = data.filter((item) => {
+  const filteredData = (data || []).filter((item) => {
     // 1. From Date Filter
     if (fromDate) {
       const itemDate = new Date(item.date);
@@ -296,7 +296,7 @@ export default function JournalReportPage() {
                   <React.Fragment key={row.id}>
                     <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group" onClick={() => toggleRow(row.id)}>
                       <td className="px-4 py-3 text-slate-400 dark:text-slate-500">
-                        {expandedRows.includes(row.id) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                        {(expandedRows || []).includes(row.id) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                       </td>
                       <td className="px-4 py-3 text-sm font-bold text-maroon-800">
                         {row.id}
@@ -314,7 +314,7 @@ export default function JournalReportPage() {
                       <td className="px-4 py-3 text-sm font-black text-rose-600 text-right">{row.credit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                     </tr>
                     
-                    {expandedRows.includes(row.id) && row.entries.map((entry: any, idx: number) => (
+                    {(expandedRows || []).includes(row.id) && row.entries.map((entry: any, idx: number) => (
                       <tr key={`${row.id}-entry-${idx}`} className="bg-slate-50 dark:bg-slate-800/20">
                         <td colSpan={2} className="px-4 py-2 pl-12 text-xs font-bold text-slate-500">{entry.accountCode}</td>
                         <td colSpan={3} className="px-4 py-2">

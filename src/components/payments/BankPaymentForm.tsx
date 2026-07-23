@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Save,
   ArrowLeft,
@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import PartyLookupSelect from "@/components/erp/ui/PartyLookupSelect";
 import PartyDetailsCard, { type PartyLike } from "@/components/erp/ui/PartyDetailsCard";
+import { calculateCustomerBalance, calculateBalanceFromTransactions } from "@/lib/customerBalance";
+import { calculateVendorBalance, calculateVendorBalanceFromTransactions } from "@/lib/vendorBalance";
 
 interface BankPaymentFormProps {
   onClose: () => void;
@@ -42,26 +44,60 @@ export default function BankPaymentForm({ onClose }: BankPaymentFormProps) {
   const [previewParty, setPreviewParty] = useState<PartyLike | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Transaction data for balance calculation
+  const [salesData, setSalesData] = useState<any[]>([]);
+  const [purchasesData, setPurchasesData] = useState<any[]>([]);
+  const [cashReceiptsData, setCashReceiptsData] = useState<any[]>([]);
+  const [bankReceiptsData, setBankReceiptsData] = useState<any[]>([]);
+  const [cashPaymentsData, setCashPaymentsData] = useState<any[]>([]);
+  const [bankPaymentsData, setBankPaymentsData] = useState<any[]>([]);
+
   useEffect(() => {
-    fetch("/api/banks")
-      .then((res) => res.json())
-      .then((json) => {
-        if (json.ok) setBanks(json.data);
-      });
-    fetch("/api/parties")
-      .then((res) => res.json())
-      .then((json) => {
-        if (json.ok) setParties(json.data);
-      });
+    const fetchAll = async () => {
+      try {
+        const [banksRes, partiesRes, salesRes, purRes, cashRecRes, bankRecRes, cashPayRes, bankPayRes] = await Promise.all([
+          fetch("/api/banks"),
+          fetch("/api/parties"),
+          fetch("/api/sales"),
+          fetch("/api/purchases"),
+          fetch("/api/cash-receipts"),
+          fetch("/api/bank-receipts"),
+          fetch("/api/cash-payments"),
+          fetch("/api/bank-payments")
+        ]);
+        const banksJson = await banksRes.json();
+        const partiesJson = await partiesRes.json();
+        const salesJson = await salesRes.json();
+        const purJson = await purRes.json();
+        const cashRecJson = await cashRecRes.json();
+        const bankRecJson = await bankRecRes.json();
+        const cashPayJson = await cashPayRes.json();
+        const bankPayJson = await bankPayRes.json();
+        
+        if (banksJson.ok) setBanks(banksJson.data || []);
+        if (partiesJson.ok) setParties(partiesJson.data || []);
+        
+        // Store transaction data for balance calculation
+        if (salesJson.ok) setSalesData(Array.isArray(salesJson.data) ? salesJson.data : []);
+        if (purJson.ok) setPurchasesData(Array.isArray(purJson.data) ? purJson.data : []);
+        if (cashRecJson.ok) setCashReceiptsData(Array.isArray(cashRecJson.data) ? cashRecJson.data : []);
+        if (bankRecJson.ok) setBankReceiptsData(Array.isArray(bankRecJson.data) ? bankRecJson.data : []);
+        if (cashPayJson.ok) setCashPaymentsData(Array.isArray(cashPayJson.data) ? cashPayJson.data : []);
+        if (bankPayJson.ok) setBankPaymentsData(Array.isArray(bankPayJson.data) ? bankPayJson.data : []);
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    fetchAll();
   }, []);
 
   const selectedParty = useMemo(
-    () => parties.find((p) => p._id === formData.partyId) || previewParty,
+    () => (parties || []).find((p) => p._id === formData.partyId) || previewParty,
     [parties, formData.partyId, previewParty]
   );
 
   const selectedBank = useMemo(
-    () => banks.find((b: { _id: string }) => b._id === formData.bankAccountId) || null,
+    () => (banks || []).find((b: { _id: string }) => b._id === formData.bankAccountId) || null,
     [banks, formData.bankAccountId]
   );
 
@@ -76,6 +112,31 @@ export default function BankPaymentForm({ onClose }: BankPaymentFormProps) {
   };
 
   const netAmount = formData.totalAmount - formData.whtAmount;
+
+  // Helper function to get party balance based on type
+  const getPartyBalance = useCallback((party: PartyLike, type: "Customer" | "Vendor"): { balance: number; label: string } => {
+    if (!party) return { balance: 0, label: "0.00" };
+    
+    if (type === "Customer") {
+      const balanceResult = calculateBalanceFromTransactions(party, salesData, cashReceiptsData, bankReceiptsData, cashPaymentsData, bankPaymentsData);
+      return { 
+        balance: balanceResult.receivable || 0, 
+        label: balanceResult.receivable.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      };
+    } else {
+      const balanceResult = calculateVendorBalanceFromTransactions(party, purchasesData, [], cashPaymentsData, bankPaymentsData, cashReceiptsData, bankReceiptsData);
+      return { 
+        balance: balanceResult.payable || 0, 
+        label: balanceResult.payable.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      };
+    }
+  }, [salesData, purchasesData, cashReceiptsData, bankReceiptsData, cashPaymentsData, bankPaymentsData]);
+
+  // Display balance for selected party
+  const displayPartyBalance = useMemo(() => {
+    if (!selectedParty) return { balance: "0.00", label: "Balance" };
+    return getPartyBalance(selectedParty, partyType);
+  }, [selectedParty, partyType, getPartyBalance]);
 
   const handleSubmit = async (e?: any) => {
     if (e) e.preventDefault();
@@ -194,7 +255,7 @@ export default function BankPaymentForm({ onClose }: BankPaymentFormProps) {
               <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Bank Account *</label>
               <select value={formData.bankAccountId} onChange={(e) => setFormData({...formData, bankAccountId: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold focus:ring-4 focus:ring-maroon-800/5 transition-all outline-none">
                 <option value="">Select bank account...</option>
-                {banks.map(b => <option key={b._id} value={b._id}>{b.name} - {b.accountNo} (Rs.{b.balance.toLocaleString()})</option>)}
+                {(banks || []).map(b => <option key={b._id} value={b._id}>{b.name} - {b.accountNo} (Rs.{b.balance.toLocaleString()})</option>)}
               </select>
             </div>
             <div className="space-y-1.5 flex gap-4">

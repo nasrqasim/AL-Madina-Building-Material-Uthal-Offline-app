@@ -1,81 +1,74 @@
 import { NextResponse } from "next/server";
-import dbConnect from "@/lib/db";
+import { offlineDB } from "@/lib/dexie";
 import JSZip from "jszip";
-import Account from "@/models/Account";
-import Category from "@/models/Category";
-import { DocumentSetting } from "@/models/DocumentSetting";
-import Employee from "@/models/Employee";
-import { FinancialYear } from "@/models/FinancialYear";
-import { InventorySetting } from "@/models/InventorySetting";
-import Invoice from "@/models/Invoice";
-import Item from "@/models/Item";
-import Journal from "@/models/Journal";
-import JournalEntry from "@/models/JournalEntry";
-import Party from "@/models/Party";
-import Payroll from "@/models/Payroll";
-import { PrintFormat } from "@/models/PrintFormat";
-import { Role } from "@/models/Role";
-import ShopProfile from "@/models/ShopProfile";
-import { User } from "@/models/User";
-import VehicleLog from "@/models/VehicleLog";
 
 export async function GET() {
   try {
-    await dbConnect();
-
     const zip = new JSZip();
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const folderName = `oilshop_backup_${timestamp}`;
     const backupFolder = zip.folder(folderName);
 
-    const models = [
-      { name: "accounts", model: Account },
-      { name: "categories", model: Category },
-      { name: "document_settings", model: DocumentSetting },
-      { name: "employees", model: Employee },
-      { name: "financial_years", model: FinancialYear },
-      { name: "inventory_settings", model: InventorySetting },
-      { name: "invoices", model: Invoice },
-      { name: "items", model: Item },
-      { name: "journals", model: Journal },
-      { name: "journal_entries", model: JournalEntry },
-      { name: "payroll", model: Payroll },
-      { name: "print_formats", model: PrintFormat },
-      { name: "roles", model: Role },
-      { name: "shop_profile", model: ShopProfile },
-      { name: "users", model: User },
-      { name: "vehicle_logs", model: VehicleLog },
+    const tables = [
+      "accounts",
+      "categories",
+      "brands",
+      "units",
+      "items",
+      "parties",
+      "invoices",
+      "journalEntries",
+      "cashReceipts",
+      "cashPayments",
+      "bankReceipts",
+      "bankPayments",
+      "shopProfiles",
+      "deliveryOrders",
+      "activityLogs",
+      "backupHistories",
+      "settings",
+      "locations",
+      "employees",
+      "banks",
+      "otherIncomes",
+      "users",
+      "drafts",
+      "syncQueue"
     ];
 
-    console.log("Starting backup fetch for all models...");
-    const modelResults = await Promise.all(
-      models.map(async ({ name, model }) => {
+    console.log("Starting backup fetch for all tables...");
+    const tableResults = await Promise.all(
+      tables.map(async (tableName) => {
         try {
-          if (!model) throw new Error(`Model ${name} is undefined`);
-          const data = await model.find({}).lean();
-          console.log(`Fetched ${data.length} records for ${name}`);
-          return { name, data };
+          const table: any = (offlineDB as any)[tableName];
+          if (!table) {
+            console.warn(`Table ${tableName} not found`);
+            return { name: tableName, data: [] };
+          }
+          const data = await table.toArray();
+          console.log(`Fetched ${data.length} records for ${tableName}`);
+          return { name: tableName, data };
         } catch (err) {
-          console.error(`Error fetching ${name}:`, err);
-          return { name, data: [] };
+          console.error(`Error fetching ${tableName}:`, err);
+          return { name: tableName, data: [] };
         }
       })
     );
 
-    for (const { name, data } of modelResults) {
+    for (const { name, data } of tableResults) {
       backupFolder?.file(`${name}.json`, JSON.stringify(data, null, 2));
     }
 
     // Special handling for Party (Customers and Vendors)
     try {
-      const allParties = await Party.find({}).lean();
+      const allParties = await offlineDB.parties.toArray();
       const customers = allParties.filter((p: any) => p.type === "Customer");
       const vendors = allParties.filter((p: any) => p.type === "Vendor");
-      
+
       backupFolder?.file(`customers.json`, JSON.stringify(customers, null, 2));
       backupFolder?.file(`vendors.json`, JSON.stringify(vendors, null, 2));
       backupFolder?.file(`all_parties.json`, JSON.stringify(allParties, null, 2));
-      
+
       console.log(`Fetched ${customers.length} customers and ${vendors.length} vendors`);
     } catch (err) {
       console.error("Error fetching parties:", err);

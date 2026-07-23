@@ -1,10 +1,12 @@
 import { ok } from "@/lib/api";
-import dbConnect from "@/lib/db";
-import JournalEntry from "@/models/JournalEntry";
+import { offlineDB } from "@/lib/dexie";
 
 export async function GET() {
-  await dbConnect();
-  const rows = await JournalEntry.find({ accountCode: { $in: ["1000", "1010"] } }).sort({ date: -1 }).limit(200).lean();
+  const allJournalEntries = await offlineDB.journalEntries.toArray();
+  const rows = allJournalEntries
+    .filter((je: any) => ["1000", "1010"].includes(je.accountCode))
+    .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .slice(0, 200);
   return ok(rows);
 }
 

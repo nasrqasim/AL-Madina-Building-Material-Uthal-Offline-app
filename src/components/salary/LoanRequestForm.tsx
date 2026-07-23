@@ -22,7 +22,7 @@ export default function LoanRequestForm({ onClose, initialData }: any) {
 
   useEffect(() => {
     fetch("/api/employees").then(r => r.json()).then(data => {
-      if (data.ok) setEmployees(data.data);
+      if (data.ok) setEmployees(data.data || []);
     });
   }, []);
 
@@ -69,7 +69,7 @@ export default function LoanRequestForm({ onClose, initialData }: any) {
             onChange={(e) => setFormData({...formData, employee: e.target.value})}
             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" required>
             <option value="">Select Employee</option>
-            {employees.map(emp => (
+            {(employees || []).map(emp => (
               <option key={emp._id} value={emp.name}>{emp.name}</option>
             ))}
           </select>

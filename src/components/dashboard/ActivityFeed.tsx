@@ -4,6 +4,7 @@ import { APP_NAME, COMPANY_NAME, COMPANY_SHORT, COMPANY_TAGLINE, DEFAULT_COMPANY
 import { useState, useEffect } from "react";
 import { Activity, ExternalLink, Package, ShoppingCart, User, Shield, Info, CheckCircle2, Clock, LogIn, Database } from "lucide-react";
 import Link from "next/link";
+import { offlineDB } from "@/lib/dexie";
 
 export default function ActivityFeed() {
   const [activeTab, setActiveTab] = useState("Transactions");
@@ -16,25 +17,162 @@ export default function ActivityFeed() {
       const fetchTransactions = async () => {
         setIsLoading(true);
         try {
-          const res = await fetch("/api/journal-entries");
-          const json = await res.json();
-          if (json.ok) {
-            // Map Journal Entries to Activity Feed format
-            const mapped = json.data.slice(0, 10).map((j: any) => ({
-              id: j.voucherNo,
-              status: "Posted",
-              user: "System",
-              type: j.accountTitle,
-              time: new Date(j.date).toLocaleDateString(),
-              amount: (j.debit > 0 ? `+Rs.${j.debit}` : `-Rs.${j.credit}`),
-              color: "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500",
-              amountColor: j.debit > 0 ? "text-emerald-500" : "text-rose-500",
-              Icon: j.debit > 0 ? ShoppingCart : Package,
-              iconBg: j.debit > 0 ? "bg-emerald-50 text-emerald-500" : "bg-rose-50 text-rose-500",
-              typeColor: j.debit > 0 ? "text-emerald-500" : "text-rose-500"
-            }));
-            setTransactions(mapped);
+          const targetDate = new Date();
+          const startOfDay = new Date(targetDate);
+          startOfDay.setHours(0, 0, 0, 0);
+          const endOfDay = new Date(targetDate);
+          endOfDay.setHours(23, 59, 59, 999);
+
+          const activities: any[] = [];
+
+          // Recent Sales Invoices
+          const recentSales = await offlineDB.invoices
+            .filter(inv => 
+              ["sale", "non_tax_sale", "pos", "challan"].includes(inv.type) && 
+              inv.status !== "cancelled" &&
+              new Date(inv.date) >= startOfDay && 
+              new Date(inv.date) <= endOfDay
+            )
+            .reverse()
+            .limit(10)
+            .toArray();
+          
+          for (const sale of recentSales) {
+            const party = sale.partyId ? await offlineDB.parties.get(sale.partyId) : null;
+            activities.push({
+              type: "sale",
+              description: `Sale Invoice #${sale.invoiceNo} created`,
+              amount: sale.totalAmount,
+              party: party?.name || "Unknown",
+              date: sale.date
+            });
           }
+          
+          // Recent Sale Returns
+          const recentSaleReturns = await offlineDB.invoices
+            .filter(inv => 
+              ["sale_return", "non_tax_sale_return"].includes(inv.type) && 
+              inv.status !== "cancelled" &&
+              new Date(inv.date) >= startOfDay && 
+              new Date(inv.date) <= endOfDay
+            )
+            .reverse()
+            .limit(5)
+            .toArray();
+          
+          for (const ret of recentSaleReturns) {
+            const party = ret.partyId ? await offlineDB.parties.get(ret.partyId) : null;
+            activities.push({
+              type: "sale_return",
+              description: `Sale Return #${ret.invoiceNo} posted`,
+              amount: ret.totalAmount,
+              party: party?.name || "Unknown",
+              date: ret.date
+            });
+          }
+          
+          // Recent Purchase Invoices
+          const recentPurchases = await offlineDB.invoices
+            .filter(inv => 
+              ["purchase", "non_tax_purchase", "import_purchase"].includes(inv.type) && 
+              inv.status !== "cancelled" &&
+              new Date(inv.date) >= startOfDay && 
+              new Date(inv.date) <= endOfDay
+            )
+            .reverse()
+            .limit(5)
+            .toArray();
+          
+          for (const purchase of recentPurchases) {
+            const party = purchase.partyId ? await offlineDB.parties.get(purchase.partyId) : null;
+            activities.push({
+              type: "purchase",
+              description: `Purchase Invoice #${purchase.invoiceNo} posted`,
+              amount: purchase.totalAmount,
+              party: party?.name || "Unknown",
+              date: purchase.date
+            });
+          }
+          
+          // Sort by date descending
+          activities.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+          // Format activities for display
+          const formattedTransactions = activities.map((activity: any) => {
+              let iconBg, amountColor, Icon, typeColor;
+              
+              switch(activity.type) {
+                case 'sale':
+                  iconBg = "bg-emerald-50 text-emerald-500";
+                  amountColor = "text-emerald-500";
+                  Icon = ShoppingCart;
+                  typeColor = "text-emerald-500";
+                  break;
+                case 'sale_return':
+                  iconBg = "bg-rose-50 text-rose-500";
+                  amountColor = "text-rose-500";
+                  Icon = ShoppingCart;
+                  typeColor = "text-rose-500";
+                  break;
+                case 'purchase':
+                  iconBg = "bg-rose-50 text-rose-500";
+                  amountColor = "text-rose-500";
+                  Icon = Package;
+                  typeColor = "text-rose-500";
+                  break;
+                case 'purchase_return':
+                  iconBg = "bg-emerald-50 text-emerald-500";
+                  amountColor = "text-emerald-500";
+                  Icon = Package;
+                  typeColor = "text-emerald-500";
+                  break;
+                case 'cash_receipt':
+                  iconBg = "bg-emerald-50 text-emerald-500";
+                  amountColor = "text-emerald-500";
+                  Icon = ShoppingCart;
+                  typeColor = "text-emerald-500";
+                  break;
+                case 'cash_payment':
+                  iconBg = "bg-rose-50 text-rose-500";
+                  amountColor = "text-rose-500";
+                  Icon = Package;
+                  typeColor = "text-rose-500";
+                  break;
+                case 'bank_receipt':
+                  iconBg = "bg-emerald-50 text-emerald-500";
+                  amountColor = "text-emerald-500";
+                  Icon = ShoppingCart;
+                  typeColor = "text-emerald-500";
+                  break;
+                case 'bank_payment':
+                  iconBg = "bg-rose-50 text-rose-500";
+                  amountColor = "text-rose-500";
+                  Icon = Package;
+                  typeColor = "text-rose-500";
+                  break;
+                default:
+                  iconBg = "bg-slate-50 text-slate-500";
+                  amountColor = "text-slate-500";
+                  Icon = Activity;
+                  typeColor = "text-slate-500";
+              }
+
+              return {
+                id: activity.description,
+                status: "Posted",
+                user: activity.party || "System",
+                type: activity.type.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
+                time: new Date(activity.date).toLocaleDateString(),
+                amount: activity.amount ? `Rs.${activity.amount.toLocaleString()}` : '-',
+                color: "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500",
+                amountColor,
+                Icon,
+                iconBg,
+                typeColor
+              };
+            });
+
+            setTransactions(formattedTransactions);
         } catch (e) {
           console.error(e);
         } finally {
@@ -46,7 +184,7 @@ export default function ActivityFeed() {
   }, [activeTab]);
 
   const activities = [
-    { title: "System Ready", desc: "APP_NAME is online and connected to Atlas.", time: "Live", Icon: Database, iconBg: "bg-purple-50 text-purple-600" },
+    { title: "System Ready", desc: "APP_NAME is running 100% offline in Local Mode.", time: "Live", Icon: Database, iconBg: "bg-purple-50 text-purple-600" },
   ];
 
   const activeUsers = [
@@ -91,7 +229,7 @@ export default function ActivityFeed() {
       </div>
 
       <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3">
-        {activeTab === "Transactions" && transactions.map((item) => (
+        {activeTab === "Transactions" && (transactions || []).map((item) => (
           <div key={item.id} className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50 transition-colors group cursor-pointer bg-white dark:bg-slate-900 shadow-sm">
             <div className="flex items-center gap-4">
               <div className={`p-3 rounded-full ${item.iconBg} dark:bg-slate-800 dark:text-slate-200`}>

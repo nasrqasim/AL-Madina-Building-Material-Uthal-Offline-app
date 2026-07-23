@@ -35,10 +35,10 @@ export default function PrintTemplate({
       fetch("/api/shop-profile").then(res => res.json())
     ]).then(([formatRes, companyRes]) => {
       if (formatRes.ok) {
-        setConfig(formatRes.data);
+        setConfig(formatRes.data || []);
         // Sync activeFormat with saved paperSize from database
         if (!formatInitialized) {
-          const ps = (formatRes.data.paperSize || "A4").toLowerCase();
+          const ps = (formatRes.data?.paperSize || "A4").toLowerCase();
           if (ps === "thermal" || ps === "80mm") {
             setActiveFormat("thermal");
           } else if (ps === "a5") {
@@ -49,7 +49,7 @@ export default function PrintTemplate({
           setFormatInitialized(true);
         }
       }
-      if (companyRes.ok) setCompanyInfo(companyRes.data);
+      if (companyRes.ok) setCompanyInfo(companyRes.data || []);
     });
     return () => setMounted(false);
   }, [formatName, formatInitialized]);

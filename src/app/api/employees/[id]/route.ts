@@ -1,11 +1,13 @@
 import { fail, ok } from "@/lib/api";
-import dbConnect from "@/lib/db";
-import Employee from "@/models/Employee";
+import { offlineDB } from "@/lib/dexie";
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
   try {
-    await dbConnect();
-    const row = await Employee.findById(params.id).lean();
+    let row = await offlineDB.employees.get(params.id);
+    if (!row) {
+      const all = await offlineDB.employees.toArray();
+      row = all.find((e: any) => e.id === params.id || e._id === params.id || e.code === params.id);
+    }
     if (!row) return fail("Employee not found", 404);
     return ok(row);
   } catch (e) {
@@ -16,8 +18,12 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   try {
     const body = await req.json();
-    await dbConnect();
-    const row = await Employee.findByIdAndUpdate(params.id, body, { new: true });
+    const updatedEmployee = {
+      ...body,
+      updatedAt: new Date().toISOString()
+    };
+    await offlineDB.employees.update(params.id, updatedEmployee);
+    const row = await offlineDB.employees.get(params.id);
     if (!row) return fail("Employee not found", 404);
     return ok(row);
   } catch (e) {
@@ -27,8 +33,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 
 export async function DELETE(_: Request, { params }: { params: { id: string } }) {
   try {
-    await dbConnect();
-    await Employee.findByIdAndDelete(params.id);
+    await offlineDB.employees.delete(params.id);
     return ok({ deleted: true });
   } catch (e) {
     return fail((e as Error).message);

@@ -53,16 +53,16 @@ export default function SerialTrackingReportPage() {
   }, []);
 
   const serialStats = [
-    { title: "Total Serials", value: data.length.toString(), icon: Box, iconColor: "text-slate-600", iconBg: "bg-slate-100" },
-    { title: "In Stock", value: data.filter(d => d.status === 'In Stock').length.toString(), icon: CheckCircle2, iconColor: "text-emerald-600", iconBg: "bg-emerald-50" },
-    { title: "Issued / Sold", value: data.filter(d => d.status === 'Issued').length.toString(), icon: XCircle, iconColor: "text-rose-600", iconBg: "bg-rose-50" },
+    { title: "Total Serials", value: (data || []).length.toString(), icon: Box, iconColor: "text-slate-600", iconBg: "bg-slate-100" },
+    { title: "In Stock", value: (data || []).filter(d => d.status === 'In Stock').length.toString(), icon: CheckCircle2, iconColor: "text-emerald-600", iconBg: "bg-emerald-50" },
+    { title: "Issued / Sold", value: (data || []).filter(d => d.status === 'Issued').length.toString(), icon: XCircle, iconColor: "text-rose-600", iconBg: "bg-rose-50" },
     { title: "Returned", value: "0", icon: RotateCcw, iconColor: "text-amber-600", iconBg: "bg-amber-50" },
   ];
 
   const batchStats = [
-    { title: "Total Batches", value: batchData.length.toString(), icon: Box, iconColor: "text-slate-600", iconBg: "bg-slate-100" },
-    { title: "In Stock", value: batchData.filter(d => d.status === 'In Stock').length.toString(), icon: CheckCircle2, iconColor: "text-emerald-600", iconBg: "bg-emerald-50" },
-    { title: "Total Qty", value: batchData.reduce((acc, curr) => acc + curr.qty, 0).toString(), icon: Package, iconColor: "text-rose-600", iconBg: "bg-rose-50" },
+    { title: "Total Batches", value: (batchData || []).length.toString(), icon: Box, iconColor: "text-slate-600", iconBg: "bg-slate-100" },
+    { title: "In Stock", value: (batchData || []).filter(d => d.status === 'In Stock').length.toString(), icon: CheckCircle2, iconColor: "text-emerald-600", iconBg: "bg-emerald-50" },
+    { title: "Total Qty", value: (batchData || []).reduce((acc, curr) => acc + curr.qty, 0).toString(), icon: Package, iconColor: "text-rose-600", iconBg: "bg-rose-50" },
   ];
 
   const stats = activeTab === "serial" ? serialStats : batchStats;
@@ -165,7 +165,7 @@ export default function SerialTrackingReportPage() {
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-          {activeTab === "serial" ? data.map((row) => (
+          {activeTab === "serial" ? (data || []).map((row) => (
             <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
               <td className="px-6 py-4 text-sm font-bold text-slate-900 dark:text-white">{row.serialNo}</td>
               <td className="px-6 py-4 text-sm font-bold text-slate-700 dark:text-slate-200">{row.item}</td>
@@ -178,7 +178,7 @@ export default function SerialTrackingReportPage() {
                 </span>
               </td>
             </tr>
-          )) : batchData.map((row) => (
+          )) : (batchData || []).map((row) => (
             <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
               <td className="px-6 py-4 text-sm font-bold text-slate-900 dark:text-white">{row.batchNo}</td>
               <td className="px-6 py-4 text-sm font-bold text-slate-700 dark:text-slate-200">{row.item}</td>

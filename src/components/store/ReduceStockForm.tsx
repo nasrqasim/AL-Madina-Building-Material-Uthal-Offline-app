@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from "react";
 import ItemSearchInput from "@/components/erp/ui/ItemSearchInput";
+import { getProductUnit } from "@/lib/dynamicUnits";
 import {
-  Plus, 
-  Trash2, 
-  Save, 
-  ArrowLeft, 
-  X, 
-  CheckCircle2, 
+  Plus,
+  Trash2,
+  Save,
+  ArrowLeft,
+  X,
+  CheckCircle2,
   ClipboardList,
   Package,
   TrendingDown,
@@ -25,12 +26,15 @@ interface AdjustmentItem {
   id: string;
   itemId: string;
   itemCode?: string;
-  cartons: number;
-  gallons: number;
-  liters: number;
+  quantity: number; // Dynamic quantity
+  unit: string; // Product's unit
   uom: string;
   unitValue: number;
   total: number;
+  // Legacy fields for backward compatibility
+  cartons?: number;
+  gallons?: number;
+  liters?: number;
 }
 
 interface ReduceStockFormProps {
@@ -41,19 +45,26 @@ interface ReduceStockFormProps {
 export default function ReduceStockForm({ onClose, initialData }: ReduceStockFormProps) {
   const [items, setItems] = useState<AdjustmentItem[]>(() => {
     if (initialData?.lines?.length > 0) {
-      return initialData.lines.map((l: any, i: number) => ({
-        id: i.toString(),
-        itemId: l.itemId?._id || l.itemId || "",
-        itemCode: l.itemId?.code || "",
-        cartons: l.cartons || l.qty || 0,
-        gallons: l.gallons || 0,
-        liters: l.liters || 0,
-        uom: l.uom || "",
-        unitValue: l.rate || 0,
-        total: (l.qty || 0) * (l.rate || 0)
-      }));
+      return initialData.lines.map((l: any, i: number) => {
+        const item = l.itemId?._id ? availableItems.find(ai => ai._id === l.itemId._id) : null;
+        const unit = getProductUnit(item);
+        return {
+          id: i.toString(),
+          itemId: l.itemId?._id || l.itemId || "",
+          itemCode: l.itemId?.code || "",
+          quantity: l.cartons || l.qty || 0,
+          unit: unit,
+          uom: l.uom || "",
+          unitValue: l.rate || 0,
+          total: (l.qty || 0) * (l.rate || 0),
+          // Legacy fields
+          cartons: l.cartons || l.qty || 0,
+          gallons: l.gallons || 0,
+          liters: l.liters || 0
+        };
+      });
     }
-    return [{ id: "1", itemId: "", itemCode: "", cartons: 1, gallons: 4, liters: 16, uom: "", unitValue: 0, total: 0 }];
+    return [{ id: "1", itemId: "", itemCode: "", quantity: 0, unit: "Per Piece", uom: "", unitValue: 0, total: 0, cartons: 0, gallons: 0, liters: 0 }];
   });
   
   const [formData, setFormData] = useState({
@@ -72,11 +83,11 @@ export default function ReduceStockForm({ onClose, initialData }: ReduceStockFor
   useEffect(() => {
     fetch("/api/items")
       .then(r => r.json())
-      .then(data => { if (data.ok) setAvailableItems(data.data); });
+      .then(data => { if (data.ok) setAvailableItems(data.data || []); });
     
     fetch("/api/locations")
       .then(r => r.json())
-      .then(data => { if (data.ok) setLocations(data.data); });
+      .then(data => { if (data.ok) setLocations(data.data || []); });
   }, []);
 
   const handleSave = async (submitStatus: string) => {
@@ -91,17 +102,19 @@ export default function ReduceStockForm({ onClose, initialData }: ReduceStockFor
         partyId: "000000000000000000000000",
         notes: formData.reason,
         status: submitStatus,
-        totalAmount: items.reduce((sum: number, i: AdjustmentItem) => sum + i.total, 0),
-        lines: items.map(i => ({
+        totalAmount: (items || []).reduce((sum: number, i: AdjustmentItem) => sum + i.total, 0),
+        lines: (items || []).map(i => ({
           itemId: i.itemId || "000000000000000000000000",
           description: "Stock Reduction",
-          cartons: i.cartons,
-          gallons: i.gallons,
-          liters: i.liters,
-          qty: i.cartons,
+          qty: i.quantity || i.cartons,
+          unit: i.unit || "Per Piece",
           uom: i.uom,
           rate: i.unitValue,
-          netAmount: i.total
+          netAmount: i.total,
+          // Legacy fields for backward compatibility
+          cartons: i.cartons,
+          gallons: i.gallons,
+          liters: i.liters
         }))
       };
 
@@ -128,8 +141,8 @@ export default function ReduceStockForm({ onClose, initialData }: ReduceStockFor
     }
   };
 
-  const addItem = () => setItems([...items, { id: Date.now().toString(), itemId: "", cartons: 0, gallons: 0, liters: 0, uom: "", unitValue: 0, total: 0 }]);
-  const removeItem = (id: string) => setItems(items.filter(i => i.id !== id));
+  const addItem = () => setItems([...items, { id: Date.now().toString(), itemId: "", quantity: 0, unit: "Per Piece", uom: "", unitValue: 0, total: 0, cartons: 0, gallons: 0, liters: 0 }]);
+  const removeItem = (id: string) => setItems((items || []).filter(i => i.id !== id));
   
   const [showItemSearch, setShowItemSearch] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -137,7 +150,7 @@ export default function ReduceStockForm({ onClose, initialData }: ReduceStockFor
   const handleItemKeyDown = (e: React.KeyboardEvent, lineId: string, filteredItems: any[]) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActiveIndex(prev => (prev < filteredItems.length - 1 ? prev + 1 : prev));
+      setActiveIndex(prev => (prev < (filteredItems || []).length - 1 ? prev + 1 : prev));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActiveIndex(prev => (prev > 0 ? prev - 1 : prev));
@@ -153,12 +166,12 @@ export default function ReduceStockForm({ onClose, initialData }: ReduceStockFor
   };
 
   const updateItem = (id: string, field: keyof AdjustmentItem, value: any) => {
-    setItems(items.map((i: AdjustmentItem) => {
+    setItems((items || []).map((i: AdjustmentItem) => {
       if (i.id === id) {
         let updated = { ...i, [field]: value };
         
         if (field === "cartons" || field === "gallons" || field === "liters") {
-          const selItem = availableItems.find(ai => ai._id === i.itemId);
+          const selItem = (availableItems || []).find(ai => ai._id === i.itemId);
           const isFltr = selItem?.name?.toLowerCase().includes("filter") || selItem?.name?.toLowerCase().includes("fliter");
           const galsInCtn = isFltr ? 1 : (selItem?.gallonsInCtn || 4);
           const ltrsInCtn = isFltr ? 1 : (selItem?.litersInCtn || 16);
@@ -175,7 +188,7 @@ export default function ReduceStockForm({ onClose, initialData }: ReduceStockFor
         }
 
         if (field === "itemId") {
-          const selected = availableItems.find(ai => ai._id === value);
+          const selected = (availableItems || []).find(ai => ai._id === value);
           if (selected) {
             updated.itemCode = selected.code;
             updated.unitValue = selected.purchaseRate || 0;
@@ -190,7 +203,7 @@ export default function ReduceStockForm({ onClose, initialData }: ReduceStockFor
     }));
   };
 
-  const grandTotal = items.reduce((sum: number, i: AdjustmentItem) => sum + i.total, 0);
+  const grandTotal = (items || []).reduce((sum: number, i: AdjustmentItem) => sum + i.total, 0);
 
   return (
     <div className="bg-slate-50 dark:bg-slate-800/50 min-h-screen font-sans">
@@ -245,7 +258,7 @@ export default function ReduceStockForm({ onClose, initialData }: ReduceStockFor
               <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Source Warehouse *</label>
               <select value={formData.locationId} onChange={(e) => setFormData({...formData, locationId: e.target.value})} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold focus:border-maroon-800 outline-none transition-all">
                 <option value="">-- Select Location --</option>
-                {locations.map(l => (
+                {(locations || []).map(l => (
                   <option key={l._id} value={l._id}>{l.name}</option>
                 ))}
               </select>
@@ -283,9 +296,9 @@ export default function ReduceStockForm({ onClose, initialData }: ReduceStockFor
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50 font-bold">
-                {items.map((item, index) => {
+                {(items || []).map((item, index) => {
                   const query = (item.itemCode || "").toLowerCase();
-                  const filteredItems = availableItems.filter(i => 
+                  const filteredItems = (availableItems || []).filter(i => 
                     i.code.toLowerCase().includes(query) || i.name.toLowerCase().includes(query)
                   ).sort((a, b) => {
                     const aStart = a.name.toLowerCase().startsWith(query) || a.code.toLowerCase().startsWith(query);

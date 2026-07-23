@@ -28,9 +28,9 @@ export default function InventoryIntelligenceReportPage() {
           salesRes.json(),
           purRes.json()
         ]);
-        if (itemsJson.ok) setItems(itemsJson.data);
-        if (salesJson.ok) setSales(salesJson.data);
-        if (purJson.ok) setPurchases(purJson.data);
+        if (itemsJson.ok) setItems(itemsJson.data || []);
+        if (salesJson.ok) setSales(salesJson.data || []);
+        if (purJson.ok) setPurchases(purJson.data || []);
       } catch (e) {
         console.error("Error fetching intelligence data:", e);
       } finally {
@@ -40,20 +40,20 @@ export default function InventoryIntelligenceReportPage() {
     fetchData();
   }, []);
 
-  const totalStockValue = items.reduce((sum, item) => sum + ((item.stockQtyCartons || 0) * (item.purchaseRate || 0)), 0);
-  const itemsBelowReorder = items.filter(i => (i.stockQtyCartons || 0) <= (i.reorderLevel || 0));
+  const totalStockValue = (items || []).reduce((sum, item) => sum + ((item.stockQtyCartons || 0) * (item.purchaseRate || 0)), 0);
+  const itemsBelowReorder = (items || []).filter(i => (i.stockQtyCartons || 0) <= (i.reorderLevel || 0));
   
   // Calculate dead stock (no movement in 90 days)
   const ninetyDaysAgo = new Date();
   ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-  const deadStock = items.filter(item => {
-    const itemSales = sales.filter(s => (s.lines || []).some((l: any) => (l.itemId?._id || l.itemId) === item._id && new Date(s.date) > ninetyDaysAgo));
-    const itemPurchases = purchases.filter(p => (p.lines || []).some((l: any) => (l.itemId?._id || l.itemId) === item._id && new Date(p.date) > ninetyDaysAgo));
+  const deadStock = (items || []).filter(item => {
+    const itemSales = (sales || []).filter(s => (s.lines || []).some((l: any) => (l.itemId?._id || l.itemId) === item._id && new Date(s.date) > ninetyDaysAgo));
+    const itemPurchases = (purchases || []).filter(p => (p.lines || []).some((l: any) => (l.itemId?._id || l.itemId) === item._id && new Date(p.date) > ninetyDaysAgo));
     return itemSales.length === 0 && itemPurchases.length === 0 && (item.stockQtyCartons || 0) > 0;
   });
 
   const stats = [
-    { title: "Total SKUs", value: items.length.toString(), icon: Box, iconColor: "text-blue-600", iconBg: "bg-blue-50" },
+    { title: "Total SKUs", value: (items || []).length.toString(), icon: Box, iconColor: "text-blue-600", iconBg: "bg-blue-50" },
     { title: "Total Stock Value", value: `Rs.${(totalStockValue / 1000).toFixed(1)}K`, icon: DollarSign, iconColor: "text-emerald-600", iconBg: "bg-emerald-50" },
     { title: "Items Below Reorder", value: itemsBelowReorder.length.toString(), icon: AlertTriangle, iconColor: "text-amber-600", iconBg: "bg-amber-50" },
     { title: "Dead Stock Value", value: `Rs.${(deadStock.reduce((s, i) => s + (i.stockQtyCartons * i.purchaseRate), 0) / 1000).toFixed(1)}K`, icon: Clock, iconColor: "text-rose-600", iconBg: "bg-rose-50" },
@@ -105,7 +105,7 @@ export default function InventoryIntelligenceReportPage() {
     </div>
   );
 
-  const categoryData = Object.entries(items.reduce((acc: any, curr) => {
+  const categoryData = Object.entries((items || []).reduce((acc: any, curr) => {
     const cat = "General"; // Item model doesn't have populated category here easily
     if (!acc[cat]) acc[cat] = { name: cat, value: 0, color: '#881337' };
     acc[cat].value += (curr.stockQtyCartons || 0) * (curr.purchaseRate || 0);

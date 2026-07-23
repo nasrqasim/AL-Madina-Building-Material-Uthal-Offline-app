@@ -37,7 +37,7 @@ export default function CustomerAgingReport() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {data.map((row, idx) => (
+            {(data || []).map((row, idx) => (
               <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors group">
                 <td className="px-8 py-6">
                   <div className="flex items-center gap-3">
@@ -63,11 +63,11 @@ export default function CustomerAgingReport() {
           <tfoot className="bg-slate-900 text-white font-black text-sm uppercase tracking-widest">
             <tr>
               <td className="px-8 py-6">Grand Total</td>
-              <td className="px-6 py-6 text-right text-slate-400 dark:text-slate-500">{data.reduce((s, r) => s + r.current, 0).toLocaleString()}</td>
-              <td className="px-6 py-6 text-right text-slate-400 dark:text-slate-500">{data.reduce((s, r) => s + r.p30, 0).toLocaleString()}</td>
-              <td className="px-6 py-6 text-right text-amber-400">{data.reduce((s, r) => s + r.p60, 0).toLocaleString()}</td>
-              <td className="px-6 py-6 text-right text-rose-400">{data.reduce((s, r) => s + r.p90 + r.over90, 0).toLocaleString()}</td>
-              <td className="px-8 py-6 text-right text-maroon-400 text-lg tracking-tighter">Rs. {data.reduce((s, r) => s + r.total, 0).toLocaleString()}</td>
+              <td className="px-6 py-6 text-right text-slate-400 dark:text-slate-500">{(data || []).reduce((s, r) => s + r.current, 0).toLocaleString()}</td>
+              <td className="px-6 py-6 text-right text-slate-400 dark:text-slate-500">{(data || []).reduce((s, r) => s + r.p30, 0).toLocaleString()}</td>
+              <td className="px-6 py-6 text-right text-amber-400">{(data || []).reduce((s, r) => s + r.p60, 0).toLocaleString()}</td>
+              <td className="px-6 py-6 text-right text-rose-400">{(data || []).reduce((s, r) => s + r.p90 + r.over90, 0).toLocaleString()}</td>
+              <td className="px-8 py-6 text-right text-maroon-400 text-lg tracking-tighter">Rs. {(data || []).reduce((s, r) => s + r.total, 0).toLocaleString()}</td>
             </tr>
           </tfoot>
         </table>

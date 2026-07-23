@@ -22,7 +22,7 @@ export default function BankPaymentPage() {
     try {
       const res = await fetch("/api/bank-payments");
       const json = await res.json();
-      if (json.ok) setPayments(json.data);
+      if (json.ok) setPayments(json.data || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -34,7 +34,7 @@ export default function BankPaymentPage() {
     try {
       const res = await fetch("/api/shop-profile");
       const json = await res.json();
-      if (json.ok) setShopProfile(json.data);
+      if (json.ok) setShopProfile(json.data || []);
     } catch (e) {
       console.error(e);
     }
@@ -56,7 +56,7 @@ export default function BankPaymentPage() {
     return <BankPaymentForm onClose={() => setShowForm(false)} />;
   }
 
-  const filteredPayments = payments.filter(p => p.voucherNo?.toLowerCase().includes(searchQuery.toLowerCase()) || p.vendor?.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredPayments = (payments || []).filter(p => p.voucherNo?.toLowerCase().includes(searchQuery.toLowerCase()) || p.vendor?.toLowerCase().includes(searchQuery.toLowerCase()));
 
   return (
     <div className="space-y-6">

@@ -5,6 +5,8 @@ import PrintTemplate from "@/components/print/PrintTemplate";
 import ItemSearchInput from "@/components/erp/ui/ItemSearchInput";
 import CustomerModal from "@/components/erp/maintain/CustomerModal";
 import ERPModal from "@/components/erp/ui/ERPModal";
+import { calculateCustomerBalance, calculateBalanceFromTransactions } from "@/lib/customerBalance";
+import { getProductUnit, formatQuantityWithUnit } from "@/lib/dynamicUnits";
 import { 
   Plus, 
   Trash2, 
@@ -32,14 +34,23 @@ interface SIItem {
   itemId: string;
   itemCode: string;
   description: string;
-  cartons: number;
-  gallons: number;
-  liters: number;
-  ratePerCtn: number;
+  quantity: number; // Dynamic quantity (uses product's unit)
+  unit: string; // Product's unit (e.g., "Per Bag", "Per KG")
+  rate: number; // Rate per unit
   grossAmount: number;
   discPercent: number;
   discount: number;
   netAmount: number;
+  isReceived?: boolean;
+  deliveredQty?: number;
+  pendingQty?: number;
+  deliveryDate?: string;
+  deliveryRemarks?: string;
+  // Legacy fields for backward compatibility
+  cartons?: number;
+  gallons?: number;
+  liters?: number;
+  ratePerCtn?: number;
 }
 
 interface SaleInvoiceFormProps {
@@ -81,7 +92,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
     customerName: initialData?.partyId?.name || "",
     customerAddress: initialData?.partyId?.address || "",
     customerTelephone: initialData?.partyId?.phone || "",
-    customerBalance: initialData?.partyId?.balance || 0.00,
+    customerBalance: 0, // Will be calculated using unified function
     customerCreditLimit: initialData?.partyId?.creditLimit || 0.00,
     
     // Bottom Section
@@ -97,7 +108,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
     amountReceived: initialData?.amountReceived || 0,
     useAdvance: initialData?.useAdvance || false,
     advanceAmountUsed: initialData?.advanceAmountUsed || 0,
-    customerAdvanceStats: initialData?.partyId?.advanceStats || null
+    customerAdvanceStats: initialData?.partyId?.advanceStats || (initialData?.partyId?.advanceBalance !== undefined ? { remainingAdvance: initialData.partyId.advanceBalance } : null)
   });
 
   const [printData, setPrintData] = useState<any>(null);
@@ -124,7 +135,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
           customerCode: savedCustomer.code,
           customerAddress: savedCustomer.address,
           customerTelephone: savedCustomer.phone,
-          customerBalance: 0
+          customerBalance: getCustomerBalance(savedCustomer)
         }));
         alert("Customer created and selected successfully!");
         fetchData();
@@ -141,34 +152,46 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
 
   const [items, setItems] = useState<SIItem[]>(() => {
     if (initialData?.lines && initialData.lines.length > 0) {
-      return initialData.lines.map((l: any, i: number) => ({
-        id: i.toString(),
-        itemId: l.itemId?._id || l.itemId,
-        itemCode: l.itemId?.code || "",
-        description: l.description || "",
-        cartons: l.cartons || l.qty || 0,
-        gallons: l.gallons || 0,
-        liters: l.liters || 0,
-        ratePerCtn: l.rate || 0,
-        grossAmount: l.grossAmount || 0,
-        discPercent: l.discountPercent || 0,
-        discount: (l.grossAmount * (l.discountPercent || 0)) / 100,
-        netAmount: l.netAmount || 0
-      }));
+      return initialData.lines.map((l: any, i: number) => {
+        const item = l.itemId?._id ? availableItems.find(ai => ai._id === l.itemId._id) : null;
+        const unit = getProductUnit(item);
+        return {
+          id: i.toString(),
+          itemId: l.itemId?._id || l.itemId,
+          itemCode: l.itemId?.code || "",
+          description: l.description || "",
+          quantity: l.cartons || l.qty || 0,
+          unit: unit,
+          rate: l.rate || 0,
+          grossAmount: l.grossAmount || 0,
+          discPercent: l.discountPercent || 0,
+          discount: (l.grossAmount * (l.discountPercent || 0)) / 100,
+          netAmount: l.netAmount || 0,
+          // Legacy fields for backward compatibility
+          cartons: l.cartons || l.qty || 0,
+          gallons: l.gallons || 0,
+          liters: l.liters || 0,
+          ratePerCtn: l.rate || 0
+        };
+      });
     }
     return [{
       id: "1",
       itemId: "",
       itemCode: "",
       description: "",
-      cartons: 0,
-      gallons: 0,
-      liters: 0,
-      ratePerCtn: 0,
+      quantity: 0,
+      unit: "Per Piece",
+      rate: 0,
       grossAmount: 0,
       discPercent: 0,
       discount: 0,
-      netAmount: 0
+      netAmount: 0,
+      // Legacy fields
+      cartons: 0,
+      gallons: 0,
+      liters: 0,
+      ratePerCtn: 0
     }];
   });
 
@@ -181,6 +204,13 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
   const [employees, setEmployees] = useState<any[]>([]);
   const isInitializedRef = useRef(false);
 
+  // Transaction data for unified balance calculation
+  const [salesData, setSalesData] = useState<any[]>([]);
+  const [cashReceiptsData, setCashReceiptsData] = useState<any[]>([]);
+  const [bankReceiptsData, setBankReceiptsData] = useState<any[]>([]);
+  const [cashPaymentsData, setCashPaymentsData] = useState<any[]>([]);
+  const [bankPaymentsData, setBankPaymentsData] = useState<any[]>([]);
+
   const [showCustomerSearch, setShowCustomerSearch] = useState(false);
   const [itemHistory, setItemHistory] = useState<any[]>([]);
 
@@ -188,35 +218,64 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
 
   const fetchData = useCallback(async () => {
     try {
-      const [itemsRes, partiesRes, locsRes, empsRes, banksRes] = await Promise.all([
+      const [itemsRes, partiesRes, locsRes, empsRes, banksRes, salesRes, cashRes, bankRes, cashPayRes, bankPayRes] = await Promise.all([
         fetch("/api/items"),
         fetch("/api/parties"),
         fetch("/api/locations"),
         fetch("/api/employees"),
-        fetch("/api/banks")
+        fetch("/api/banks"),
+        fetch("/api/sales"),
+        fetch("/api/cash-receipts"),
+        fetch("/api/bank-receipts"),
+        fetch("/api/cash-payments"),
+        fetch("/api/bank-payments")
       ]);
-      const [itemsData, partiesData, locsData, empsData, banksData] = await Promise.all([
+      const [itemsData, partiesData, locsData, empsData, banksData, salesData, cashData, bankData, cashPayData, bankPayData] = await Promise.all([
         itemsRes.json(),
         partiesRes.json(),
         locsRes.json(),
         empsRes.json(),
-        banksRes.json()
+        banksRes.json(),
+        salesRes.json(),
+        cashRes.json(),
+        bankRes.json(),
+        cashPayRes.json(),
+        bankPayRes.json()
       ]);
-      if (itemsData.ok) setAvailableItems(itemsData.data);
+      if (itemsData.ok) setAvailableItems(Array.isArray(itemsData.data) ? itemsData.data : []);
       if (partiesData.ok) {
-        // Exclude deleted/inactive customers
-        const activeCustomers = partiesData.data.filter((p: any) => 
-          p.type === "Customer" && 
-          p.status?.toLowerCase() === "active" && 
+        const rawParties = Array.isArray(partiesData.data) ? partiesData.data : [];
+        const activeCustomers = rawParties.filter((p: any) => 
+          (p.type?.toLowerCase() === "customer" || p.type?.toLowerCase()?.includes("customer")) && 
+          (!p.status || p.status.toLowerCase() === "active") && 
           !p.isDeleted && 
           !p.deleted
         );
-        setCustomers(activeCustomers);
-        setAllCustomers(activeCustomers);
+        const customersList = activeCustomers.length > 0 ? activeCustomers : rawParties;
+        setCustomers(customersList);
+        setAllCustomers(rawParties);
 
-        // Only set default customer on initial load of a new invoice
-        if (!initialData?._id && !isInitializedRef.current) {
-          const defaultCust = activeCustomers.find((c: any) => 
+        // If editing existing invoice or selecting initial party, match customer
+        if (initialData?.partyId) {
+          const pId = initialData.partyId._id || initialData.partyId;
+          const matchedParty = rawParties.find((c: any) => 
+            (pId && (c._id === pId || c.id === pId || String(c._id) === String(pId))) ||
+            (initialData.partyId.code && c.code === initialData.partyId.code) ||
+            (initialData.partyId.name && c.name?.toLowerCase() === initialData.partyId.name.toLowerCase())
+          );
+          if (matchedParty) {
+            setFormData(prev => ({
+              ...prev,
+              customerId: matchedParty._id || matchedParty.id,
+              customerName: matchedParty.name,
+              customerCode: matchedParty.code,
+              customerAddress: matchedParty.address || "",
+              customerTelephone: matchedParty.phone || "",
+              customerCreditLimit: matchedParty.creditLimit || 0
+            }));
+          }
+        } else if (!initialData?._id && !isInitializedRef.current) {
+          const defaultCust = customersList.find((c: any) => 
             c.name.toLowerCase().includes("walk-in")
           );
           if (defaultCust) {
@@ -227,16 +286,22 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
               customerCode: defaultCust.code,
               customerAddress: defaultCust.address || "",
               customerTelephone: defaultCust.phone || "",
-              customerBalance: defaultCust.balance || 0,
               customerCreditLimit: defaultCust.creditLimit || 0
             }));
           }
         }
         isInitializedRef.current = true;
       }
-      if (locsData.ok) setLocations(locsData.data);
-      if (empsData.ok) setEmployees(empsData.data);
-      if (banksData.ok) setBanks(banksData.data);
+      if (locsData.ok) setLocations(Array.isArray(locsData.data) ? locsData.data : []);
+      if (empsData.ok) setEmployees(Array.isArray(empsData.data) ? empsData.data : []);
+      if (banksData.ok) setBanks(Array.isArray(banksData.data) ? banksData.data : []);
+      
+      // Store transaction data for unified balance calculation
+      if (salesData.ok) setSalesData(Array.isArray(salesData.data) ? salesData.data : []);
+      if (cashData.ok) setCashReceiptsData(Array.isArray(cashData.data) ? cashData.data : []);
+      if (bankData.ok) setBankReceiptsData(Array.isArray(bankData.data) ? bankData.data : []);
+      if (cashPayData.ok) setCashPaymentsData(Array.isArray(cashPayData.data) ? cashPayData.data : []);
+      if (bankPayData.ok) setBankPaymentsData(Array.isArray(bankPayData.data) ? bankPayData.data : []);
     } catch (e) { console.error(e); }
   }, [initialData]);
 
@@ -246,6 +311,24 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
 
   // Track currently edited invoice ID
   const [currentInvoiceId, setCurrentInvoiceId] = useState(initialData?._id || "");
+
+  // Helper function to get customer balance using unified calculation
+  const getCustomerBalance = useCallback((customer: any): number => {
+    if (!customer) return 0;
+    // Use cached transaction data for synchronous calculation
+    if (!salesData || !cashReceiptsData || !bankReceiptsData || !cashPaymentsData || !bankPaymentsData) {
+      return customer.balance || 0;
+    }
+    const balanceResult = calculateBalanceFromTransactions(customer, salesData, cashReceiptsData, bankReceiptsData, cashPaymentsData, bankPaymentsData);
+    return balanceResult.netBalance;
+  }, [salesData, cashReceiptsData, bankReceiptsData, cashPaymentsData, bankPaymentsData]);
+
+  // Async version that fetches live from Dexie
+  const getCustomerBalanceLive = useCallback(async (customer: any): Promise<number> => {
+    if (!customer) return 0;
+    const result = await calculateCustomerBalance(customer);
+    return result.netBalance;
+  }, []);
 
   // Debounced search for customers when user types
   useEffect(() => {
@@ -263,7 +346,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
         const res = await fetch(`/api/parties/search?q=${encodeURIComponent(query)}`);
         const json = await res.json();
         if (json.ok) {
-          setCustomers(json.data);
+          setCustomers(Array.isArray(json.data) ? json.data : []);
         }
       } catch (e) {
         console.error("Error searching customers:", e);
@@ -274,22 +357,84 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
   }, [formData.customerName, showCustomerSearch, allCustomers]);
 
   useEffect(() => {
-    if (allCustomers.length > 0 && formData.customerId) {
-      const currentCust = allCustomers.find(c => c._id === formData.customerId);
+    if ((allCustomers || []).length > 0 && formData.customerId) {
+      const currentCust = (allCustomers || []).find(c => c._id === formData.customerId);
       if (currentCust) {
+        const liveBalance = calculateBalanceFromTransactions(currentCust, salesData, cashReceiptsData, bankReceiptsData, cashPaymentsData, bankPaymentsData);
         setFormData(prev => ({
           ...prev,
-          customerBalance: currentCust.balance || 0,
+          customerBalance: liveBalance.netBalance,
           customerCreditLimit: currentCust.creditLimit || 0,
           customerCode: currentCust.code || prev.customerCode,
           customerAddress: currentCust.address || prev.customerAddress,
           customerTelephone: currentCust.phone || prev.customerTelephone,
           customerName: currentCust.name || prev.customerName,
-          customerAdvanceStats: currentCust.advanceStats || null
+          customerAdvanceStats: { remainingAdvance: liveBalance.advance }
         }));
       }
     }
-  }, [allCustomers, formData.customerId]);
+  }, [allCustomers, formData.customerId, salesData, cashReceiptsData, bankReceiptsData, cashPaymentsData, bankPaymentsData]);
+
+  // Force refresh balance when transaction data loads after customer selection
+  useEffect(() => {
+    if (formData.customerId || formData.customerCode || formData.customerName) {
+      const currentCust = (allCustomers || []).find(c => 
+        (formData.customerId && (c._id === formData.customerId || c.id === formData.customerId || String(c._id) === String(formData.customerId))) ||
+        (formData.customerCode && c.code === formData.customerCode) ||
+        (formData.customerName && c.name?.toLowerCase() === formData.customerName.toLowerCase())
+      );
+      if (currentCust) {
+        const liveBalance = calculateBalanceFromTransactions(currentCust, salesData, cashReceiptsData, bankReceiptsData, cashPaymentsData, bankPaymentsData);
+        setFormData(prev => ({
+          ...prev,
+          customerBalance: liveBalance.netBalance,
+          customerAdvanceStats: { remainingAdvance: liveBalance.advance }
+        }));
+      }
+    }
+  }, [salesData, cashReceiptsData, bankReceiptsData, cashPaymentsData, bankPaymentsData, formData.customerId, formData.customerCode, formData.customerName, allCustomers]);
+
+  const grossTotal = useMemo(() => (items || []).reduce((acc, curr) => acc + curr.grossAmount, 0), [items]);
+  const subTotalAmount = useMemo(() => (items || []).reduce((acc, curr) => acc + curr.netAmount, 0), [items]);
+  const netTotal = useMemo(() => {
+    const serviceAmt = Math.max(0, Number(formData.carService) || 0);
+    const serviceDisc = Math.min(serviceAmt, Math.max(0, Number(formData.carServiceDiscount) || 0));
+    const maxAddDisc = subTotalAmount + serviceAmt - serviceDisc;
+    const addDisc = Math.min(maxAddDisc, Math.max(0, Number(formData.additionalDiscount) || 0));
+    
+    const calculated = subTotalAmount + serviceAmt - serviceDisc - addDisc;
+    return Math.max(0, calculated);
+  }, [subTotalAmount, formData.carService, formData.carServiceDiscount, formData.additionalDiscount]);
+  const balanceAmount = netTotal - Number(formData.amountReceived) - (formData.useAdvance ? Number(formData.advanceAmountUsed) : 0);
+
+  // Automatically apply advance balance to invoice
+  useEffect(() => {
+    const stats = formData.customerAdvanceStats;
+    if (stats && stats.remainingAdvance > 0 && netTotal > 0) {
+      const toUse = Math.min(netTotal, stats.remainingAdvance);
+      setFormData(prev => {
+        if (prev.useAdvance === true && prev.advanceAmountUsed === toUse) {
+          return prev;
+        }
+        return {
+          ...prev,
+          useAdvance: true,
+          advanceAmountUsed: toUse
+        };
+      });
+    } else {
+      setFormData(prev => {
+        if (prev.useAdvance === false && prev.advanceAmountUsed === 0) {
+          return prev;
+        }
+        return {
+          ...prev,
+          useAdvance: false,
+          advanceAmountUsed: 0
+        };
+      });
+    }
+  }, [netTotal, formData.customerAdvanceStats]);
 
   const [showPrevInvoicesModal, setShowPrevInvoicesModal] = useState(false);
   const [prevInvoices, setPrevInvoices] = useState<any[]>([]);
@@ -336,7 +481,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
       const res = await fetch(`/api/invoices/${invoiceId}/payment`);
       const json = await res.json();
       if (json.ok) {
-        setPrevInvoiceHistory(json.data);
+        setPrevInvoiceHistory(json.data || []);
       }
     } catch (e) {
       console.error(e);
@@ -389,7 +534,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
         await fetchPrevInvoices();
         const updatedInvoice = await fetch(`/api/invoices/${selectedPrevInvoice._id}`).then(r => r.json());
         if (updatedInvoice.ok) {
-          setSelectedPrevInvoice(updatedInvoice.data);
+          setSelectedPrevInvoice(updatedInvoice.data || []);
         }
         fetchData();
       } else {
@@ -435,7 +580,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
       customerName: inv.partyId?.name || "",
       customerAddress: inv.partyId?.address || "",
       customerTelephone: inv.partyId?.phone || "",
-      customerBalance: inv.partyId?.balance || 0.00,
+      customerBalance: getCustomerBalance(inv.partyId),
       customerCreditLimit: inv.partyId?.creditLimit || 0.00,
       
       locationId: inv.locationId?._id || inv.locationId || "",
@@ -449,24 +594,37 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
       amountReceived: inv.amountReceived || 0,
       useAdvance: inv.useAdvance || false,
       advanceAmountUsed: inv.advanceAmountUsed || 0,
-      customerAdvanceStats: inv.partyId?.advanceStats || null
+      customerAdvanceStats: inv.partyId?.advanceStats || (inv.partyId?.advanceBalance !== undefined ? { remainingAdvance: inv.partyId.advanceBalance } : null)
     });
 
     if (inv.lines && inv.lines.length > 0) {
-      setItems(inv.lines.map((l: any, idx: number) => ({
-        id: idx.toString(),
-        itemId: l.itemId?._id || l.itemId,
-        itemCode: l.itemId?.code || "",
-        description: l.description || "",
-        cartons: l.cartons || l.qty || 0,
-        gallons: l.gallons || 0,
-        liters: l.liters || 0,
-        ratePerCtn: l.rate || 0,
-        grossAmount: l.grossAmount || 0,
-        discPercent: l.discountPercent || 0,
-        discount: (l.grossAmount * (l.discountPercent || 0)) / 100,
-        netAmount: l.netAmount || 0
-      })));
+      setItems(inv.lines.map((l: any, idx: number) => {
+        const item = l.itemId?._id ? availableItems.find(ai => ai._id === l.itemId._id) : null;
+        const unit = getProductUnit(item);
+        return {
+          id: idx.toString(),
+          itemId: l.itemId?._id || l.itemId,
+          itemCode: l.itemId?.code || "",
+          description: l.description || "",
+          quantity: l.cartons || l.qty || 0,
+          unit: unit,
+          rate: l.rate || 0,
+          grossAmount: l.grossAmount || 0,
+          discPercent: l.discountPercent || 0,
+          discount: (l.grossAmount * (l.discountPercent || 0)) / 100,
+          netAmount: l.netAmount || 0,
+          isReceived: l.isReceived || false,
+          deliveredQty: l.deliveredQty || 0,
+          pendingQty: l.pendingQty || 0,
+          deliveryDate: l.deliveryDate || "",
+          deliveryRemarks: l.deliveryRemarks || "",
+          // Legacy fields
+          cartons: l.cartons || l.qty || 0,
+          gallons: l.gallons || 0,
+          liters: l.liters || 0,
+          ratePerCtn: l.rate || 0
+        };
+      }));
     }
 
     setShowPrevInvoicesModal(false);
@@ -475,16 +633,25 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
   const displayBalance = useMemo(() => {
     const name = formData.customerName || "";
     if (name.toLowerCase().includes("walk-in")) {
-      return "0.00";
+      return { receivable: "0.00", advance: "0.00" };
     }
-    const bal = formData.customerBalance;
-    if (bal === 0) return "0.00";
-    if (bal > 0) {
-      return `${bal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Cr`;
-    } else {
-      return `${Math.abs(bal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Dr`;
-    }
-  }, [formData.customerName, formData.customerBalance]);
+    // Use unified balance calculation to get separate receivable and advance
+    const customer = allCustomers.find(c => 
+      (formData.customerId && (c._id === formData.customerId || c.id === formData.customerId || String(c._id) === String(formData.customerId))) ||
+      (formData.customerCode && c.code === formData.customerCode) ||
+      (formData.customerName && c.name?.toLowerCase() === formData.customerName.toLowerCase())
+    );
+    if (!customer) return { receivable: "0.00", advance: "0.00" };
+    
+    const balanceResult = calculateBalanceFromTransactions(customer, salesData, cashReceiptsData, bankReceiptsData, cashPaymentsData, bankPaymentsData);
+    const receivable = balanceResult.receivable || 0;
+    const advance = balanceResult.advance || 0;
+    
+    return {
+      receivable: receivable.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      advance: advance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    };
+  }, [formData.customerName, formData.customerId, formData.customerCode, allCustomers, salesData, cashReceiptsData, bankReceiptsData, cashPaymentsData, bankPaymentsData]);
 
   const [activeCustomerIndex, setActiveCustomerIndex] = useState(0);
   const customerListRef = useRef<HTMLDivElement>(null);
@@ -496,7 +663,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
 
   useEffect(() => {
     setActiveCustomerIndex(0);
-  }, [displayedCustomers.length]);
+  }, [(displayedCustomers || []).length]);
 
   useEffect(() => {
     if (showCustomerSearch && customerListRef.current) {
@@ -529,7 +696,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setActiveCustomerIndex(prev => 
-        prev < displayedCustomers.length - 1 ? prev + 1 : prev
+        prev < (displayedCustomers || []).length - 1 ? prev + 1 : prev
       );
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
@@ -537,7 +704,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
     } else if (e.key === "PageDown") {
       e.preventDefault();
       setActiveCustomerIndex(prev => 
-        Math.min(displayedCustomers.length - 1, prev + 10)
+        Math.min((displayedCustomers || []).length - 1, prev + 10)
       );
     } else if (e.key === "PageUp") {
       e.preventDefault();
@@ -547,7 +714,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
       setActiveCustomerIndex(0);
     } else if (e.key === "End") {
       e.preventDefault();
-      setActiveCustomerIndex(displayedCustomers.length - 1);
+      setActiveCustomerIndex((displayedCustomers || []).length - 1);
     } else if (e.key === "Enter") {
       e.preventDefault();
       const selected = displayedCustomers[activeCustomerIndex];
@@ -559,7 +726,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
           customerCode: selected.code,
           customerAddress: selected.address || "",
           customerTelephone: selected.phone || "",
-          customerBalance: selected.balance || 0,
+          customerBalance: getCustomerBalance(selected),
           customerCreditLimit: selected.creditLimit || 0
         }));
         setShowCustomerSearch(false);
@@ -573,87 +740,129 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
   const handlePriceTypeChange = (isWholesale: boolean) => {
     setFormData({ ...formData, isWholesale, isRetail: !isWholesale });
     setItems(prev => prev.map(i => {
-      const item = availableItems.find(ai => ai._id === i.itemId);
+      const item = (availableItems || []).find(ai => ai._id === i.itemId);
       if (item) {
         const baseRate = isWholesale ? (item.wholesaleRate || item.rate || 0) : (item.retailRate || item.rate || 0);
-        const ratePerCtn = formData.isOnCredit ? baseRate * 1.10 : baseRate;
-        const qty = Number(i.cartons) || 0;
-        const grossAmount = qty * ratePerCtn;
+        const rate = formData.isOnCredit ? baseRate * 1.10 : baseRate;
+        const qty = Number(i.quantity) || 0;
+        const grossAmount = qty * rate;
         const discount = (grossAmount * (i.discPercent || 0)) / 100;
         const netAmount = grossAmount - discount;
-        return { ...i, ratePerCtn, grossAmount, discount, netAmount };
+        return { ...i, rate, grossAmount, discount, netAmount, ratePerCtn: rate };
       }
       return i;
     }));
   };
 
   const addItem = () => {
-    const newItem = { id: Date.now().toString(), itemId: "", itemCode: "", description: "", cartons: 0, gallons: 0, liters: 0, ratePerCtn: 0, grossAmount: 0, discPercent: 0, discount: 0, netAmount: 0 };
+    const newItem = {
+      id: Date.now().toString(),
+      itemId: "",
+      itemCode: "",
+      description: "",
+      quantity: 0,
+      unit: "Per Piece",
+      rate: 0,
+      grossAmount: 0,
+      discPercent: 0,
+      discount: 0,
+      netAmount: 0,
+      isReceived: true,
+      deliveredQty: 0,
+      pendingQty: 0,
+      deliveryDate: "",
+      deliveryRemarks: "",
+      // Legacy fields
+      cartons: 0,
+      gallons: 0,
+      liters: 0,
+      ratePerCtn: 0
+    };
     setItems([...items, newItem]);
     setSelectedLineId(newItem.id);
   };
 
   const removeItem = (id: string) => {
-    if (items.length > 1) {
-      setItems(items.filter(i => i.id !== id));
+    if ((items || []).length > 1) {
+      setItems((items || []).filter(i => i.id !== id));
       if (selectedLineId === id) setSelectedLineId(items[0].id);
     }
   };
 
-  const updateItem = (id: string, field: keyof SIItem, value: any) => {
-    setItems(items.map(i => {
+  const updateItem = (id: string, field: string, value: any) => {
+    setItems((items || []).map(i => {
       if (i.id === id) {
-        const updated = { ...i, [field]: value };
+        const updated = { ...i, [field]: value } as any;
         if (field === "itemCode") {
           updated.itemId = "";
           updated.description = "";
         }
-        const item = availableItems.find(ai => ai._id === (field === "itemId" ? value : i.itemId));
+        const item = (availableItems || []).find(ai => ai._id === (field === "itemId" ? value : i.itemId));
+        const unit = getProductUnit(item);
 
-        const isFilter = item && (
-          item.name?.toLowerCase().includes("filter") || 
-          item.name?.toLowerCase().includes("fliter") ||
-          updated.description?.toLowerCase().includes("filter") ||
-          updated.description?.toLowerCase().includes("fliter")
-        );
-        const gallonsInCtn = isFilter ? 1 : (item?.gallonsInCtn || 4);
-        const litersInCtn = isFilter ? 1 : (item?.litersInCtn || 16);
-
-        if (field === "cartons") {
-          updated.gallons = value * gallonsInCtn;
-          updated.liters = value * litersInCtn;
-        } else if (field === "gallons") {
-          updated.cartons = gallonsInCtn > 0 ? value / gallonsInCtn : 0;
-          updated.liters = gallonsInCtn > 0 ? (value / gallonsInCtn) * litersInCtn : 0;
-        } else if (field === "liters") {
-          updated.cartons = litersInCtn > 0 ? value / litersInCtn : 0;
-          updated.gallons = litersInCtn > 0 ? (value / litersInCtn) * gallonsInCtn : 0;
+        // Update unit when item is selected
+        if (field === "itemId" && item) {
+          updated.unit = unit;
         }
 
-        if (field === "cartons" || field === "gallons" || field === "liters" || field === "ratePerCtn" || field === "discPercent" || field === "itemId") {
-          const qty = Number(updated.cartons) || 0;
-          updated.grossAmount = qty * (Number(updated.ratePerCtn) || 0);
+        // Handle quantity changes
+        if (field === "quantity") {
+          if (updated.isReceived) {
+            updated.deliveredQty = value;
+            updated.pendingQty = 0;
+          } else {
+            updated.pendingQty = Math.max(0, value - (updated.deliveredQty || 0));
+          }
+          // Update legacy cartons field for backward compatibility
+          updated.cartons = value;
+        } else if (field === "isReceived") {
+          if (value) {
+            updated.deliveredQty = updated.quantity || 0;
+            updated.pendingQty = 0;
+          } else {
+            updated.deliveredQty = 0;
+            updated.pendingQty = updated.quantity || 0;
+          }
+        } else if (field === "deliveredQty") {
+          updated.pendingQty = Math.max(0, (updated.quantity || 0) - value);
+          updated.isReceived = value >= (updated.quantity || 0);
+        }
+
+        // Calculate amounts when quantity, rate, or discount changes
+        if (field === "quantity" || field === "rate" || field === "discPercent" || field === "itemId") {
+          const qty = Number(updated.quantity) || 0;
+          const rate = Number(updated.rate) || 0;
+          updated.grossAmount = qty * rate;
           updated.discount = (updated.grossAmount * (Number(updated.discPercent) || 0)) / 100;
           updated.netAmount = updated.grossAmount - updated.discount;
+          // Update legacy fields
+          updated.cartons = qty;
+          updated.ratePerCtn = rate;
         }
 
+        // When item is selected, set default values
         if (field === "itemId" && item) {
           updated.itemCode = item.code;
           updated.description = item.name;
+          updated.unit = unit;
           const baseRate = formData.isWholesale ? (item.wholesaleRate || item.rate || 0) : (item.retailRate || item.rate || 0);
-          updated.ratePerCtn = formData.isOnCredit ? baseRate * 1.10 : baseRate;
+          updated.rate = formData.isOnCredit ? baseRate * 1.10 : baseRate;
           
-          updated.cartons = 1;
-          const isFilterNow = item.name?.toLowerCase().includes("filter") || item.name?.toLowerCase().includes("fliter");
-          const defaultGals = isFilterNow ? 1 : (item.gallonsInCtn || 4);
-          const defaultLtrs = isFilterNow ? 1 : (item.litersInCtn || 16);
-          updated.gallons = defaultGals;
-          updated.liters = defaultLtrs;
+          updated.quantity = 1;
+          updated.isReceived = true;
+          updated.deliveredQty = 1;
+          updated.pendingQty = 0;
 
-          const qty = Number(updated.cartons) || 0;
-          updated.grossAmount = qty * (Number(updated.ratePerCtn) || 0);
+          const qty = Number(updated.quantity) || 0;
+          updated.grossAmount = qty * (Number(updated.rate) || 0);
           updated.discount = (updated.grossAmount * (Number(updated.discPercent) || 0)) / 100;
           updated.netAmount = updated.grossAmount - updated.discount;
+          
+          // Update legacy fields
+          updated.cartons = 1;
+          updated.ratePerCtn = updated.rate;
+          updated.gallons = 0;
+          updated.liters = 0;
         }
         return updated;
       }
@@ -661,18 +870,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
     }));
   };
 
-  const grossTotal = useMemo(() => items.reduce((acc, curr) => acc + curr.grossAmount, 0), [items]);
-  const subTotalAmount = useMemo(() => items.reduce((acc, curr) => acc + curr.netAmount, 0), [items]);
-  const netTotal = useMemo(() => {
-    const serviceAmt = Math.max(0, Number(formData.carService) || 0);
-    const serviceDisc = Math.min(serviceAmt, Math.max(0, Number(formData.carServiceDiscount) || 0));
-    const maxAddDisc = subTotalAmount + serviceAmt - serviceDisc;
-    const addDisc = Math.min(maxAddDisc, Math.max(0, Number(formData.additionalDiscount) || 0));
-    
-    const calculated = subTotalAmount + serviceAmt - serviceDisc - addDisc;
-    return Math.max(0, calculated);
-  }, [subTotalAmount, formData.carService, formData.carServiceDiscount, formData.additionalDiscount]);
-  const balanceAmount = netTotal - Number(formData.amountReceived) - (formData.useAdvance ? Number(formData.advanceAmountUsed) : 0);
+
 
   const handleSave = useCallback(async (status: string) => {
     if (formData.isOnCredit && (!formData.customerId || formData.customerName.toLowerCase().includes("walk-in"))) {
@@ -694,6 +892,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
       partyId: formData.customerId || null,
       regNo: formData.vehicleNo,
       rangeKms: formData.rangeKms,
+      paymentMethod: formData.isOnCredit ? "Credit" : (formData.termsOfPayment || "Cash"),
       paymentTerms: formData.termsOfPayment,
       isCreditBill: formData.isOnCredit,
       startKms: formData.startKms,
@@ -702,17 +901,26 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
       locationId: formData.locationId || null,
       employeeId: formData.employeeRef || null,
       notes: formData.remarks,
-      lines: items.filter(l => l.itemId).map(l => ({
+      lines: (items || []).filter(l => l.itemId).map(l => ({
         itemId: l.itemId,
         description: l.description,
-        cartons: l.cartons || 0,
-        gallons: l.gallons || 0,
-        liters: l.liters || 0,
-        rate: l.ratePerCtn || 0,
+        qty: l.quantity || l.cartons || 0,
+        unit: l.unit || "Per Piece",
+        rate: l.rate || l.ratePerCtn || 0,
         grossAmount: l.grossAmount || 0,
         discountPercent: l.discPercent || 0,
-        netAmount: l.netAmount || 0
+        netAmount: l.netAmount || 0,
+        isReceived: l.isReceived !== false,
+        deliveredQty: l.isReceived !== false ? (l.quantity || l.cartons || 0) : (l.deliveredQty || 0),
+        pendingQty: l.isReceived !== false ? 0 : Math.max(0, (l.quantity || l.cartons || 0) - (l.deliveredQty || 0)),
+        orderedQty: l.quantity || l.cartons || 0,
+        // Legacy fields for backward compatibility
+        cartons: l.cartons || l.quantity || 0,
+        gallons: l.gallons || 0,
+        liters: l.liters || 0,
       })),
+      deliveryStatus: (items || []).filter(l => l.itemId).every(l => l.isReceived !== false) ? "fully_delivered" :
+                      (items || []).filter(l => l.itemId).some(l => l.isReceived !== false || (l.deliveredQty || 0) > 0) ? "partially_delivered" : "pending_delivery",
       subTotal: grossTotal || 0,
       discountAmount: Number(formData.additionalDiscount) || 0,
       carService: Number(formData.carService) || 0,
@@ -748,13 +956,15 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
             startKms: payload.startKms,
             endKms: payload.endKms,
             rangeKms: payload.rangeKms,
-            lines: items.filter(l => l.itemId).map(l => ({
+            lines: (items || []).filter(l => l.itemId).map(l => ({
               description: l.description,
-              cartons: l.cartons || 0,
-              gallons: l.gallons || 0,
-              liters: l.liters || 0,
-              rate: l.ratePerCtn || 0,
-              netAmount: l.netAmount || 0
+              qty: l.quantity || l.cartons || 0,
+              unit: l.unit || "Per Piece",
+              rate: l.rate || l.ratePerCtn || 0,
+              netAmount: l.netAmount || 0,
+              isReceived: l.isReceived === true,
+              deliveredQty: l.isReceived === true ? (l.quantity || l.cartons || 0) : (l.deliveredQty || 0),
+              pendingQty: l.isReceived === true ? 0 : Math.max(0, (l.quantity || l.cartons || 0) - (l.deliveredQty || 0)),
             }))
           });
         } else {
@@ -776,10 +986,10 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
   }, [formData, items, grossTotal, netTotal, initialData, currentInvoiceId, onClose]);
 
   const selectedItemDetails = useMemo(() => {
-    if (previewItemId) return availableItems.find(i => i._id === previewItemId) || null;
-    const line = items.find(l => l.id === selectedLineId);
+    if (previewItemId) return (availableItems || []).find(i => i._id === previewItemId) || null;
+    const line = (items || []).find(l => l.id === selectedLineId);
     if (!line || !line.itemId) return null;
-    return availableItems.find(i => i._id === line.itemId);
+    return (availableItems || []).find(i => i._id === line.itemId);
   }, [previewItemId, selectedLineId, items, availableItems]);
 
   useEffect(() => {
@@ -900,15 +1110,15 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                       });
                       if (nextOnCredit !== formData.isOnCredit) {
                         setItems(prev => prev.map(i => {
-                          const item = availableItems.find(ai => ai._id === i.itemId);
+                          const item = (availableItems || []).find(ai => ai._id === i.itemId);
                           if (item) {
                             const baseRate = formData.isWholesale ? (item.wholesaleRate || item.rate || 0) : (item.retailRate || item.rate || 0);
-                            const ratePerCtn = nextOnCredit ? baseRate * 1.10 : baseRate;
-                            const qty = Number(i.cartons) || 0;
-                            const grossAmount = qty * ratePerCtn;
+                            const rate = nextOnCredit ? baseRate * 1.10 : baseRate;
+                            const qty = Number(i.quantity) || 0;
+                            const grossAmount = qty * rate;
                             const discount = (grossAmount * (i.discPercent || 0)) / 100;
                             const netAmount = grossAmount - discount;
-                            return { ...i, ratePerCtn, grossAmount, discount, netAmount };
+                            return { ...i, rate, grossAmount, discount, netAmount, ratePerCtn: rate };
                           }
                           return i;
                         }));
@@ -936,7 +1146,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                           termsOfPayment: nextOnCredit ? "Credit on Bill" : "Cash"
                         });
                         setItems(prev => prev.map(i => {
-                          const item = availableItems.find(ai => ai._id === i.itemId);
+                          const item = (availableItems || []).find(ai => ai._id === i.itemId);
                           if (item) {
                             const baseRate = formData.isWholesale ? (item.wholesaleRate || item.rate || 0) : (item.retailRate || item.rate || 0);
                             const ratePerCtn = nextOnCredit ? baseRate * 1.10 : baseRate;
@@ -1004,22 +1214,25 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                          <>
                            <div className="fixed inset-0 z-40" onClick={() => setShowCustomerSearch(false)} />
                            <div ref={customerListRef} className="absolute top-full left-0 w-full bg-white border border-slate-200 rounded shadow-xl z-50 max-h-48 overflow-auto mt-1">
-                               {displayedCustomers.map((c, idx) => (
+                               {(displayedCustomers || []).map((c, idx) => (
                                  <div 
                                    key={c._id} 
                                    className={`px-3 py-2 text-xs cursor-pointer font-bold border-b relative z-50 transition-colors ${
                                      idx === activeCustomerIndex ? 'bg-yellow-100 text-yellow-900' : 'hover:bg-yellow-50 text-slate-800'
                                    }`} 
                                    onClick={() => {
+                                     const selectedCustomer = c;
+                                     const liveBal = calculateBalanceFromTransactions(selectedCustomer, salesData, cashReceiptsData, bankReceiptsData, cashPaymentsData, bankPaymentsData);
                                      setFormData({
                                        ...formData, 
-                                       customerId: c._id, 
-                                       customerName: c.name, 
-                                       customerCode: c.code, 
-                                       customerAddress: c.address || "", 
-                                       customerTelephone: c.phone || "", 
-                                       customerBalance: c.balance || 0,
-                                       customerCreditLimit: c.creditLimit || 0
+                                       customerId: selectedCustomer._id || selectedCustomer.id, 
+                                       customerName: selectedCustomer.name, 
+                                       customerCode: selectedCustomer.code, 
+                                       customerAddress: selectedCustomer.address || "", 
+                                       customerTelephone: selectedCustomer.phone || "", 
+                                       customerBalance: liveBal.netBalance,
+                                       customerAdvanceStats: { remainingAdvance: liveBal.advance },
+                                       customerCreditLimit: selectedCustomer.creditLimit || 0
                                      });
                                      setShowCustomerSearch(false);
                                    }}
@@ -1042,13 +1255,15 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                    </div>
                    <div className="flex items-center gap-2 bg-[#fef8c3] px-2 py-1 rounded border border-[#eab308]/40">
                      <label className="text-[9px] font-black text-yellow-900 uppercase">Outstanding</label>
-                     <span className="flex-1 text-right text-xs font-bold text-rose-700">PKR {displayBalance.endsWith("Dr") ? displayBalance.replace(" Dr", "") : "0.00"}</span>
+                     <span className={`flex-1 text-right text-xs font-bold ${displayBalance.receivable !== "0.00" ? "text-rose-700" : "text-slate-500"}`}>
+                       {displayBalance.receivable !== "0.00" ? `-PKR ${displayBalance.receivable}` : "PKR 0.00"}
+                     </span>
                    </div>
                  </div>
-                 <div className="flex items-center gap-3 bg-yellow-100 p-2 rounded">
-                   <label className="text-xs font-black text-yellow-900 w-16 uppercase">Balance</label>
-                   <div className="flex-1 text-right text-lg font-black text-rose-600 font-mono">
-                     {displayBalance}
+                 <div className="flex items-center gap-3 bg-emerald-50 p-2 rounded border border-emerald-200">
+                   <label className="text-xs font-black text-emerald-900 w-16 uppercase">Advance Balance</label>
+                   <div className={`flex-1 text-right text-lg font-black font-mono ${displayBalance.advance !== "0.00" ? "text-emerald-600" : "text-slate-400"}`}>
+                     PKR {displayBalance.advance}
                    </div>
                  </div>
                  {/* Previous Invoices Button */}
@@ -1074,10 +1289,11 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                       <th className="px-3 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-32">Item Code</th>
                       <th className="px-3 py-2 text-[10px] font-black text-slate-500 uppercase border-r min-w-[200px]">Description</th>
                       <th className="px-3 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-24 text-right">Purchase Price</th>
-                      <th className="px-2 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-20 text-center">Ctns</th>
-                      <th className="px-2 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-20 text-center">Gals</th>
-                      <th className="px-2 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-20 text-center">Ltrs</th>
-                      <th className="px-3 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-24 text-right">Rate Ctn</th>
+                      <th className="px-2 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-20 text-center">Ordered</th>
+                      <th className="px-2 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-20 text-center">Received</th>
+                      <th className="px-2 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-20 text-center">Delivered</th>
+                      <th className="px-2 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-20 text-center">Pending</th>
+                      <th className="px-3 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-24 text-right">Rate</th>
                       <th className="px-3 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-28 text-right">Gross Amt</th>
                       <th className="px-3 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-16 text-center">Disc%</th>
                       <th className="px-3 py-2 text-[10px] font-black text-slate-500 uppercase border-r w-24 text-right">Discount</th>
@@ -1086,7 +1302,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {items.map((line) => {
+                    {(items || []).map((line) => {
                       return (
                       <tr key={line.id} className={`group ${selectedLineId === line.id ? 'bg-blue-50' : 'hover:bg-slate-50'}`} onClick={() => setSelectedLineId(line.id)}>
                         <td className="p-0 border-r relative">
@@ -1106,12 +1322,18 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                         </td>
                         <td className="px-3 py-2 text-xs font-medium border-r">{line.description}</td>
                         <td className="px-3 py-2 text-xs font-black text-right border-r font-mono bg-slate-50">
-                          {(availableItems.find(ai => ai._id === line.itemId)?.purchaseRate || 0).toFixed(2)}
+                          {((availableItems || []).find(ai => ai._id === line.itemId)?.purchaseRate || 0).toFixed(2)}
                         </td>
-                        <td className="p-0 border-r"><input type="number" value={line.cartons} onChange={e => updateItem(line.id, "cartons", parseFloat(e.target.value) || 0)} className="w-full px-2 py-2 text-xs font-black text-center outline-none bg-transparent" /></td>
-                        <td className="p-0 border-r"><input type="number" value={line.gallons} onChange={e => updateItem(line.id, "gallons", parseFloat(e.target.value) || 0)} className="w-full px-2 py-2 text-xs font-black text-center outline-none bg-transparent" /></td>
-                        <td className="p-0 border-r"><input type="number" value={line.liters} onChange={e => updateItem(line.id, "liters", parseFloat(e.target.value) || 0)} className="w-full px-2 py-2 text-xs font-black text-center outline-none bg-transparent" /></td>
-                        <td className="p-0 border-r"><input type="number" value={line.ratePerCtn} onChange={e => updateItem(line.id, "ratePerCtn", parseFloat(e.target.value) || 0)} className="w-full px-3 py-2 text-xs font-black text-right outline-none bg-transparent" /></td>
+                        <td className="p-0 border-r">
+                          <div className="flex items-center">
+                            <input type="number" value={line.quantity} onChange={e => updateItem(line.id, "quantity", parseFloat(e.target.value) || 0)} className="w-full px-2 py-2 text-xs font-black text-center outline-none bg-transparent" />
+                            <span className="text-[9px] font-bold text-slate-500 ml-1">{line.unit?.replace(/^Per\s+/i, '') || 'Pcs'}</span>
+                          </div>
+                        </td>
+                        <td className="p-0 border-r text-center"><input type="checkbox" checked={line.isReceived !== false} onChange={e => updateItem(line.id, "isReceived", e.target.checked)} className="rounded accent-maroon-800" /></td>
+                        <td className="p-0 border-r"><input type="number" value={line.deliveredQty} onChange={e => updateItem(line.id, "deliveredQty", parseFloat(e.target.value) || 0)} className="w-full px-2 py-2 text-xs font-black text-center outline-none bg-transparent" /></td>
+                        <td className="px-2 py-2 text-xs font-black text-center border-r bg-slate-50 font-mono">{line.pendingQty !== undefined ? line.pendingQty : Math.max(0, (line.quantity || 0) - (line.deliveredQty || 0))}</td>
+                        <td className="p-0 border-r"><input type="number" value={line.rate} onChange={e => updateItem(line.id, "rate", parseFloat(e.target.value) || 0)} className="w-full px-3 py-2 text-xs font-black text-right outline-none bg-transparent" /></td>
                         <td className="px-3 py-2 text-xs font-black text-right border-r font-mono">{line.grossAmount.toFixed(2)}</td>
                         <td className="p-0 border-r"><input type="number" value={line.discPercent} onChange={e => updateItem(line.id, "discPercent", parseFloat(e.target.value) || 0)} className="w-full px-2 py-2 text-xs font-black text-center outline-none bg-transparent" /></td>
                         <td className="px-3 py-2 text-xs font-black text-right border-r font-mono text-rose-600">{line.discount.toFixed(2)}</td>
@@ -1120,7 +1342,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                       </tr>
                       );
                     })}
-                    <tr className="bg-slate-50"><td colSpan={11} className="p-2"><button onClick={addItem} className="flex items-center gap-1 text-[10px] font-black text-blue-600 uppercase"><PlusCircle size={14}/> Add New Row</button></td></tr>
+                    <tr className="bg-slate-50"><td colSpan={12} className="p-2"><button onClick={addItem} className="flex items-center gap-1 text-[10px] font-black text-blue-600 uppercase"><PlusCircle size={14}/> Add New Row</button></td></tr>
                   </tbody>
                 </table>
              </div>
@@ -1129,6 +1351,17 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
           <div className="col-span-12 lg:col-span-3 bg-[#f8fafc] border border-[#cbd5e1] rounded shadow-sm flex flex-col p-3 text-xs">
              {selectedItemDetails ? (
                <div className="space-y-2">
+                 {/* Selling Unit Badge */}
+                 <div className="flex items-center justify-between">
+                   <span className="px-2 py-0.5 bg-maroon-800 text-white text-[9px] font-black uppercase tracking-widest rounded-full">
+                     {selectedItemDetails.unit || "Per Piece"}
+                   </span>
+                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                     {selectedItemDetails.size || ""}
+                   </span>
+                 </div>
+
+                 {/* Selling Price */}
                  <div className="flex justify-between items-start">
                    <div className="flex gap-2">
                      <span className="text-slate-500">Selling Price PKR:</span>
@@ -1140,25 +1373,28 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                    </div>
                     <div className="flex gap-2 text-rose-600 font-bold flex-col items-end">
                       <div className="flex gap-2">
-                        <span>Cartons:</span>
-                        <span>{Number(selectedItemDetails.stockQtyCartons || 0).toFixed(2)}</span>
+                        <span>Stock:</span>
+                        <span>{Number(selectedItemDetails.stockQtyCartons || 0).toLocaleString()}</span>
                       </div>
-                      {selectedItemDetails.gallonsInCtn || selectedItemDetails.litersInCtn ? (
-                        <div className="text-[10px] text-slate-500 font-normal">
-                          ({(Number(selectedItemDetails.stockQtyCartons || 0) * (selectedItemDetails.gallonsInCtn || 0)).toFixed(1)} G / 
-                           {(Number(selectedItemDetails.stockQtyCartons || 0) * (selectedItemDetails.litersInCtn || 0)).toFixed(1)} L)
-                        </div>
-                      ) : null}
                     </div>
                  </div>
-                 
+
+                 {/* Category & Brand */}
                  <div className="flex gap-2">
                    <span className="text-slate-500 w-16">Category:</span>
                    <span className="font-bold truncate" title={selectedItemDetails.category || "N/A"}>{selectedItemDetails.category || "N/A"}</span>
                  </div>
+                 <div className="flex gap-2">
+                   <span className="text-slate-500 w-16">Brand:</span>
+                   <span className="font-bold truncate" title={selectedItemDetails.brandId || "N/A"}>{selectedItemDetails.brandId || "N/A"}</span>
+                 </div>
+                 <div className="flex gap-2">
+                   <span className="text-slate-500 w-16">Size:</span>
+                   <span className="font-bold truncate">{selectedItemDetails.size || "—"}</span>
+                 </div>
                  
                  <div className="flex gap-2">
-                   <span className="text-slate-500 w-16">Description:</span>
+                   <span className="text-slate-500 w-16">Item:</span>
                    <span className="font-bold truncate" title={selectedItemDetails.name}>{selectedItemDetails.name}</span>
                  </div>
 
@@ -1180,8 +1416,8 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                        </tr>
                      </thead>
                      <tbody>
-                        {itemHistory.length > 0 ? (
-                          itemHistory.map((h, i) => (
+                        {(itemHistory || []).length > 0 ? (
+                          (itemHistory || []).map((h, i) => (
                             <tr key={i} className="border-b border-[#cbd5e1] last:border-0">
                               <td className="p-1 border-r border-[#cbd5e1] truncate max-w-[40px]" title={h.invoiceNo}>{h.invoiceNo}</td>
                               <td className="p-1 border-r border-[#cbd5e1] truncate max-w-[40px]">{h.date}</td>
@@ -1225,7 +1461,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
            <div className="col-span-12 lg:col-span-7 bg-white p-4 rounded border border-[#cbd5e1] shadow-sm space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                   <div className="flex items-center gap-2"><label className="text-xs font-bold w-24">Location</label><select value={formData.locationId} onChange={e => setFormData({...formData, locationId: e.target.value})} className="flex-1 border border-[#cbd5e1] rounded px-2 py-1 text-xs">{locations.map(l => (<option key={l._id} value={l._id}>{l.name}</option>))}</select></div>
+                   <div className="flex items-center gap-2"><label className="text-xs font-bold w-24">Location</label><select value={formData.locationId} onChange={e => setFormData({...formData, locationId: e.target.value})} className="flex-1 border border-[#cbd5e1] rounded px-2 py-1 text-xs"><option value="">-- Select Location --</option>{(locations ?? []).map(l => (<option key={l._id} value={l._id}>{l.name}</option>))}</select></div>
                    <div className="flex items-center gap-2"><label className="text-xs font-bold w-24">Job No</label><input type="text" value={formData.jobNo} className="flex-1 border border-[#cbd5e1] rounded px-2 py-1 text-xs" /></div>
                 </div>
                 <div className="space-y-2">
@@ -1473,7 +1709,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                           </tr>
                         </thead>
                         <tbody className="divide-y font-bold text-slate-600">
-                          {prevInvoiceHistory.map((hist, idx) => (
+                          {(Array.isArray(prevInvoiceHistory) ? prevInvoiceHistory : (Array.isArray((prevInvoiceHistory as any)?.data) ? (prevInvoiceHistory as any).data : [])).map((hist: any, idx: number) => (
                             <tr key={idx} className="hover:bg-slate-50">
                               <td className="px-3 py-1.5">{new Date(hist.date).toLocaleDateString()}</td>
                               <td className="px-3 py-1.5 font-mono text-slate-900">{hist.voucherNo}</td>
@@ -1546,7 +1782,7 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg font-bold focus:bg-white outline-none"
                 >
                   <option value="">-- Select Bank Account --</option>
-                  {banks.map((b: any) => (
+                  {(banks ?? []).map((b: any) => (
                     <option key={b._id} value={b._id}>{b.name} ({b.accountNumber})</option>
                   ))}
                 </select>

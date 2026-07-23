@@ -29,8 +29,8 @@ export default function ThermalReceipt({
   dateStr,
   timeStr,
 }: ThermalReceiptProps) {
-  const totalQty = items.reduce((acc, item) => acc + (Number(item.qty) || Number(item.cartons) || 1), 0);
-  const itemCount = items.length;
+  const totalQty = (items || []).reduce((acc, item) => acc + (Number(item.quantity || item.qty || item.cartons) || 1), 0);
+  const itemCount = (items || []).length;
 
   const grossTotal = Math.round(data.subtotal || data.total || 0);
   const discount = Math.round(data.discountAmount || 0);
@@ -41,7 +41,7 @@ export default function ThermalReceipt({
   const carService = Math.round(data.carService || 0);
   const carServiceDiscount = Math.round(data.carServiceDiscount || 0);
   
-  const itemsDiscount = items.reduce((acc: number, item: any) => {
+  const itemsDiscount = (items || []).reduce((acc: number, item: any) => {
     const gross = (Number(item.qty || item.cartons || 1) * Number(item.rate || item.unitPrice || 0));
     const net = Number(item.netAmount || item.total || item.amount || 0);
     return acc + Math.max(0, gross - net);
@@ -149,17 +149,33 @@ export default function ThermalReceipt({
 
       {/* Items List */}
       <div className="space-y-2 mb-2 text-[12px] font-black text-black">
-        {items.map((item: any, i: number) => {
-          const desc = item.description || item.itemName || item.accountName || "Item";
-          const qty = item.qty || item.cartons || 1;
-          const price = Math.round(item.unitPrice || item.rate || item.amount || 0);
-          const total = Math.round(item.total || item.amount || item.netAmount || item.grossAmount || 0);
+        {(items || []).map((item: any, i: number) => {
+          const desc = item.description || item.itemName || "Item";
+          const ordered = Number(item.qty || item.cartons || item.orderedQty || 1);
+          
+          const isReceived = item.isReceived !== false;
+          const delivered = isReceived ? ordered : Number(item.deliveredQty || 0);
+          const pending = isReceived ? 0 : Math.max(0, ordered - delivered);
+
+          const price = Math.round(item.rate || item.unitPrice || 0);
+          const total = Math.round(item.netAmount || item.total || 0);
+          
+          let statusText = "[✓ Received]";
+          if (!isReceived) {
+            if (pending === 0) statusText = "[✓ Delivered]";
+            else if (delivered > 0) statusText = `[Part: ${delivered}/${ordered}]`;
+            else statusText = "[✗ Pending]";
+          }
+
           return (
             <div key={i} className="border-b border-dashed border-black pb-1.5">
-              <div className="text-left font-black text-[12px] text-black leading-snug">{desc}</div>
+              <div className="flex justify-between items-start">
+                <span className="text-left font-black text-[12px] text-black leading-snug">{desc}</span>
+                <span className="text-[10px] bg-slate-100 px-1 py-0.5 rounded font-black shrink-0 ml-2">{statusText}</span>
+              </div>
               <div className="grid grid-cols-12 text-[12px] text-black font-black mt-0.5">
                 <span className="col-span-6"></span>
-                <span className="col-span-2 text-center">{formatQty(qty)}</span>
+                <span className="col-span-2 text-center">{formatQty(ordered)} {item.unit?.replace(/^Per\s+/i, '') || ''}</span>
                 <span className="col-span-2 text-right">{price.toLocaleString()}</span>
                 <span className="col-span-2 text-right font-black">{total.toLocaleString()}</span>
               </div>

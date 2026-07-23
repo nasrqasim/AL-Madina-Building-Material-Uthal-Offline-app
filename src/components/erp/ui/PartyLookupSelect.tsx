@@ -35,7 +35,7 @@ export default function PartyLookupSelect({
   const listRef = useRef<HTMLDivElement>(null);
 
   const filtered = useMemo(() => {
-    const byType = parties.filter((p) => p.type === partyType);
+    const byType = (parties || []).filter((p) => p.type === partyType);
     if (!query.trim()) return byType;
     return filterAndSortItems(
       byType.map((p) => ({
@@ -47,7 +47,7 @@ export default function PartyLookupSelect({
     ).map((f) => byType.find((p) => p._id === f._id)!);
   }, [parties, partyType, query]);
 
-  const selected = parties.find((p) => p._id === value) || null;
+  const selected = (parties || []).find((p) => p._id === value) || null;
 
   useEffect(() => {
     if (selected) {

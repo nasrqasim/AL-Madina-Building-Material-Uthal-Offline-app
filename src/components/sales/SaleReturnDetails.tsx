@@ -24,7 +24,7 @@ interface SaleReturnDetailsProps {
 
 export default function SaleReturnDetails({ record, onClose, onEdit }: SaleReturnDetailsProps) {
   const items = record.lines || record.items || [];
-  const itemsDiscount = items.reduce((acc: number, curr: any) => acc + ((curr.grossAmount || 0) - (curr.netAmount || curr.total || 0)), 0);
+  const itemsDiscount = (items || []).reduce((acc: number, curr: any) => acc + ((curr.grossAmount || 0) - (curr.netAmount || curr.total || 0)), 0);
   const carService = record.carService || 0;
   const carServiceDiscount = record.carServiceDiscount || 0;
   const additionalDiscount = record.discountAmount || 0;
@@ -126,7 +126,7 @@ export default function SaleReturnDetails({ record, onClose, onEdit }: SaleRetur
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50 font-bold">
-                {items.map((item: any, index: number) => (
+                {(items || []).map((item: any, index: number) => (
                   <tr key={item.id || index} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors">
                     <td className="px-8 py-6 text-xs font-bold text-slate-400 dark:text-slate-500 text-center">{index + 1}</td>
                     <td className="px-8 py-6 text-sm text-slate-600 dark:text-slate-300 font-bold">{item.description || item.itemId?.name || item.itemName}</td>

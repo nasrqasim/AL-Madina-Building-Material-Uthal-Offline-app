@@ -68,7 +68,7 @@ export default function PartyDetailsCard({
       try {
         const res = await fetch(`/api/parties/${partyId}?refresh=1`);
         const json = await res.json();
-        if (!cancelled && json.ok) setLiveParty(json.data);
+        if (!cancelled && json.ok) setLiveParty(json.data || []);
       } catch {
         if (!cancelled) setLiveParty(null);
       } finally {

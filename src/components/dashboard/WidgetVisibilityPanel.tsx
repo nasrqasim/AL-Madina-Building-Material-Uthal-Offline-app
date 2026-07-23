@@ -6,12 +6,8 @@ import { LayoutGrid, X } from "lucide-react";
 export const WIDGET_KEYS = [
   "executiveSummary",
   "kpiCards",
-  "financialHealth",
-  "salesIntelligence",
   "inventoryIntelligence",
-  "cashFlow",
   "decisionSupport",
-  "operationalMetrics",
   "activityFeed",
 ] as const;
 
@@ -20,24 +16,16 @@ export type WidgetKey = typeof WIDGET_KEYS[number];
 const WIDGET_LABELS: Record<WidgetKey, string> = {
   executiveSummary: "Executive Summary",
   kpiCards: "KPI Cards",
-  financialHealth: "Financial Health",
-  salesIntelligence: "Sales Intelligence",
   inventoryIntelligence: "Inventory Intelligence",
-  cashFlow: "Cash Flow",
   decisionSupport: "Decision Support",
-  operationalMetrics: "Operational Metrics",
   activityFeed: "Activity Feed",
 };
 
 const DEFAULT_VISIBILITY: Record<WidgetKey, boolean> = {
   executiveSummary: true,
   kpiCards: true,
-  financialHealth: true,
-  salesIntelligence: true,
   inventoryIntelligence: true,
-  cashFlow: true,
   decisionSupport: true,
-  operationalMetrics: true,
   activityFeed: true,
 };
 

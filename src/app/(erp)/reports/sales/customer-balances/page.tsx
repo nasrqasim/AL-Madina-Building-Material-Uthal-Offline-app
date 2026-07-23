@@ -6,6 +6,7 @@ import { exportToExcel, printPage } from "@/lib/excel";
 import { useState, useEffect } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from 'recharts';
 import CustomerProfileHistory from "@/components/erp/maintain/CustomerProfileHistory";
+import { calculateBalanceFromTransactions } from "@/lib/customerBalance";
 
 function formatBalance(val: number) {
   if (val > 0) return { text: `Rs. ${val.toLocaleString()}`, label: "(Debit)", color: "text-rose-600" };
@@ -21,10 +22,8 @@ export default function CustomerBalancesReportPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [shopProfile, setShopProfile] = useState<any>(null);
 
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
   const [rawParties, setRawParties] = useState<any[]>([]);
-  const [invoices, setInvoices] = useState<any[]>([]);
+  const [sales, setSales] = useState<any[]>([]);
   const [cashReceipts, setCashReceipts] = useState<any[]>([]);
   const [bankReceipts, setBankReceipts] = useState<any[]>([]);
   const [cashPayments, setCashPayments] = useState<any[]>([]);
@@ -33,20 +32,11 @@ export default function CustomerBalancesReportPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
 
   useEffect(() => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    setFromDate(`${year}-${month}-01`);
-    setToDate(`${year}-${month}-${day}`);
-  }, []);
-
-  useEffect(() => {
     async function fetchShop() {
       try {
         const res = await fetch("/api/shop-profile");
         const json = await res.json();
-        if (json.ok) setShopProfile(json.data);
+        if (json.ok) setShopProfile(json.data || []);
       } catch (err) {
         console.error("Error fetching shop profile:", err);
       }
@@ -58,33 +48,33 @@ export default function CustomerBalancesReportPage() {
     async function fetchData() {
       setIsLoading(true);
       try {
-        const [partiesRes, invoicesRes, cashReceiptsRes, bankReceiptsRes, cashPaymentsRes, bankPaymentsRes] = await Promise.all([
+        const [partiesRes, salesRes, cashReceiptsRes, bankReceiptsRes, cashPayRes, bankPayRes] = await Promise.all([
           fetch('/api/parties?type=customer'),
-          fetch('/api/invoices'),
+          fetch('/api/sales'),
           fetch('/api/cash-receipts'),
           fetch('/api/bank-receipts'),
           fetch('/api/cash-payments'),
           fetch('/api/bank-payments')
         ]);
 
-        const [partiesJson, invoicesJson, cashReceiptsJson, bankReceiptsJson, cashPaymentsJson, bankPaymentsJson] = await Promise.all([
+        const [partiesJson, salesJson, cashReceiptsJson, bankReceiptsJson, cashPayJson, bankPayJson] = await Promise.all([
           partiesRes.json(),
-          invoicesRes.json(),
+          salesRes.json(),
           cashReceiptsRes.json(),
           bankReceiptsRes.json(),
-          cashPaymentsRes.json(),
-          bankPaymentsRes.json()
+          cashPayRes.json(),
+          bankPayRes.json()
         ]);
 
         const partiesList = partiesJson.ok ? partiesJson.data : (Array.isArray(partiesJson) ? partiesJson : []);
-        const invoicesList = invoicesJson.ok ? invoicesJson.data : (Array.isArray(invoicesJson) ? invoicesJson : []);
+        const salesList = salesJson.ok ? salesJson.data : (Array.isArray(salesJson) ? salesJson : []);
         const cashReceiptsList = cashReceiptsJson.ok ? cashReceiptsJson.data : (Array.isArray(cashReceiptsJson) ? cashReceiptsJson : []);
         const bankReceiptsList = bankReceiptsJson.ok ? bankReceiptsJson.data : (Array.isArray(bankReceiptsJson) ? bankReceiptsJson : []);
-        const cashPaymentsList = cashPaymentsJson.ok ? cashPaymentsJson.data : (Array.isArray(cashPaymentsJson) ? cashPaymentsJson : []);
-        const bankPaymentsList = bankPaymentsJson.ok ? bankPaymentsJson.data : (Array.isArray(bankPaymentsJson) ? bankPaymentsJson : []);
+        const cashPaymentsList = cashPayJson.ok ? cashPayJson.data : (Array.isArray(cashPayJson) ? cashPayJson : []);
+        const bankPaymentsList = bankPayJson.ok ? bankPayJson.data : (Array.isArray(bankPayJson) ? bankPayJson : []);
 
         setRawParties(partiesList);
-        setInvoices(invoicesList);
+        setSales(salesList);
         setCashReceipts(cashReceiptsList);
         setBankReceipts(bankReceiptsList);
         setCashPayments(cashPaymentsList);
@@ -101,119 +91,26 @@ export default function CustomerBalancesReportPage() {
   useEffect(() => {
     if (rawParties.length === 0) return;
 
-    const startRange = fromDate ? new Date(fromDate) : new Date("2000-01-01");
-    const endRange = toDate ? new Date(toDate) : new Date("2100-01-01");
-    endRange.setHours(23, 59, 59, 999);
-
-    const result = rawParties.map((p: any) => {
-      const partyId = p._id;
-      const initialOpening = Number(p.openingBalance) || 0;
-
-      // Filter transactions for this customer
-      const pInvoices = invoices.filter((inv: any) => inv.partyId?._id === partyId || inv.partyId === partyId);
-      const pCashReceipts = cashReceipts.filter((r: any) => r.partyId?._id === partyId || r.partyId === partyId);
-      const pBankReceipts = bankReceipts.filter((r: any) => r.partyId?._id === partyId || r.partyId === partyId || r.party === partyId);
-      const pCashPayments = cashPayments.filter((py: any) => py.partyId?._id === partyId || py.partyId === partyId || py.vendor === partyId);
-      const pBankPayments = bankPayments.filter((py: any) => py.vendor === partyId);
-
-      // Collect all transactions into a single list
-      const txs: any[] = [];
-
-      if (p.manualDebit) {
-        txs.push({
-          date: new Date("2000-01-01T00:00:00.000Z"),
-          debit: Number(p.manualDebit) || 0,
-          credit: 0
-        });
-      }
-      if (p.manualCredit) {
-        txs.push({
-          date: new Date("2000-01-01T00:00:00.000Z"),
-          debit: 0,
-          credit: Number(p.manualCredit) || 0
-        });
-      }
-
-      pInvoices.forEach((s: any) => {
-        const isReturn = s.type === "sale_return" || s.type === "non_tax_sale_return";
-        if (["sale", "non_tax_sale", "pos", "challan", "sale_return", "non_tax_sale_return"].includes(s.type)) {
-          txs.push({
-            date: new Date(s.date || s.createdAt),
-            debit: isReturn ? 0 : s.totalAmount || 0,
-            credit: isReturn ? s.totalAmount || 0 : 0
-          });
-        }
-      });
-
-      pCashReceipts.forEach((r: any) => {
-        txs.push({
-          date: new Date(r.date || r.createdAt),
-          debit: 0,
-          credit: r.amount || 0
-        });
-      });
-
-      pBankReceipts.forEach((r: any) => {
-        txs.push({
-          date: new Date(r.date || r.createdAt),
-          debit: 0,
-          credit: r.amount || 0
-        });
-      });
-
-      pCashPayments.forEach((py: any) => {
-        txs.push({
-          date: new Date(py.date || py.createdAt),
-          debit: py.amount || 0,
-          credit: 0
-        });
-      });
-
-      pBankPayments.forEach((py: any) => {
-        txs.push({
-          date: new Date(py.date || py.createdAt),
-          debit: py.amount || 0,
-          credit: 0
-        });
-      });
-
-      // Calculate Opening Balance (before startRange)
-      let opening = initialOpening;
-      txs.forEach((t) => {
-        if (t.date.getTime() < startRange.getTime()) {
-          opening += t.debit - t.credit;
-        }
-      });
-
-      // Calculate Debit and Credit during the selected date range
-      let debit = 0;
-      let credit = 0;
-      txs.forEach((t) => {
-        if (t.date.getTime() >= startRange.getTime() && t.date.getTime() <= endRange.getTime()) {
-          debit += t.debit;
-          credit += t.credit;
-        }
-      });
-
-      // Closing Balance
-      const closing = opening + debit - credit;
-
+    // Calculate balances for each customer using unified function
+    const result = (rawParties || []).map((customer: any) => {
+      const balance = calculateBalanceFromTransactions(customer, sales, cashReceipts, bankReceipts, cashPayments, bankPayments);
+      
       return {
-        id: partyId,
-        customer: p.name || p.companyName || "Unknown",
-        region: p.region || "-",
-        area: p.area || "-",
-        city: p.city || "-",
-        opening,
-        debit,
-        credit,
-        closing,
-        rawParty: p
+        id: customer._id,
+        customer: customer.name || customer.companyName || "Unknown",
+        region: customer.region || "-",
+        area: customer.area || "-",
+        city: customer.city || "-",
+        opening: customer.openingBalance || 0,
+        receivable: balance.receivable,
+        advance: balance.advance,
+        closing: balance.netBalance,
+        rawParty: customer
       };
     });
 
     setData(result);
-  }, [rawParties, invoices, cashReceipts, bankReceipts, cashPayments, bankPayments, fromDate, toDate]);
+  }, [rawParties, sales, cashReceipts, bankReceipts]);
 
   useEffect(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -243,35 +140,27 @@ export default function CustomerBalancesReportPage() {
     setFilteredData(result);
   }, [searchQuery, selectedCategory, data]);
 
-  const totalDebit = filteredData.reduce((s, r) => s + r.debit, 0);
-  const totalCredit = filteredData.reduce((s, r) => s + r.credit, 0);
-  const totalClosing = filteredData.reduce((s, r) => s + r.closing, 0);
+  const totalReceivable = (filteredData || []).reduce((s, r) => s + r.receivable, 0);
+  const totalAdvance = (filteredData || []).reduce((s, r) => s + r.advance, 0);
+  const totalClosing = (filteredData || []).reduce((s, r) => s + r.closing, 0);
 
   const closingFmt = formatBalance(totalClosing);
 
   const stats = [
-    { title: "Customers with Balance", value: filteredData.length.toString(), icon: Users, iconColor: "text-rose-600", iconBg: "bg-rose-50" },
-    { title: "Total Receivable", value: closingFmt.text, icon: DollarSign, iconColor: "text-blue-600", iconBg: "bg-blue-50", valueColor: closingFmt.color },
-    { title: "Total Debit", value: `Rs. ${totalDebit.toLocaleString()}`, icon: ArrowUpRight, iconColor: "text-emerald-600", iconBg: "bg-emerald-50", iconLabel: "Dr" },
-    { title: "Total Credit", value: `Rs. ${totalCredit.toLocaleString()}`, icon: ArrowDownRight, iconColor: "text-rose-600", iconBg: "bg-rose-50", iconLabel: "Cr" },
+    { title: "Customers with Balance", value: (filteredData || []).length.toString(), icon: Users, iconColor: "text-rose-600", iconBg: "bg-rose-50" },
+    { title: "Total Receivable", value: `Rs. ${totalReceivable.toLocaleString()}`, icon: DollarSign, iconColor: "text-rose-600", iconBg: "bg-rose-50" },
+    { title: "Total Advance", value: `Rs. ${totalAdvance.toLocaleString()}`, icon: DollarSign, iconColor: "text-emerald-600", iconBg: "bg-emerald-50" },
+    { title: "Net Balance", value: closingFmt.text, icon: DollarSign, iconColor: "text-blue-600", iconBg: "bg-blue-50", valueColor: closingFmt.color },
   ];
 
   const Filters = (
     <div className="flex flex-col md:flex-row justify-between items-end gap-4 w-full">
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 w-full">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 w-full">
         <div className="space-y-1 lg:col-span-1">
           <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Financial Year</label>
           <select className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/20">
             <option>Financial Year 2025-26...</option>
           </select>
-        </div>
-        <div className="space-y-1 lg:col-span-1">
-          <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Date From</label>
-          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/20" />
-        </div>
-        <div className="space-y-1 lg:col-span-1">
-          <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Date To</label>
-          <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-maroon-800/20" />
         </div>
         <div className="space-y-1 lg:col-span-1">
           <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Customer</label>
@@ -318,7 +207,7 @@ export default function CustomerBalancesReportPage() {
     </div>
   );
 
-  const barData = filteredData.slice(0, 10).map(r => ({ name: r.customer, balance: r.closing }));
+  const barData = (filteredData || []).slice(0, 10).map(r => ({ name: r.customer, balance: r.closing }));
 
   if (selectedCustomer) {
     return (
@@ -393,14 +282,13 @@ export default function CustomerBalancesReportPage() {
                       <th className="px-4 py-3 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest cursor-pointer hover:text-slate-600">CUSTOMER ↑</th>
                       <th className="px-4 py-3 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">REGION</th>
                       <th className="px-4 py-3 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">AREA</th>
-                      <th className="px-4 py-3 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-right">OPENING</th>
-                      <th className="px-4 py-3 text-[9px] font-black text-emerald-600 uppercase tracking-widest text-right">DEBIT</th>
-                      <th className="px-4 py-3 text-[9px] font-black text-rose-600 uppercase tracking-widest text-right">CREDIT</th>
-                      <th className="px-4 py-3 text-[9px] font-black text-blue-600 uppercase tracking-widest text-right">CLOSING</th>
+                      <th className="px-4 py-3 text-[9px] font-black text-rose-600 uppercase tracking-widest text-right">RECEIVABLE</th>
+                      <th className="px-4 py-3 text-[9px] font-black text-emerald-600 uppercase tracking-widest text-right">ADVANCE</th>
+                      <th className="px-4 py-3 text-[9px] font-black text-blue-600 uppercase tracking-widest text-right">NET BALANCE</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {filteredData.map((row: any, i: number) => {
+                    {(filteredData || []).map((row: any, i: number) => {
                       const bal = formatBalance(row.closing);
                       return (
                         <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
@@ -413,14 +301,11 @@ export default function CustomerBalancesReportPage() {
                           </td>
                           <td className="px-4 py-3 text-[11px] font-medium text-slate-600 dark:text-slate-300">{row.region}</td>
                           <td className="px-4 py-3 text-[11px] font-medium text-slate-600 dark:text-slate-300">{row.area}</td>
-                          <td className="px-4 py-3 text-[11px] font-medium text-slate-500 dark:text-slate-400 text-right">
-                            {row.opening > 0 ? `+Rs. ${row.opening.toLocaleString()}` : row.opening < 0 ? `-Rs. ${Math.abs(row.opening).toLocaleString()}` : "Rs. 0"}
+                          <td className="px-4 py-3 text-[11px] font-medium text-rose-600 text-right">
+                            {row.receivable > 0 ? `Rs. ${row.receivable.toLocaleString()}` : "Rs. 0"}
                           </td>
                           <td className="px-4 py-3 text-[11px] font-medium text-emerald-600 text-right">
-                            {row.debit !== 0 ? `+Rs. ${row.debit.toLocaleString()}` : "Rs. 0"}
-                          </td>
-                          <td className="px-4 py-3 text-[11px] font-medium text-rose-600 text-right">
-                            {row.credit !== 0 ? `-Rs. ${row.credit.toLocaleString()}` : "Rs. 0"}
+                            {row.advance > 0 ? `Rs. ${row.advance.toLocaleString()}` : "Rs. 0"}
                           </td>
                           <td className={`px-4 py-3 text-[11px] font-black text-right ${bal.color}`}>
                             {Math.abs(row.closing).toLocaleString()}
@@ -431,9 +316,8 @@ export default function CustomerBalancesReportPage() {
                     })}
                     <tr className="bg-slate-50 dark:bg-slate-800/50 font-black">
                       <td colSpan={4} className="px-4 py-3 text-right text-[10px] uppercase tracking-widest text-slate-800 dark:text-slate-100">Grand Total</td>
-                      <td className="px-4 py-3 text-[11px] text-right text-slate-800 dark:text-slate-100">{filteredData.reduce((s, r) => s + r.opening, 0).toLocaleString()}</td>
-                      <td className="px-4 py-3 text-[11px] text-right text-emerald-600">+Rs. {totalDebit.toLocaleString()}</td>
-                      <td className="px-4 py-3 text-[11px] text-right text-rose-600">-Rs. {totalCredit.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-[11px] text-right text-rose-600">Rs. {totalReceivable.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-[11px] text-right text-emerald-600">Rs. {totalAdvance.toLocaleString()}</td>
                       <td className={`px-4 py-3 text-[11px] text-right ${closingFmt.color}`}>
                         {Math.abs(totalClosing).toLocaleString()}
                         {closingFmt.label && <span className="ml-1 text-[9px] font-bold opacity-70">{closingFmt.label}</span>}

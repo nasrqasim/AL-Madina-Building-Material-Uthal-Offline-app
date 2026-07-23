@@ -1,62 +1,44 @@
 import { fail, ok } from "@/lib/api";
-import dbConnect from "@/lib/db";
-import BankPayment from "@/models/BankPayment";
-import { postBankPayment } from "@/services/posting/transactionPosting";
-import { recalculatePartyBalance } from "@/services/posting/invoicePostingHelper";
+import { offlineDB, generateUniqueId } from "@/lib/dexie";
+import { postBankPaymentJournalEntries, recalculatePartyBalance } from "@/lib/offline/postingService";
 
 export async function GET() {
-  await dbConnect();
-  // Using aggregate to join with Party and Bank for names
-  const rows = await BankPayment.aggregate([
-    {
-      $lookup: {
-        from: "parties",
-        let: { vendorId: "$vendor" },
-        pipeline: [
-          { $match: { $expr: { $eq: [{ $toString: "$_id" }, "$$vendorId"] } } }
-        ],
-        as: "vendorData"
-      }
-    },
-    {
-      $lookup: {
-        from: "banks",
-        let: { bankId: "$bankAccount" },
-        pipeline: [
-          { $match: { $expr: { $eq: [{ $toString: "$_id" }, "$$bankId"] } } }
-        ],
-        as: "bankData"
-      }
-    },
-    {
-      $project: {
-        voucherNo: 1,
-        date: 1,
-        mode: 1,
-        amount: 1,
-        status: 1,
-        vendor: { $ifNull: [{ $arrayElemAt: ["$vendorData.name", 0] }, "$vendor"] },
-        bankAccount: { $ifNull: [{ $arrayElemAt: ["$bankData.name", 0] }, "$bankAccount"] },
-        createdAt: 1
-      }
-    },
-    { $sort: { createdAt: -1 } }
-  ]);
-  
-  return ok(rows);
+  try {
+    const payments = await offlineDB.bankPayments.toArray();
+    const parties = await offlineDB.parties.toArray();
+    const banks = await offlineDB.banks.toArray();
+
+    const partyMap = new Map(parties.map(p => [p.id, p]));
+    const bankMap = new Map(banks.map(b => [b.id, b]));
+
+    const rows = payments.map(p => {
+      const party = p.partyId ? partyMap.get(p.partyId) : undefined;
+      const bank = p.bankId ? bankMap.get(p.bankId) : undefined;
+      return {
+        ...p,
+        vendor: party?.name || p.vendor || "",
+        bankAccount: bank?.name || ""
+      };
+    });
+
+    rows.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return ok(rows);
+  } catch (e) {
+    return fail((e as Error).message);
+  }
 }
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    await dbConnect();
-    
+    const id = generateUniqueId();
+
     if (!body.voucherNo || body.voucherNo === "Auto-generated") {
+      let attempt = (await offlineDB.bankPayments.count()) + 1;
       let isUnique = false;
-      let attempt = await BankPayment.countDocuments() + 1;
       while (!isUnique) {
         const candidate = `BPV-${attempt.toString().padStart(5, "0")}`;
-        const existing = await BankPayment.findOne({ voucherNo: candidate });
+        const existing = await offlineDB.bankPayments.where("voucherNo").equals(candidate).first();
         if (!existing) {
           body.voucherNo = candidate;
           isUnique = true;
@@ -66,26 +48,41 @@ export async function POST(req: Request) {
       }
     }
 
-    const row = await postBankPayment({
+    const whtAmount = Number(body.whtAmount) || 0;
+    const netAmount = Number(body.totalAmount) - whtAmount;
+
+    const paymentRecord = {
+      id,
+      _id: id,
       voucherNo: body.voucherNo,
-      date: body.date,
-      partyId: body.vendorId,
-      bankId: body.bankAccountId, // Assuming this is bankAccountId from form
-      amount: body.totalAmount,
-      wht: body.whtAmount,
-      netAmount: body.totalAmount - (body.whtAmount || 0),
-      narration: body.narration,
-      partyPaymentType: body.partyPaymentType,
-      isRefund: body.isRefund,
-    });
+      date: body.date || new Date().toISOString(),
+      partyId: body.vendorId || null,
+      vendor: body.vendorId ? String(body.vendorId) : "",
+      bankId: body.bankAccountId || null,
+      bankAccount: "",
+      amount: Number(body.totalAmount) || 0,
+      wht: whtAmount,
+      netAmount,
+      narration: body.narration || "",
+      partyPaymentType: body.partyPaymentType || "",
+      isRefund: !!body.isRefund,
+      status: "Posted",
+      mode: "Bank",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
 
-    if (body.vendorId) await recalculatePartyBalance(String(body.vendorId));
+    await offlineDB.bankPayments.add(paymentRecord);
 
-    return ok(row, 201);
+    await postBankPaymentJournalEntries(paymentRecord);
+    if (body.vendorId) {
+      await recalculatePartyBalance(body.vendorId);
+    }
+
+    return ok(paymentRecord, 201);
   } catch (e) {
     return fail((e as Error).message);
   }
 }
-
 
 export const dynamic = "force-dynamic";

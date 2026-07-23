@@ -18,7 +18,7 @@ export default function RegionsPage() {
     try {
       const res = await fetch("/api/regions");
       const json = await res.json();
-      if (json.ok) setRegions(json.data);
+      if (json.ok) setRegions(json.data || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -81,7 +81,7 @@ export default function RegionsPage() {
     setIsModalOpen(false);
   };
 
-  const filteredRegions = regions.filter(region => {
+  const filteredRegions = (regions || []).filter(region => {
     const q = searchTerm.toLowerCase();
     return (
       (region.name || "").toLowerCase().includes(q) ||
@@ -113,7 +113,7 @@ export default function RegionsPage() {
             <Map size={24} />
           </div>
           <div>
-            <h4 className="text-2xl font-black text-slate-900 dark:text-white leading-tight">{regions.length}</h4>
+            <h4 className="text-2xl font-black text-slate-900 dark:text-white leading-tight">{(regions || []).length}</h4>
             <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Regions</p>
           </div>
         </div>
@@ -123,7 +123,7 @@ export default function RegionsPage() {
           </div>
           <div>
             <h4 className="text-2xl font-black text-slate-900 dark:text-white leading-tight">
-              {regions.reduce((acc, r) => acc + (r.areas || 0), 0)}
+              {(regions || []).reduce((acc, r) => acc + (r.areas || 0), 0)}
             </h4>
             <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Areas</p>
           </div>
@@ -154,7 +154,7 @@ export default function RegionsPage() {
         </div>
 
         <div className="divide-y divide-slate-50">
-          {filteredRegions.map((region) => (
+          {(filteredRegions || []).map((region) => (
             <div key={region._id} className="p-6 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors flex items-center justify-between group">
               <div className="flex items-center gap-6">
                 <div className="p-3 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-xl group-hover:bg-maroon-800 group-hover:text-white transition-all">

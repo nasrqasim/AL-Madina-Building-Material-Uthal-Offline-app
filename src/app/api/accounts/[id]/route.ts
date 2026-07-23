@@ -1,12 +1,15 @@
 import { fail, ok } from "@/lib/api";
-import dbConnect from "@/lib/db";
-import Account from "@/models/Account";
+import { offlineDB } from "@/lib/dexie";
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   try {
     const body = await req.json();
-    await dbConnect();
-    const row = await Account.findByIdAndUpdate(params.id, body, { new: true });
+    const updatedAccount = {
+      ...body,
+      updatedAt: new Date().toISOString()
+    };
+    await offlineDB.accounts.update(params.id, updatedAccount);
+    const row = await offlineDB.accounts.get(params.id);
     if (!row) return fail("Account not found", 404);
     return ok(row);
   } catch (e) {
@@ -16,8 +19,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 
 export async function DELETE(_: Request, { params }: { params: { id: string } }) {
   try {
-    await dbConnect();
-    await Account.findByIdAndDelete(params.id);
+    await offlineDB.accounts.delete(params.id);
     return ok({ deleted: true });
   } catch (e) {
     return fail((e as Error).message);

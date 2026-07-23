@@ -20,7 +20,7 @@ export default function JobsPage() {
     try {
       const res = await fetch("/api/jobs");
       const json = await res.json();
-      if (json.ok) setJobs(json.data);
+      if (json.ok) setJobs(json.data || []);
     } catch (e) { console.error(e); } finally { setIsLoading(false); }
   };
 
@@ -88,7 +88,7 @@ export default function JobsPage() {
     }
   };
 
-  const filteredJobs = jobs.filter(job => {
+  const filteredJobs = (jobs || []).filter(job => {
     const q = searchTerm.toLowerCase();
     return (
       (job.name || "").toLowerCase().includes(q) ||
@@ -127,28 +127,28 @@ export default function JobsPage() {
         <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm flex items-center gap-6">
           <div className="p-4 bg-rose-50 text-rose-600 rounded-2xl"><Briefcase size={24} /></div>
           <div>
-            <h4 className="text-2xl font-black text-slate-900 dark:text-white leading-tight">{jobs.length}</h4>
+            <h4 className="text-2xl font-black text-slate-900 dark:text-white leading-tight">{(jobs || []).length}</h4>
             <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Total Jobs</p>
           </div>
         </div>
         <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm flex items-center gap-6">
           <div className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl"><Clock size={24} /></div>
           <div>
-            <h4 className="text-2xl font-black text-slate-900 dark:text-white leading-tight">{jobs.filter(j => j.status === "Active").length}</h4>
+            <h4 className="text-2xl font-black text-slate-900 dark:text-white leading-tight">{(jobs || []).filter(j => j.status === "Active").length}</h4>
             <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Active</p>
           </div>
         </div>
         <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm flex items-center gap-6">
           <div className="p-4 bg-blue-50 text-blue-600 rounded-2xl"><CheckCircle2 size={24} /></div>
           <div>
-            <h4 className="text-2xl font-black text-slate-900 dark:text-white leading-tight">{jobs.filter(j => j.status === "Completed").length}</h4>
+            <h4 className="text-2xl font-black text-slate-900 dark:text-white leading-tight">{(jobs || []).filter(j => j.status === "Completed").length}</h4>
             <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Completed</p>
           </div>
         </div>
         <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm flex items-center gap-6">
           <div className="p-4 bg-amber-50 text-amber-600 rounded-2xl"><DollarSign size={24} /></div>
           <div>
-            <h4 className="text-2xl font-black text-slate-900 dark:text-white leading-tight">Rs.{(jobs.reduce((acc, j) => acc + (j.budget||0), 0) / 1000).toFixed(1)}k</h4>
+            <h4 className="text-2xl font-black text-slate-900 dark:text-white leading-tight">Rs.{((jobs || []).reduce((acc, j) => acc + (j.budget||0), 0) / 1000).toFixed(1)}k</h4>
             <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Total Budget</p>
           </div>
         </div>

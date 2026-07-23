@@ -30,7 +30,7 @@ export default function SearchableItemSelect({
   const wrapRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const selected = useMemo(() => items.find((i) => i._id === value), [items, value]);
+  const selected = useMemo(() => (items || []).find((i) => i._id === value), [items, value]);
 
   useEffect(() => {
     if (selected) {

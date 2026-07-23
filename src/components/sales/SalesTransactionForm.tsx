@@ -48,10 +48,10 @@ export default function SalesTransactionForm({ title, onClose }: SalesTransactio
   });
 
   const addItem = () => setItems([...items, { id: Date.now().toString(), itemId: "", description: "", qty: 1, rate: 0, taxPercent: 17, taxAmount: 0, total: 0 }]);
-  const removeLine = (id: string) => setItems(items.filter(i => i.id !== id));
+  const removeLine = (id: string) => setItems((items || []).filter(i => i.id !== id));
   
   const updateItem = (id: string, field: keyof SalesItem, value: any) => {
-    setItems(items.map(i => {
+    setItems((items || []).map(i => {
       if (i.id === id) {
         const updated = { ...i, [field]: value };
         updated.taxAmount = (updated.qty * updated.rate) * (updated.taxPercent / 100);
@@ -62,8 +62,8 @@ export default function SalesTransactionForm({ title, onClose }: SalesTransactio
     }));
   };
 
-  const subtotal = items.reduce((sum, i) => sum + (i.qty * i.rate), 0);
-  const totalTax = items.reduce((sum, i) => sum + i.taxAmount, 0);
+  const subtotal = (items || []).reduce((sum, i) => sum + (i.qty * i.rate), 0);
+  const totalTax = (items || []).reduce((sum, i) => sum + i.taxAmount, 0);
   const grandTotal = subtotal + totalTax;
 
   const isReturn = title.toLowerCase().includes("return");
@@ -149,7 +149,7 @@ export default function SalesTransactionForm({ title, onClose }: SalesTransactio
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {items.map((item, index) => (
+                {(items || []).map((item, index) => (
                   <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors group">
                     <td className="px-6 py-4 text-sm font-bold text-slate-400 dark:text-slate-500 text-center">{index + 1}</td>
                     <td className="px-6 py-4">

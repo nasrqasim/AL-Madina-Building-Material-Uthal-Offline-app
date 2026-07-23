@@ -10,6 +10,7 @@ import CustomerProfileHistory from "@/components/erp/maintain/CustomerProfileHis
 import { Plus, FileText, Download, Printer, UserCheck, UserX, Wallet, Search, Edit2, Trash2, MapPin, FileSpreadsheet, ArrowLeft, Play, Calendar, MessageCircle } from "lucide-react";
 import ERPStatCard from "@/components/erp/ui/ERPStatCard";
 import { exportToExcel, downloadTemplate, printPage, triggerFileInput, importFromExcel } from "@/lib/excel";
+import { calculateBalanceFromTransactions } from "@/lib/customerBalance";
 
 export default function CustomersPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -46,7 +47,39 @@ export default function CustomersPage() {
       const res = await fetch("/api/parties?type=customer");
       const json = await res.json();
       if (json.ok) {
-        setCustomers(json.data);
+        const customersData = json.data || [];
+        
+        // Fetch all transactions once for efficiency
+        const [salesRes, cashRes, bankRes] = await Promise.all([
+          fetch("/api/sales"),
+          fetch("/api/cash-receipts"),
+          fetch("/api/bank-receipts")
+        ]);
+        
+        const [salesJson, cashJson, bankJson] = await Promise.all([
+          salesRes.json(),
+          cashRes.json(),
+          bankRes.json()
+        ]);
+
+        const sales = salesJson.ok ? salesJson.data || [] : [];
+        const cashReceipts = cashJson.ok ? cashJson.data || [] : [];
+        const bankReceipts = bankJson.ok ? bankJson.data || [] : [];
+
+        // Calculate balances for each customer using unified function
+        const customersWithBalances = customersData.map((customer: any) => {
+          const balance = calculateBalanceFromTransactions(customer, sales, cashReceipts, bankReceipts);
+          
+          return {
+            ...customer,
+            balance: balance.netBalance,
+            receivable: balance.receivable,
+            advance: balance.advance,
+            status: balance.status
+          };
+        });
+
+        setCustomers(customersWithBalances);
       }
     } catch (e) {
       console.error(e);
@@ -59,7 +92,7 @@ export default function CustomersPage() {
     try {
       const res = await fetch("/api/shop-profile");
       const json = await res.json();
-      if (json.ok) setShopProfile(json.data);
+      if (json.ok) setShopProfile(json.data || []);
     } catch (e) {
       console.error(e);
     }
@@ -232,8 +265,8 @@ export default function CustomersPage() {
     endRange.setHours(23, 59, 59, 999);
 
     let opening = initialOpening;
-    const beforeTxs = ledgerTransactions.filter(t => t.date.getTime() < startRange.getTime());
-    const duringTxs = ledgerTransactions.filter(t => t.date.getTime() >= startRange.getTime() && t.date.getTime() <= endRange.getTime());
+    const beforeTxs = (ledgerTransactions || []).filter(t => t.date.getTime() < startRange.getTime());
+    const duringTxs = (ledgerTransactions || []).filter(t => t.date.getTime() >= startRange.getTime() && t.date.getTime() <= endRange.getTime());
 
     // Compute dynamic opening balance up to From Date
     beforeTxs.forEach(t => {
@@ -315,36 +348,56 @@ export default function CustomersPage() {
       )
     },
     { 
-      header: "Balance (Dr/Cr)", 
-      accessor: "balance", 
+      header: "Customer Receivable (Customer Owes)", 
+      accessor: "receivable",
+      render: (val: number) => {
+        const num = Number(val) || 0;
+        if (num > 0) {
+          return <span className="text-sm font-bold text-rose-600">Rs. {num.toLocaleString()}</span>;
+        }
+        return <span className="text-sm font-bold text-slate-500">Rs. 0</span>;
+      }
+    },
+    { 
+      header: "Advance Balance (We Owe Customer)", 
+      accessor: "advance",
+      render: (val: number) => {
+        const num = Number(val) || 0;
+        if (num > 0) {
+          return <span className="text-sm font-bold text-emerald-600">Rs. {num.toLocaleString()}</span>;
+        }
+        return <span className="text-sm font-bold text-slate-500">Rs. 0</span>;
+      }
+    },
+    { 
+      header: "Net Balance", 
+      accessor: "balance",
       render: (val: number, row: any) => {
-        const isDebit = val > 0;
-        const formattedVal = isDebit 
-          ? `+Rs. ${val.toLocaleString()}` 
-          : val < 0 ? `-Rs. ${Math.abs(val).toLocaleString()}` : "Rs. 0";
-        const balanceLabel = isDebit ? " (Debit)" : val < 0 ? " (Credit)" : "";
-        return (
-          <div className="flex flex-col">
-            <span className={`text-sm font-black ${val > (row.creditLimit || 0) && row.creditLimit > 0 ? "text-red-600 animate-pulse" : isDebit ? "text-rose-600" : val < 0 ? "text-emerald-600" : "text-slate-500"}`}>
-              {formattedVal}{balanceLabel}
-            </span>
-            {val > (row.creditLimit || 0) && row.creditLimit > 0 && (
-              <span className="text-[8px] font-black text-red-600 uppercase tracking-tighter">Over Limit! (Max: {row.creditLimit?.toLocaleString()})</span>
-            )}
-          </div>
-        );
+        const num = Number(val) || 0;
+        if (num > 0) {
+          return <span className="text-sm font-bold text-rose-600">Rs. {num.toLocaleString()}</span>;
+        } else if (num < 0) {
+          return <span className="text-sm font-bold text-emerald-600">Rs. {Math.abs(num).toLocaleString()}</span>;
+        }
+        return <span className="text-sm font-bold text-slate-500">Rs. 0</span>;
       }
     },
     { 
       header: "Status", 
       accessor: "status", 
-      render: (val: string) => (
-        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
-          val === "Active" ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"
-        }`}>
-          {val}
-        </span>
-      )
+      render: (val: string) => {
+        const statusConfig: Record<string, { emoji: string; color: string; bgColor: string }> = {
+          "Customer Owes": { emoji: "🔴", color: "text-red-600", bgColor: "bg-red-50 dark:bg-red-900/30" },
+          "Advance Available": { emoji: "🟢", color: "text-emerald-600", bgColor: "bg-emerald-50 dark:bg-emerald-900/30" },
+          "Settled": { emoji: "⚪", color: "text-slate-600", bgColor: "bg-slate-50 dark:bg-slate-900/30" }
+        };
+        const config = statusConfig[val] || statusConfig["Settled"];
+        return (
+          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${config.color} ${config.bgColor}`}>
+            {config.emoji} {val}
+          </span>
+        );
+      }
     },
   ];
 
@@ -361,7 +414,7 @@ export default function CustomersPage() {
   ];
 
   // Filter customers by search term
-  const filteredCustomers = customers.filter(c => {
+  const filteredCustomers = (customers || []).filter(c => {
     const term = searchTerm.toLowerCase();
     return (
       c.name?.toLowerCase().includes(term) ||
@@ -402,9 +455,9 @@ export default function CustomersPage() {
 
       {/* Stats Section */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <ERPStatCard label="Active Accounts" value={customers.filter(c => c.status === "Active").length} icon={UserCheck} variant="green" />
-        <ERPStatCard label="Inactive Accounts" value={customers.filter(c => c.status === "Inactive").length} icon={UserX} variant="slate" />
-        <ERPStatCard label="Total Outstanding Receivable" value={`Rs. ${(customers.reduce((acc, c) => acc + (c.balance > 0 ? c.balance : 0), 0) / 1000000).toFixed(1)}M`} icon={Wallet} variant="maroon" />
+        <ERPStatCard label="Active Accounts" value={(customers || []).filter(c => c.status === "Active").length} icon={UserCheck} variant="green" />
+        <ERPStatCard label="Inactive Accounts" value={(customers || []).filter(c => c.status === "Inactive").length} icon={UserX} variant="slate" />
+        <ERPStatCard label="Total Outstanding Receivable" value={`Rs. ${((customers || []).reduce((acc, c) => acc + (c.receivable || 0), 0)).toLocaleString()}`} icon={Wallet} variant="maroon" />
       </div>
 
       {/* Search & Add Section */}
@@ -434,9 +487,9 @@ export default function CustomersPage() {
 
       {/* Separate Tables for each of the 8 Categories */}
       <div className="space-y-12">
-        {categories.map(cat => {
+        {(categories || []).map(cat => {
           // Filter customers belonging to this category
-          const catCustomers = filteredCustomers.filter(c => (c.category || "Cash Customer") === cat);
+          const catCustomers = (filteredCustomers || []).filter(c => (c.category || "Cash Customer") === cat);
 
           return (
             <div key={cat} className="space-y-4">

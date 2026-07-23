@@ -46,11 +46,11 @@ export default function ReceivablesPage() {
       ]);
 
       if (partiesJson.ok) setCustomers(partiesJson.data.filter((p: any) => p.type === "Customer"));
-      if (salesJson.ok) setInvoices(salesJson.data);
-      if (cashJson.ok) setCashReceipts(cashJson.data);
-      if (bankJson.ok) setBankReceipts(bankJson.data);
-      if (empJson.ok) setEmployees(empJson.data);
-      if (regJson.ok) setRegions(regJson.data);
+      if (salesJson.ok) setInvoices(salesJson.data || []);
+      if (cashJson.ok) setCashReceipts(cashJson.data || []);
+      if (bankJson.ok) setBankReceipts(bankJson.data || []);
+      if (empJson.ok) setEmployees(empJson.data || []);
+      if (regJson.ok) setRegions(regJson.data || []);
 
     } catch (e) {
       console.error("Error loading receivables data:", e);
@@ -88,7 +88,7 @@ export default function ReceivablesPage() {
     let sales = 0;
     let receipts = 0;
 
-    customers.forEach(cust => {
+    (customers || []).forEach(cust => {
       // initial opening balance in DB is debit if positive
       const initialOpening = Number(cust.openingBalance) || 0;
       let beforeSales = 0;
@@ -97,7 +97,7 @@ export default function ReceivablesPage() {
       let periodReceipts = 0;
 
       // Invoices
-      invoices.forEach(inv => {
+      (invoices || []).forEach(inv => {
         if (inv.partyId?._id === cust._id || inv.partyId === cust._id) {
           const invDate = new Date(inv.date || inv.createdAt);
           const isSale = ["sale", "non_tax_sale", "pos", "challan"].includes(inv.type);
@@ -114,7 +114,7 @@ export default function ReceivablesPage() {
       });
 
       // Cash Receipts
-      cashReceipts.forEach(cr => {
+      (cashReceipts || []).forEach(cr => {
         if ((cr.partyId?._id === cust._id || cr.partyId === cust._id || cr.party === cust._id) && cr.status !== "Cancelled") {
           const crDate = new Date(cr.date || cr.createdAt);
           if (crDate.getTime() < start.getTime()) {
@@ -126,7 +126,7 @@ export default function ReceivablesPage() {
       });
 
       // Bank Receipts
-      bankReceipts.forEach(br => {
+      (bankReceipts || []).forEach(br => {
         if ((br.partyId?._id === cust._id || br.partyId === cust._id || br.party === cust._id) && br.status !== "Cancelled") {
           const brDate = new Date(br.date || br.createdAt);
           if (brDate.getTime() < start.getTime()) {
@@ -158,7 +158,7 @@ export default function ReceivablesPage() {
   const rows = useMemo(() => {
     const now = new Date();
     
-    return customers.map(cust => {
+    return (customers || []).map(cust => {
       // initial opening balance in DB is debit if positive
       const initialOpening = Number(cust.openingBalance) || 0;
       let beforeSales = 0;
@@ -170,7 +170,7 @@ export default function ReceivablesPage() {
       let hasSalesmanMatch = false;
       const unpaidInvoices: any[] = [];
 
-      invoices.forEach(inv => {
+      (invoices || []).forEach(inv => {
         if (inv.partyId?._id === cust._id || inv.partyId === cust._id) {
           const invDate = new Date(inv.date || inv.createdAt);
           const isSale = ["sale", "non_tax_sale", "pos", "challan"].includes(inv.type);
@@ -200,7 +200,7 @@ export default function ReceivablesPage() {
       });
 
       // Cash Receipts
-      cashReceipts.forEach(cr => {
+      (cashReceipts || []).forEach(cr => {
         if ((cr.partyId?._id === cust._id || cr.partyId === cust._id || cr.party === cust._id) && cr.status !== "Cancelled") {
           const crDate = new Date(cr.date || cr.createdAt);
           if (crDate.getTime() < dateRange.start.getTime()) {
@@ -212,7 +212,7 @@ export default function ReceivablesPage() {
       });
 
       // Bank Receipts
-      bankReceipts.forEach(br => {
+      (bankReceipts || []).forEach(br => {
         if ((br.partyId?._id === cust._id || br.partyId === cust._id || br.party === cust._id) && br.status !== "Cancelled") {
           const brDate = new Date(br.date || br.createdAt);
           if (brDate.getTime() < dateRange.start.getTime()) {
@@ -283,7 +283,7 @@ export default function ReceivablesPage() {
 
   // Apply filters
   const filteredRows = useMemo(() => {
-    return rows.filter(r => {
+    return (rows || []).filter(r => {
       // 1. Search Query
       const q = searchQuery.toLowerCase();
       if (q && !r.name.toLowerCase().includes(q)) return false;
@@ -376,7 +376,7 @@ export default function ReceivablesPage() {
               className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold focus:outline-none dark:text-white"
             >
               <option value="">-- All Customers --</option>
-              {customers.map(c => <option key={c._id} value={c._id}>{c.companyName || c.name}</option>)}
+              {(customers || []).map(c => <option key={c._id} value={c._id}>{c.companyName || c.name}</option>)}
             </select>
           </div>
 
@@ -389,7 +389,7 @@ export default function ReceivablesPage() {
               className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold focus:outline-none dark:text-white"
             >
               <option value="">-- All Regions --</option>
-              {regions.map((reg, idx) => <option key={idx} value={reg.name || reg}>{reg.name || reg}</option>)}
+              {(regions || []).map((reg, idx) => <option key={idx} value={reg.name || reg}>{reg.name || reg}</option>)}
             </select>
           </div>
 
@@ -402,7 +402,7 @@ export default function ReceivablesPage() {
               className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold focus:outline-none dark:text-white"
             >
               <option value="">-- All Salesmen --</option>
-              {employees.map(emp => <option key={emp._id} value={emp._id}>{emp.name}</option>)}
+              {(employees || []).map(emp => <option key={emp._id} value={emp._id}>{emp.name}</option>)}
             </select>
           </div>
 

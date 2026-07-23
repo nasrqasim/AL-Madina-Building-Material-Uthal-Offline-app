@@ -50,7 +50,7 @@ export default function ItemSearchInput({
 
   const filtered = useMemo(() => {
     const q = query.trim();
-    if (!q) return availableItems.slice(0, 80);
+    if (!q) return (availableItems || []).slice(0, 80);
     return filterAndSortItems(availableItems, q).slice(0, 80);
   }, [availableItems, query]);
 

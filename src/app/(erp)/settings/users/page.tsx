@@ -31,7 +31,7 @@ export default function UsersRolesPage() {
       const res = await fetch("/api/users");
       const data = await res.json();
       if (data.ok) {
-        setUsers(data.data);
+        setUsers(data.data || []);
       }
     } catch (err) {
       console.error("Failed to fetch users");
@@ -46,7 +46,7 @@ export default function UsersRolesPage() {
       const res = await fetch("/api/roles");
       const data = await res.json();
       if (data.ok) {
-        setRoles(data.data);
+        setRoles(data.data || []);
       }
     } catch (err) {
       console.error("Failed to fetch roles");
@@ -130,7 +130,7 @@ export default function UsersRolesPage() {
                 : "text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:text-slate-200"
             }`}
           >
-            {tab === "Users" ? `Users (${users.length})` : `Roles (${roles.length})`}
+            {tab === "Users" ? `Users (${(users || []).length})` : `Roles (${(roles || []).length})`}
           </button>
         ))}
       </div>
@@ -158,7 +158,7 @@ export default function UsersRolesPage() {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {activeTab === "Users" ? (
-                  users.map((user) => (
+                  (users || []).map((user) => (
                     <tr key={user._id} className="group hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors">
                       <td className="px-8 py-6">
                         <div className="flex items-center gap-4">
@@ -206,7 +206,7 @@ export default function UsersRolesPage() {
                     </tr>
                   ))
                 ) : (
-                  roles.map((role) => (
+                  (roles || []).map((role) => (
                     <tr key={role._id} className="group hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors">
                       <td className="px-8 py-6">
                         <div className="flex items-center gap-4">

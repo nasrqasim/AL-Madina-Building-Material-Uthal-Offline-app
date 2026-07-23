@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import MessageLog from "@/models/MessageLog";
-import connectDB from "@/lib/db";
+import { offlineDB } from "@/lib/dexie";
+import { generateUniqueId } from "@/lib/dexie";
 
 export async function POST(req: Request) {
   try {
-    await connectDB();
     const body = await req.json();
     const { recipientName, recipientPhone, type, referenceId, message, pdfBase64, useWebFallback } = body;
 
@@ -18,14 +17,22 @@ export async function POST(req: Request) {
     if (!token || !phoneId) {
       // If no credentials, log and return instruction for frontend to use Web fallback
       if (useWebFallback) {
-        await MessageLog.create({
-          recipientName,
-          recipientPhone: cleanPhone,
-          type,
-          referenceId,
-          status: "Sent",
-          errorMessage: "Sent via WhatsApp Web (No Cloud API credentials)",
-        });
+        const id = generateUniqueId();
+        await offlineDB.settings.add({
+          id,
+          key: "messageLog",
+          value: {
+            recipientName,
+            recipientPhone: cleanPhone,
+            type,
+            referenceId,
+            status: "Sent",
+            errorMessage: "Sent via WhatsApp Web (No Cloud API credentials)",
+            createdAt: new Date().toISOString()
+          },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        } as any);
         return NextResponse.json({ ok: true, fallback: true, cleanPhone });
       }
 
@@ -107,24 +114,40 @@ export async function POST(req: Request) {
     const sendData = await sendRes.json();
 
     if (sendData.error) {
-      await MessageLog.create({
+      const id = generateUniqueId();
+      await offlineDB.settings.add({
+        id,
+        key: "messageLog",
+        value: {
+          recipientName,
+          recipientPhone: cleanPhone,
+          type,
+          referenceId,
+          status: "Failed",
+          errorMessage: sendData.error.message,
+          createdAt: new Date().toISOString()
+        },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      } as any);
+      return NextResponse.json({ ok: false, error: sendData.error.message }, { status: 400 });
+    }
+
+    const id = generateUniqueId();
+    await offlineDB.settings.add({
+      id,
+      key: "messageLog",
+      value: {
         recipientName,
         recipientPhone: cleanPhone,
         type,
         referenceId,
-        status: "Failed",
-        errorMessage: sendData.error.message,
-      });
-      return NextResponse.json({ ok: false, error: sendData.error.message }, { status: 400 });
-    }
-
-    await MessageLog.create({
-      recipientName,
-      recipientPhone: cleanPhone,
-      type,
-      referenceId,
-      status: "Sent",
-    });
+        status: "Sent",
+        createdAt: new Date().toISOString()
+      },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    } as any);
 
     return NextResponse.json({ ok: true, data: sendData });
   } catch (error: any) {

@@ -16,7 +16,7 @@ export default function FinancialYearPage() {
       const res = await fetch("/api/financial-years");
       const data = await res.json();
       if (data.ok) {
-        setYears(data.data);
+        setYears(data.data || []);
       }
     } catch (err) {
       console.error("Failed to fetch financial years");
@@ -89,7 +89,7 @@ export default function FinancialYearPage() {
           <div className="p-20 text-center text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">Loading Periods...</div>
         ) : (
           <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-            {years.map((year) => (
+            {(years || []).map((year) => (
               <div key={year._id} className={`p-8 rounded-[2.5rem] border-2 transition-all relative group ${
                 year.status === "Current" ? "border-maroon-800 bg-maroon-50/10 shadow-lg" : "border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900"
               }`}>

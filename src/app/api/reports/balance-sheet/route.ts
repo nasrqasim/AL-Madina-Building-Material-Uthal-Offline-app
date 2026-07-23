@@ -1,36 +1,32 @@
 import { ok } from "@/lib/api";
-import dbConnect from "@/lib/db";
-import Account from "@/models/Account";
-import JournalEntry from "@/models/JournalEntry";
+import { offlineDB } from "@/lib/dexie";
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const date = searchParams.get("date") || new Date().toISOString();
 
-    await dbConnect();
+    const journalEntries = await offlineDB.journalEntries.toArray();
+    const accounts = await offlineDB.accounts.toArray();
 
-    const match: any = { date: { $lte: new Date(date) } };
-
-    const journalBalances = await JournalEntry.aggregate([
-      { $match: match },
-      {
-        $group: {
-          _id: "$accountCode",
-          debit: { $sum: "$debit" },
-          credit: { $sum: "$credit" },
-        },
-      },
-    ]);
-
-    const balanceMap = new Map();
-    journalBalances.forEach((jb) => {
-      balanceMap.set(jb._id, jb);
+    // Filter journal entries up to the specified date
+    const filteredEntries = journalEntries.filter(entry => {
+      const entryDate = entry.date.split("T")[0];
+      const targetDate = date.split("T")[0];
+      return entryDate <= targetDate;
     });
 
-    const accounts = await Account.find().lean();
-    const accountMap = new Map();
-    accounts.forEach(a => accountMap.set(a.code, a));
+    // Group balances by code
+    const groupBalances: Record<string, { debit: number; credit: number; title: string }> = {};
+    filteredEntries.forEach(entry => {
+      if (!groupBalances[entry.accountCode]) {
+        groupBalances[entry.accountCode] = { debit: 0, credit: 0, title: entry.accountTitle };
+      }
+      groupBalances[entry.accountCode].debit += (entry.debit || 0);
+      groupBalances[entry.accountCode].credit += (entry.credit || 0);
+    });
+
+    const accountMap = new Map(accounts.map(a => [a.code, a]));
 
     const report = {
       assets: [] as any[],
@@ -45,30 +41,24 @@ export async function GET(req: Request) {
     let totalRevenue = 0;
     let totalExpenses = 0;
 
-    const journalTitles = await JournalEntry.aggregate([
-      { $match: match },
-      { $group: { _id: "$accountCode", title: { $first: "$accountTitle" } } }
-    ]);
-    const titleMap = new Map(journalTitles.map((t: any) => [t._id, t.title]));
-
-    balanceMap.forEach((journal, code) => {
+    Object.entries(groupBalances).forEach(([code, journal]) => {
       const acc = accountMap.get(code);
       let type = acc ? acc.type.toLowerCase() : "";
 
       if (!type) {
-         if (code.startsWith("1")) type = "asset";
-         else if (code.startsWith("2")) type = "payable"; // liability
-         else if (code.startsWith("3")) type = "equity";
-         else if (code.startsWith("4")) type = "income";
-         else if (code.startsWith("5")) type = "expense";
-         else return;
+        if (code.startsWith("1")) type = "asset";
+        else if (code.startsWith("2")) type = "payable"; // liability
+        else if (code.startsWith("3")) type = "equity";
+        else if (code.startsWith("4")) type = "income";
+        else if (code.startsWith("5")) type = "expense";
+        else return;
       } else if (type === "revenue") {
-         type = "income";
+        type = "income";
       } else if (type === "liability") {
-         type = "payable";
+        type = "payable";
       }
 
-      const title = acc ? acc.title : (titleMap.get(code) || `Account ${code}`);
+      const title = acc ? acc.title : journal.title;
 
       if (type === "income") {
         totalRevenue += (journal.credit - journal.debit);

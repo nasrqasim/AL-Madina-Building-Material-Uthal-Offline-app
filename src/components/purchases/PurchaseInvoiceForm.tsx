@@ -1,14 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import ItemSearchInput from "@/components/erp/ui/ItemSearchInput";
+import { getProductUnit, formatQuantityWithUnit } from "@/lib/dynamicUnits";
+import { calculateVendorBalance, calculateVendorBalanceFromTransactions } from "@/lib/vendorBalance";
 import {
-  applyPurchaseUnitFieldUpdate,
-  defaultPurchaseUnitsForItem,
-  resolveCatalogItem,
-} from "@/lib/itemUnits";
-import {
-  Plus, Trash2, Save, ArrowLeft, X, CheckCircle2, Wallet
+  Plus, Trash2, Save, ArrowLeft, X, CheckCircle2, Wallet, User
 } from "lucide-react";
 
 interface PIItem {
@@ -16,9 +13,8 @@ interface PIItem {
   itemId: string;
   itemCode: string;
   description: string;
-  cartons: number | string;
-  gallons: number | string;
-  liters: number | string;
+  quantity: number | string; // Dynamic quantity
+  unit: string; // Product's unit
   unitPrice: number | string;
   discPercent: number | string;
   isTaxable?: boolean;
@@ -27,14 +23,18 @@ interface PIItem {
   grossAmount: number;
   discountAmount: number;
   total: number;
+  // Legacy fields for backward compatibility
+  cartons?: number | string;
+  gallons?: number | string;
+  liters?: number | string;
 }
 
 function calcItem(item: PIItem): PIItem {
-  const ctns = Number(item.cartons) || 0;
+  const qty = Number(item.quantity) || Number(item.cartons) || 0;
   const price = Number(item.unitPrice) || 0;
   const disc = Number(item.discPercent) || 0;
   const tax = Number(item.taxPercent) || 0;
-  const gross = ctns * price;
+  const gross = qty * price;
   const discAmt = gross * disc / 100;
   const afterDisc = gross - discAmt;
   const taxAmt = afterDisc * tax / 100;
@@ -43,7 +43,9 @@ function calcItem(item: PIItem): PIItem {
     grossAmount: gross, 
     discountAmount: discAmt, 
     taxAmount: taxAmt, 
-    total: afterDisc + taxAmt 
+    total: afterDisc + taxAmt,
+    // Update legacy cartons field for backward compatibility
+    cartons: qty
   };
 }
 
@@ -56,16 +58,17 @@ interface PurchaseInvoiceFormProps {
 export default function PurchaseInvoiceForm({ onClose, onSave, initialData }: PurchaseInvoiceFormProps) {
   const isEdit = !!(initialData && initialData._id);
 
-  const buildItems = (lines: any[]): PIItem[] =>
+  const buildItems = (lines: any[], availableItems?: any[]): PIItem[] =>
     lines.map((l: any, i: number) => {
+      const item = l.itemId?._id && availableItems ? availableItems.find(ai => ai._id === l.itemId._id) : null;
+      const unit = getProductUnit(item);
       const base: PIItem = {
         id: i.toString(),
         itemId: l.itemId?._id || l.itemId || "",
         itemCode: l.itemId?.code || l.itemCode || "",
         description: l.description || l.itemId?.name || "",
-        cartons: l.cartons ?? l.qty ?? 0,
-        gallons: l.gallons ?? 0,
-        liters: l.liters ?? 0,
+        quantity: l.cartons ?? l.qty ?? 0,
+        unit: unit,
         unitPrice: l.rate ?? l.unitPrice ?? 0,
         discPercent: l.discountPercent ?? l.discPercent ?? 0,
         isTaxable: (l.taxPercent ?? 0) > 0,
@@ -73,6 +76,10 @@ export default function PurchaseInvoiceForm({ onClose, onSave, initialData }: Pu
         grossAmount: 0,
         discountAmount: 0,
         total: l.netAmount ?? 0,
+        // Legacy fields
+        cartons: l.cartons ?? l.qty ?? 0,
+        gallons: l.gallons ?? 0,
+        liters: l.liters ?? 0,
       };
       return calcItem(base);
     });
@@ -80,14 +87,16 @@ export default function PurchaseInvoiceForm({ onClose, onSave, initialData }: Pu
   const defaultItem = (): PIItem => calcItem({
     id: Date.now().toString(),
     itemId: "", itemCode: "", description: "",
-    cartons: 0, gallons: 0, liters: 0,
+    quantity: 0, unit: "Per Piece",
     unitPrice: 0, discPercent: 0,
     isTaxable: false, taxPercent: 0,
     grossAmount: 0, discountAmount: 0, total: 0,
+    // Legacy fields
+    cartons: 0, gallons: 0, liters: 0,
   });
 
   const [items, setItems] = useState<PIItem[]>(
-    initialData?.lines?.length ? buildItems(initialData.lines) : [defaultItem()]
+    initialData?.lines?.length ? buildItems(initialData.lines, []) : [defaultItem()]
   );
 
   const [formData, setFormData] = useState({
@@ -110,26 +119,59 @@ export default function PurchaseInvoiceForm({ onClose, onSave, initialData }: Pu
 
   const [availableItems, setAvailableItems] = useState<any[]>([]);
   const [vendors, setVendors] = useState<any[]>([]);
+  const [allVendors, setAllVendors] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
   const [jobs, setJobs] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
 
+  // Transaction data for vendor balance calculation
+  const [purchasesData, setPurchasesData] = useState<any[]>([]);
+  const [cashPaymentsData, setCashPaymentsData] = useState<any[]>([]);
+  const [bankPaymentsData, setBankPaymentsData] = useState<any[]>([]);
+  const [cashReceiptsData, setCashReceiptsData] = useState<any[]>([]);
+  const [bankReceiptsData, setBankReceiptsData] = useState<any[]>([]);
+
   useEffect(() => {
     const fetchAll = async () => {
       try {
-        const [ir, pr, er, jr, lr] = await Promise.all([
-          fetch("/api/items"), fetch("/api/parties"),
-          fetch("/api/employees"), fetch("/api/jobs"), fetch("/api/locations"),
+        const [ir, pr, er, jr, lr, purRes, cashPayRes, bankPayRes, cashRecRes, bankRecRes] = await Promise.all([
+          fetch("/api/items"), 
+          fetch("/api/parties"),
+          fetch("/api/employees"), 
+          fetch("/api/jobs"), 
+          fetch("/api/locations"),
+          fetch("/api/purchases"),
+          fetch("/api/cash-payments"),
+          fetch("/api/bank-payments"),
+          fetch("/api/cash-receipts"),
+          fetch("/api/bank-receipts")
         ]);
         const [ij, pj, ej, jj, lj] = await Promise.all([
-          ir.json(), pr.json(), er.json(), jr.json(), lr.json(),
+          ir.json(), pr.json(), er.json(), jr.json(), lr.json()
         ]);
-        if (ij.ok) setAvailableItems(ij.data);
-        if (pj.ok) setVendors(pj.data.filter((p: any) => p.type === "Vendor"));
-        if (ej.ok) setEmployees(ej.data);
-        if (jj.ok) setJobs(jj.data);
-        if (lj.ok) setLocations(lj.data);
+        const purJson = await purRes.json();
+        const cashPayJson = await cashPayRes.json();
+        const bankPayJson = await bankPayRes.json();
+        const cashRecJson = await cashRecRes.json();
+        const bankRecJson = await bankRecRes.json();
+        
+        if (ij.ok) setAvailableItems(ij.data || []);
+        if (pj.ok) {
+          const activeVendors = (pj.data || []).filter((p: any) => p.type === "Vendor");
+          setVendors(activeVendors);
+          setAllVendors(activeVendors);
+        }
+        if (ej.ok) setEmployees(ej.data || []);
+        if (jj.ok) setJobs(jj.data || []);
+        if (lj.ok) setLocations(lj.data || []);
+        
+        // Store transaction data for vendor balance calculation
+        if (purJson.ok) setPurchasesData(Array.isArray(purJson.data) ? purJson.data : []);
+        if (cashPayJson.ok) setCashPaymentsData(Array.isArray(cashPayJson.data) ? cashPayJson.data : []);
+        if (bankPayJson.ok) setBankPaymentsData(Array.isArray(bankPayJson.data) ? bankPayJson.data : []);
+        if (cashRecJson.ok) setCashReceiptsData(Array.isArray(cashRecJson.data) ? cashRecJson.data : []);
+        if (bankRecJson.ok) setBankReceiptsData(Array.isArray(bankRecJson.data) ? bankRecJson.data : []);
       } catch (e) { console.error(e); }
     };
     fetchAll();
@@ -138,25 +180,81 @@ export default function PurchaseInvoiceForm({ onClose, onSave, initialData }: Pu
   const addItem = () => setItems(prev => [...prev, defaultItem()]);
   const removeItem = (id: string) => setItems(prev => prev.filter(i => i.id !== id));
 
+  // Helper function to get vendor balance using unified calculation
+  const getVendorBalance = useCallback((vendor: any): number => {
+    if (!vendor) return 0;
+    if (!purchasesData || !cashPaymentsData || !bankPaymentsData || !cashReceiptsData || !bankReceiptsData) {
+      return vendor.balance || 0;
+    }
+    const balanceResult = calculateVendorBalanceFromTransactions(vendor, purchasesData, [], cashPaymentsData, bankPaymentsData, cashReceiptsData, bankReceiptsData);
+    return balanceResult.netBalance;
+  }, [purchasesData, cashPaymentsData, bankPaymentsData, cashReceiptsData, bankReceiptsData]);
+
+  // Display balance for vendor panel
+  const displayVendorBalance = useMemo(() => {
+    const fd = formData as any;
+    if (!fd.vendorId && !fd.vendorCode && !fd.vendorName) return { payable: "0.00", advance: "0.00" };
+    const vendor = allVendors.find(v => 
+      (fd.vendorId && (v._id === fd.vendorId || v.id === fd.vendorId || String(v._id) === String(fd.vendorId))) ||
+      (fd.vendorCode && v.code === fd.vendorCode) ||
+      (fd.vendorName && (v.name?.toLowerCase() === fd.vendorName.toLowerCase() || v.companyName?.toLowerCase() === fd.vendorName.toLowerCase()))
+    );
+    if (!vendor) return { payable: "0.00", advance: "0.00" };
+    
+    const balanceResult = calculateVendorBalanceFromTransactions(vendor, purchasesData, [], cashPaymentsData, bankPaymentsData, cashReceiptsData, bankReceiptsData);
+    const payable = balanceResult.payable || 0;
+    const advance = balanceResult.advance || 0;
+    
+    return {
+      payable: payable.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      advance: advance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    };
+  }, [formData, allVendors, purchasesData, cashPaymentsData, bankPaymentsData, cashReceiptsData, bankReceiptsData]);
+
+  const vendorAdvance = useMemo(() => {
+    const fd = formData as any;
+    if (!fd.vendorId && !fd.vendorCode && !fd.vendorName) return 0;
+    const vendor = allVendors.find(v => 
+      (fd.vendorId && (v._id === fd.vendorId || v.id === fd.vendorId || String(v._id) === String(fd.vendorId))) ||
+      (fd.vendorCode && v.code === fd.vendorCode) ||
+      (fd.vendorName && (v.name?.toLowerCase() === fd.vendorName.toLowerCase() || v.companyName?.toLowerCase() === fd.vendorName.toLowerCase()))
+    );
+    if (!vendor) return 0;
+    const balanceResult = calculateVendorBalanceFromTransactions(vendor, purchasesData, [], cashPaymentsData, bankPaymentsData, cashReceiptsData, bankReceiptsData);
+    return balanceResult.advance || 0;
+  }, [formData, allVendors, purchasesData, cashPaymentsData, bankPaymentsData, cashReceiptsData, bankReceiptsData]);
+
+  // Automatically select 'Credit' when vendor has advance to consume from it
+  useEffect(() => {
+    if (vendorAdvance > 0) {
+      setFormData(prev => {
+        if (prev.paymentMethod === "Credit") return prev;
+        return { ...prev, paymentMethod: "Credit" };
+      });
+    }
+  }, [vendorAdvance]);
+
   const updateItem = useCallback((id: string, field: keyof PIItem, value: any) => {
     setItems(prev => prev.map(item => {
       if (item.id !== id) return item;
       let updated = { ...item, [field]: value };
 
-      // Auto-fill name/price when item selected
+      // Auto-fill name/price/unit when item selected
       if (field === "itemId") {
-        const sel = availableItems.find(a => a._id === value);
+        const sel = (availableItems || []).find(a => a._id === value);
         if (sel) {
           updated.itemCode = sel.code || "";
           updated.description = sel.name || "";
           updated.unitPrice = sel.purchaseRate || sel.rate || 0;
-          updated = defaultPurchaseUnitsForItem(updated, sel);
+          updated.unit = getProductUnit(sel);
+          updated.quantity = 1;
         }
       }
 
-      if (field === "cartons" || field === "gallons" || field === "liters") {
-        const sel = resolveCatalogItem(availableItems, updated);
-        updated = applyPurchaseUnitFieldUpdate(updated, field, value, sel);
+      // Handle quantity changes
+      if (field === "quantity") {
+        // Update legacy cartons field for backward compatibility
+        updated.cartons = value;
       }
 
       return calcItem(updated);
@@ -164,9 +262,9 @@ export default function PurchaseInvoiceForm({ onClose, onSave, initialData }: Pu
   }, [availableItems]);
 
   // Totals
-  const subTotal = items.reduce((s, i) => s + i.grossAmount, 0);
-  const totalDiscount = items.reduce((s, i) => s + i.discountAmount, 0);
-  const totalTax = items.reduce((s, i) => s + (i.taxAmount || 0), 0);
+  const subTotal = (items || []).reduce((s, i) => s + i.grossAmount, 0);
+  const totalDiscount = (items || []).reduce((s, i) => s + i.discountAmount, 0);
+  const totalTax = (items || []).reduce((s, i) => s + (i.taxAmount || 0), 0);
   const totalPKR = subTotal - totalDiscount + totalTax;
   const balance = totalPKR - Number(formData.amountPaid);
 
@@ -193,24 +291,29 @@ export default function PurchaseInvoiceForm({ onClose, onSave, initialData }: Pu
         locationId: formData.locationId || null,
         amountReceived: Number(formData.amountPaid) || 0,
         notes: formData.notes,
-        lines: items.filter(i => i.itemId || i.description).map(i => ({
+        lines: (items || []).filter(i => i.itemId || i.description).map(i => ({
           itemId: i.itemId || null,
           description: i.description,
-          cartons: Number(i.cartons) || 0,
-          gallons: Number(i.gallons) || 0,
-          liters: Number(i.liters) || 0,
+          qty: Number(i.quantity) || Number(i.cartons) || 0,
+          unit: i.unit || "Per Piece",
           rate: Number(i.unitPrice) || 0,
           grossAmount: i.grossAmount,
           discountPercent: Number(i.discPercent) || 0,
           taxPercent: Number(i.taxPercent) || 0,
           netAmount: i.total,
+          // Legacy fields for backward compatibility
+          cartons: Number(i.cartons) || 0,
+          gallons: Number(i.gallons) || 0,
+          liters: Number(i.liters) || 0,
         })),
         subTotal,
         discountAmount: totalDiscount,
         taxAmount: totalTax,
         totalAmount: totalPKR,
-        balance,
-        status: balance <= 0 && status === "Posted" ? "paid" : status.toLowerCase(),
+        useAdvance: vendorAdvance > 0 && formData.paymentMethod === "Credit",
+        advanceAmountUsed: vendorAdvance > 0 && formData.paymentMethod === "Credit" ? Math.min(totalPKR - Number(formData.amountPaid), vendorAdvance) : 0,
+        balance: Math.max(0, totalPKR - Number(formData.amountPaid) - (vendorAdvance > 0 && formData.paymentMethod === "Credit" ? Math.min(totalPKR - Number(formData.amountPaid), vendorAdvance) : 0)),
+        status: Math.max(0, totalPKR - Number(formData.amountPaid) - (vendorAdvance > 0 && formData.paymentMethod === "Credit" ? Math.min(totalPKR - Number(formData.amountPaid), vendorAdvance) : 0)) <= 0 && status === "Posted" ? "paid" : status.toLowerCase(),
       };
 
       const url = isEdit ? `/api/invoices/${initialData._id}` : "/api/invoices";
@@ -292,7 +395,7 @@ export default function PurchaseInvoiceForm({ onClose, onSave, initialData }: Pu
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Vendor *</label>
               <select value={formData.vendorId} onChange={e => setFormData({ ...formData, vendorId: e.target.value })} className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:border-maroon-800 outline-none">
                 <option value="">-- Select Vendor --</option>
-                {vendors.map(v => <option key={v._id} value={v._id}>{v.companyName || v.name}</option>)}
+                {(vendors || []).map(v => <option key={v._id} value={v._id}>{v.companyName || v.name}</option>)}
               </select>
             </div>
             <div className="space-y-1.5">
@@ -315,15 +418,63 @@ export default function PurchaseInvoiceForm({ onClose, onSave, initialData }: Pu
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Job</label>
               <select value={formData.jobId} onChange={e => setFormData({ ...formData, jobId: e.target.value })} className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:border-maroon-800 outline-none">
                 <option value="">-- Select Job --</option>
-                {jobs.map(j => <option key={j._id} value={j._id}>{j.title || j.name}</option>)}
+                {(jobs || []).map(j => <option key={j._id} value={j._id}>{j.title || j.name}</option>)}
               </select>
             </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Location</label>
               <select value={formData.locationId} onChange={e => setFormData({ ...formData, locationId: e.target.value })} className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:border-maroon-800 outline-none">
                 <option value="">-- Select Location --</option>
-                {locations.map(loc => <option key={loc._id} value={loc._id}>{loc.name}</option>)}
+                {(locations || []).map(loc => <option key={loc._id} value={loc._id}>{loc.name}</option>)}
               </select>
+            </div>
+          </div>
+        </section>
+
+        {/* Vendor Panel */}
+        <section className="bg-[#fefce8] dark:bg-slate-900 rounded-3xl p-8 border border-[#eab308] dark:border-slate-800 shadow-sm relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-2 text-yellow-600 opacity-20"><User size={64}/></div>
+          <h3 className="text-xs font-black text-yellow-800 uppercase tracking-widest mb-6 border-b border-yellow-200 pb-2">Vendor Panel</h3>
+          <div className="space-y-4 relative z-10">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-yellow-900 uppercase tracking-widest">Code</label>
+                <div className="px-4 py-2.5 bg-white border border-yellow-300 rounded-xl text-sm font-bold text-slate-700">
+                  {allVendors.find(v => v._id === formData.vendorId)?.code || ""}
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-yellow-900 uppercase tracking-widest">Name</label>
+                <div className="px-4 py-2.5 bg-white border border-yellow-300 rounded-xl text-sm font-bold text-slate-700">
+                  {allVendors.find(v => v._id === formData.vendorId)?.companyName || allVendors.find(v => v._id === formData.vendorId)?.name || ""}
+                </div>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-yellow-900 uppercase tracking-widest">Address</label>
+              <div className="px-4 py-2.5 bg-yellow-50/50 border border-yellow-300 rounded-xl text-sm font-medium text-slate-600 min-h-[60px]">
+                {allVendors.find(v => v._id === formData.vendorId)?.address || ""}
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-yellow-900 uppercase tracking-widest">Telephone</label>
+              <div className="px-4 py-2.5 bg-yellow-50/50 border border-yellow-300 rounded-xl text-sm font-bold text-slate-700">
+                {allVendors.find(v => v._id === formData.vendorId)?.phone || ""}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex items-center gap-2 bg-[#fef8c3] px-4 py-3 rounded-xl border border-yellow-400/40">
+                <label className="text-[9px] font-black text-yellow-900 uppercase">Payable</label>
+                <span className="flex-1 text-right text-sm font-bold text-rose-700">
+                  PKR {displayVendorBalance.payable}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 bg-[#fef8c3] px-4 py-3 rounded-xl border border-yellow-400/40">
+                <label className="text-[9px] font-black text-yellow-900 uppercase">Advance</label>
+                <span className="flex-1 text-right text-sm font-bold text-emerald-700">
+                  PKR {displayVendorBalance.advance}
+                </span>
+              </div>
             </div>
           </div>
         </section>
@@ -343,9 +494,7 @@ export default function PurchaseInvoiceForm({ onClose, onSave, initialData }: Pu
                   <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-10 text-center">#</th>
                   <th className="px-3 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-44">Item Code</th>
                   <th className="px-3 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest min-w-[160px]">Description</th>
-                  <th className="px-3 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-24 text-center">Ctns</th>
-                  <th className="px-3 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-24 text-center">Gals</th>
-                  <th className="px-3 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-24 text-center">Ltrs</th>
+                  <th className="px-3 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-24 text-center">Qty</th>
                   <th className="px-3 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-28 text-right">Unit Price</th>
                   <th className="px-3 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-20 text-right">Disc %</th>
                   <th className="px-3 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-28 text-right">Disc (PKR)</th>
@@ -356,7 +505,7 @@ export default function PurchaseInvoiceForm({ onClose, onSave, initialData }: Pu
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {items.map((item, idx) => (
+                {(items || []).map((item, idx) => (
                   <tr key={item.id} className="hover:bg-slate-50 transition-colors group">
                     <td className="px-4 py-3 text-xs font-bold text-slate-300 text-center">{idx + 1}</td>
                     <td className="px-3 py-3">
@@ -376,41 +525,20 @@ export default function PurchaseInvoiceForm({ onClose, onSave, initialData }: Pu
                         className="w-full bg-transparent text-sm font-medium focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-1 transition-all"
                       />
                     </td>
-                    {/* CTNS - free number */}
+                    {/* Qty - single quantity field with unit */}
                     <td className="px-3 py-3 text-center">
-                      <input
-                        type="number"
-                        min={0}
-                        step="any"
-                        value={item.cartons}
-                        onChange={e => updateItem(item.id, "cartons", e.target.value === "" ? "" : Number(e.target.value))}
-                        onBlur={e => updateItem(item.id, "cartons", Number(e.target.value) || 0)}
-                        className="w-full bg-transparent text-sm font-black text-center focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-1"
-                      />
-                    </td>
-                    {/* GALS - free number */}
-                    <td className="px-3 py-3 text-center">
-                      <input
-                        type="number"
-                        min={0}
-                        step="any"
-                        value={item.gallons}
-                        onChange={e => updateItem(item.id, "gallons", e.target.value === "" ? "" : Number(e.target.value))}
-                        onBlur={e => updateItem(item.id, "gallons", Number(e.target.value) || 0)}
-                        className="w-full bg-transparent text-sm font-black text-center focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-1"
-                      />
-                    </td>
-                    {/* LTRS - free number */}
-                    <td className="px-3 py-3 text-center">
-                      <input
-                        type="number"
-                        min={0}
-                        step="any"
-                        value={item.liters}
-                        onChange={e => updateItem(item.id, "liters", e.target.value === "" ? "" : Number(e.target.value))}
-                        onBlur={e => updateItem(item.id, "liters", Number(e.target.value) || 0)}
-                        className="w-full bg-transparent text-sm font-black text-center focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-1"
-                      />
+                      <div className="flex items-center justify-center gap-1">
+                        <input
+                          type="number"
+                          min={0}
+                          step="any"
+                          value={item.quantity}
+                          onChange={e => updateItem(item.id, "quantity", e.target.value === "" ? "" : Number(e.target.value))}
+                          onBlur={e => updateItem(item.id, "quantity", Number(e.target.value) || 0)}
+                          className="w-16 bg-transparent text-sm font-black text-center focus:outline-none border-b border-transparent focus:border-maroon-800/30 py-1"
+                        />
+                        <span className="text-[9px] font-bold text-slate-400">{item.unit?.replace(/^Per\s+/i, '') || 'Pcs'}</span>
+                      </div>
                     </td>
                     <td className="px-3 py-3 text-right">
                       <input
@@ -521,10 +649,22 @@ export default function PurchaseInvoiceForm({ onClose, onSave, initialData }: Pu
                 className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-black focus:border-emerald-500 outline-none"
               />
             </div>
+            {vendorAdvance > 0 && formData.paymentMethod === "Credit" && (
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-emerald-600">Advance Balance Applied</label>
+                <div className="w-full px-4 py-3 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl text-sm font-black">
+                  PKR {fmt(Math.min(totalPKR - Number(formData.amountPaid), vendorAdvance))}
+                </div>
+              </div>
+            )}
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Balance Due</label>
-              <div className={`w-full px-4 py-3 rounded-xl text-sm font-black ${balance > 0 ? "bg-rose-50 text-rose-600 border border-rose-200" : "bg-emerald-50 text-emerald-600 border border-emerald-200"}`}>
-                {fmt(balance)}
+              <div className={`w-full px-4 py-3 rounded-xl text-sm font-black ${
+                (totalPKR - Number(formData.amountPaid) - (vendorAdvance > 0 && formData.paymentMethod === "Credit" ? Math.min(totalPKR - Number(formData.amountPaid), vendorAdvance) : 0)) > 0 
+                  ? "bg-rose-50 text-rose-600 border border-rose-200" 
+                  : "bg-emerald-50 text-emerald-600 border border-emerald-200"
+              }`}>
+                {fmt(Math.max(0, totalPKR - Number(formData.amountPaid) - (vendorAdvance > 0 && formData.paymentMethod === "Credit" ? Math.min(totalPKR - Number(formData.amountPaid), vendorAdvance) : 0)))}
               </div>
             </div>
           </div>

@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { ArrowLeft, Edit, Printer, ExternalLink } from "lucide-react";
-import { printPage } from "@/lib/excel";
+import PrintTemplate from "@/components/print/PrintTemplate";
 
 interface PurchaseInvoiceDetailsProps {
   invoice: any;
@@ -10,8 +11,34 @@ interface PurchaseInvoiceDetailsProps {
 }
 
 export default function PurchaseInvoiceDetails({ invoice, onClose, onEdit }: PurchaseInvoiceDetailsProps) {
+  const [printData, setPrintData] = useState<any>(null);
   const items = invoice.lines || [];
   const fmt = (n: number) => (n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 });
+
+  const handlePrint = () => {
+    setPrintData({
+      invoiceNo: invoice.invoiceNo || invoice.docNo || "PI-DOC",
+      date: invoice.date || invoice.createdAt,
+      customer: invoice.partyId?.name || invoice.partyName || invoice.partyId?.companyName || "Vendor",
+      supplier: invoice.partyId?.name || invoice.partyName || invoice.partyId?.companyName || "Vendor",
+      paymentMethod: invoice.paymentMethod || "Credit",
+      type: "purchase_invoice",
+      subtotal: invoice.subTotal || invoice.total,
+      discountAmount: invoice.discountAmount || 0,
+      total: invoice.totalAmount || invoice.total,
+      amountReceived: invoice.amountReceived || 0,
+      lines: (invoice.lines || []).map((l: any) => ({
+        description: l.description || l.itemId?.name || "Item",
+        qty: l.quantity || l.cartons || l.qty || 1,
+        unit: l.unit || "Per Piece",
+        rate: l.unitPrice || l.rate || 0,
+        total: l.total || l.netAmount || 0,
+        isReceived: true,
+        deliveredQty: l.quantity || l.cartons || l.qty || 1,
+        pendingQty: 0
+      }))
+    });
+  };
 
   return (
     <div className="bg-slate-50 dark:bg-slate-800/50 min-h-screen">
@@ -39,7 +66,7 @@ export default function PurchaseInvoiceDetails({ invoice, onClose, onEdit }: Pur
           <button onClick={onEdit} className="px-4 py-2 text-sm font-bold text-white bg-maroon-800 hover:bg-maroon-900 rounded-lg flex items-center shadow-lg transition-all">
             <Edit size={16} className="mr-2" /> Edit
           </button>
-          <button onClick={printPage} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-lg flex items-center border border-slate-200 bg-white shadow-sm transition-all">
+          <button onClick={handlePrint} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-lg flex items-center border border-slate-200 bg-white shadow-sm transition-all">
             <Printer size={16} className="mr-2" /> Print
           </button>
         </div>
@@ -117,7 +144,7 @@ export default function PurchaseInvoiceDetails({ invoice, onClose, onEdit }: Pur
         {/* Line Items Table */}
         <section className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
           <div className="p-6 border-b border-slate-100 bg-slate-50">
-            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Invoiced Items ({items.length})</h3>
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Invoiced Items ({(items || []).length})</h3>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left" style={{ minWidth: 900 }}>
@@ -140,7 +167,7 @@ export default function PurchaseInvoiceDetails({ invoice, onClose, onEdit }: Pur
               <tbody className="divide-y divide-slate-50 font-bold">
                 {items.length === 0 ? (
                   <tr><td colSpan={12} className="px-5 py-10 text-center text-slate-400 font-medium">No items found.</td></tr>
-                ) : items.map((item: any, idx: number) => {
+                ) : (items || []).map((item: any, idx: number) => {
                   const ctns = item.cartons ?? item.qty ?? 0;
                   const price = item.rate ?? item.unitPrice ?? 0;
                   const gross = item.grossAmount ?? (ctns * price);
@@ -208,6 +235,15 @@ export default function PurchaseInvoiceDetails({ invoice, onClose, onEdit }: Pur
           </div>
         </section>
       </div>
+
+      {printData && (
+        <PrintTemplate
+          formatName="Sale Invoice Receipt"
+          data={printData}
+          items={printData.lines}
+          onPrintComplete={() => setPrintData(null)}
+        />
+      )}
     </div>
   );
 }

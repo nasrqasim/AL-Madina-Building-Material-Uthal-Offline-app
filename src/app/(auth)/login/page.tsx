@@ -2,13 +2,14 @@
 import { COMPANY_NAME, COMPANY_SHORT, COMPANY_TAGLINE } from "@/lib/company";
 
 import { FormEvent, useState } from "react";
-import { signIn } from "next-auth/react";
+import { useAuthActions } from "@/components/providers/SessionProvider";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { signIn } = useAuthActions();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -17,14 +18,16 @@ export default function LoginPage() {
     const form = new FormData(e.currentTarget);
     setLoading(true);
     setError("");
-    const result = await signIn("credentials", {
-      username: form.get("username"),
-      password: form.get("password"),
-      redirect: false,
+    const result = await signIn({
+      username: form.get("username") as string,
+      password: form.get("password") as string,
     });
     setLoading(false);
-    if (result?.ok) router.push("/dashboard");
-    else setError("Invalid credentials");
+    if (result.ok) {
+      router.push("/dashboard");
+    } else {
+      setError(result.error || "Invalid credentials");
+    }
   };
 
   return (

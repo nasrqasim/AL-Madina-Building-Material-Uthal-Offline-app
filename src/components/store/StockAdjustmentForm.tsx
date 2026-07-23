@@ -2,15 +2,16 @@
 
 import { useState, useEffect, useMemo } from "react";
 import ItemSearchInput from "@/components/erp/ui/ItemSearchInput";
+import { getProductUnit } from "@/lib/dynamicUnits";
 import {
-  Plus, 
-  Trash2, 
-  Save, 
-  ArrowLeft, 
-  X, 
-  CheckCircle2, 
-  Layers, 
-  AlertTriangle, 
+  Plus,
+  Trash2,
+  Save,
+  ArrowLeft,
+  X,
+  CheckCircle2,
+  Layers,
+  AlertTriangle,
   Scale,
   Search,
   Package,
@@ -22,11 +23,14 @@ interface AdjustmentItem {
   itemId: string;
   itemCode: string;
   description: string;
-  cartons: number;
-  gallons: number;
-  liters: number;
+  quantity: number; // Dynamic quantity
+  unit: string; // Product's unit
   unitCost: number;
   total: number;
+  // Legacy fields for backward compatibility
+  cartons?: number;
+  gallons?: number;
+  liters?: number;
 }
 
 interface StockAdjustmentFormProps {
@@ -37,19 +41,26 @@ interface StockAdjustmentFormProps {
 export default function StockAdjustmentForm({ onClose, initialData }: StockAdjustmentFormProps) {
   const [items, setItems] = useState<AdjustmentItem[]>(() => {
     if (initialData?.lines?.length > 0) {
-      return initialData.lines.map((l: any, i: number) => ({
-        id: i.toString(),
-        itemId: l.itemId?._id || l.itemId || "",
-        itemCode: l.itemId?.code || "",
-        description: l.description || "",
-        cartons: l.cartons || l.qty || 0,
-        gallons: l.gallons || 0,
-        liters: l.liters || 0,
-        unitCost: l.rate || 0,
-        total: (l.qty || 0) * (l.rate || 0)
-      }));
+      return initialData.lines.map((l: any, i: number) => {
+        const item = l.itemId?._id ? availableItems.find(ai => ai._id === l.itemId._id) : null;
+        const unit = getProductUnit(item);
+        return {
+          id: i.toString(),
+          itemId: l.itemId?._id || l.itemId || "",
+          itemCode: l.itemId?.code || "",
+          description: l.description || "",
+          quantity: l.cartons || l.qty || 0,
+          unit: unit,
+          unitCost: l.rate || 0,
+          total: (l.qty || 0) * (l.rate || 0),
+          // Legacy fields
+          cartons: l.cartons || l.qty || 0,
+          gallons: l.gallons || 0,
+          liters: l.liters || 0
+        };
+      });
     }
-    return [{ id: "1", itemId: "", itemCode: "", description: "", cartons: 1, gallons: 4, liters: 16, unitCost: 0, total: 0 }];
+    return [{ id: "1", itemId: "", itemCode: "", description: "", quantity: 0, unit: "Per Piece", unitCost: 0, total: 0, cartons: 0, gallons: 0, liters: 0 }];
   });
   
   const [formData, setFormData] = useState({
@@ -88,55 +99,53 @@ export default function StockAdjustmentForm({ onClose, initialData }: StockAdjus
         empsRes.json(),
         jobsRes.json()
       ]);
-      if (itemsData.ok) setAvailableItems(itemsData.data);
-      if (locsData.ok) setLocations(locsData.data);
-      if (empsData.ok) setEmployees(empsData.data);
-      if (jobsData.ok) setJobs(jobsData.data);
+      if (itemsData.ok) setAvailableItems(itemsData.data || []);
+      if (locsData.ok) setLocations(locsData.data || []);
+      if (empsData.ok) setEmployees(empsData.data || []);
+      if (jobsData.ok) setJobs(jobsData.data || []);
     } catch (e) { console.error(e); }
   };
 
   const addItem = () => {
-    const newItem = { id: Date.now().toString(), itemId: "", itemCode: "", description: "", cartons: 0, gallons: 0, liters: 0, unitCost: 0, total: 0 };
+    const newItem = { id: Date.now().toString(), itemId: "", itemCode: "", description: "", quantity: 0, unit: "Per Piece", unitCost: 0, total: 0, cartons: 0, gallons: 0, liters: 0 };
     setItems([...items, newItem]);
   };
 
   const removeLine = (id: string) => {
-    if (items.length > 1) {
-      setItems(items.filter(i => i.id !== id));
+    if ((items || []).length > 1) {
+      setItems((items || []).filter(i => i.id !== id));
     }
   };
   
   const updateItem = (id: string, field: keyof AdjustmentItem, value: any) => {
-    setItems(items.map(i => {
+    setItems((items || []).map(i => {
       if (i.id === id) {
         const updated = { ...i, [field]: value };
-        
-        if (field === "cartons" || field === "gallons" || field === "liters") {
-          const selItem = availableItems.find(ai => ai._id === i.itemId);
-          const isFltr = selItem?.name?.toLowerCase().includes("filter") || selItem?.name?.toLowerCase().includes("fliter");
-          const galsInCtn = isFltr ? 1 : (selItem?.gallonsInCtn || 4);
-          const ltrsInCtn = isFltr ? 1 : (selItem?.litersInCtn || 16);
-          if (field === "cartons") {
-            updated.gallons = value * galsInCtn;
-            updated.liters = value * ltrsInCtn;
-          } else if (field === "gallons") {
-            updated.cartons = galsInCtn > 0 ? value / galsInCtn : 0;
-            updated.liters = galsInCtn > 0 ? (value / galsInCtn) * ltrsInCtn : 0;
-          } else if (field === "liters") {
-            updated.cartons = ltrsInCtn > 0 ? value / ltrsInCtn : 0;
-            updated.gallons = ltrsInCtn > 0 ? (value / ltrsInCtn) * galsInCtn : 0;
+
+        // Auto-fill unit when item is selected
+        if (field === "itemId") {
+          const selItem = (availableItems || []).find(ai => ai._id === value);
+          if (selItem) {
+            updated.itemCode = selItem.code || "";
+            updated.description = selItem.name || "";
+            updated.unit = getProductUnit(selItem);
           }
         }
 
-        if (field === "itemId") {
-          const selected = availableItems.find(ai => ai._id === value);
-          if (selected) {
-            updated.itemCode = selected.code;
-            updated.description = selected.name;
-            updated.unitCost = selected.purchaseRate || 0;
-          }
+        // Handle quantity changes
+        if (field === "quantity") {
+          // Update legacy cartons field for backward compatibility
+          updated.cartons = value;
         }
-        updated.total = (Number(updated.cartons) || 0) * (updated.unitCost || 0);
+
+        // Calculate total when quantity or cost changes
+        if (field === "quantity" || field === "unitCost") {
+          const qty = Number(updated.quantity) || 0;
+          const cost = Number(updated.unitCost) || 0;
+          updated.total = qty * cost;
+          updated.cartons = qty;
+        }
+
         return updated;
       }
       return i;
@@ -146,7 +155,7 @@ export default function StockAdjustmentForm({ onClose, initialData }: StockAdjus
   const handleItemKeyDown = (e: React.KeyboardEvent, lineId: string, filteredItems: any[]) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActiveIndex(prev => (prev < filteredItems.length - 1 ? prev + 1 : prev));
+      setActiveIndex(prev => (prev < (filteredItems || []).length - 1 ? prev + 1 : prev));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActiveIndex(prev => (prev > 0 ? prev - 1 : prev));
@@ -161,7 +170,7 @@ export default function StockAdjustmentForm({ onClose, initialData }: StockAdjus
     }
   };
 
-  const totalValue = items.reduce((sum, i) => sum + i.total, 0);
+  const totalValue = (items || []).reduce((sum, i) => sum + i.total, 0);
 
   const handleSave = async (status: string) => {
     const payload = {
@@ -175,15 +184,17 @@ export default function StockAdjustmentForm({ onClose, initialData }: StockAdjus
       notes: formData.reason,
       status: status,
       totalAmount: totalValue,
-      lines: items.filter(l => l.itemId).map(l => ({
+      lines: (items || []).filter(l => l.itemId).map(l => ({
         itemId: l.itemId,
         description: l.description,
+        qty: l.quantity || l.cartons,
+        unit: l.unit || "Per Piece",
+        rate: l.unitCost,
+        netAmount: l.total,
+        // Legacy fields for backward compatibility
         cartons: l.cartons,
         gallons: l.gallons,
-        liters: l.liters,
-        qty: l.cartons,
-        rate: l.unitCost,
-        netAmount: l.total
+        liters: l.liters
       }))
     };
 
@@ -259,7 +270,7 @@ export default function StockAdjustmentForm({ onClose, initialData }: StockAdjus
               <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Location *</label>
               <select value={formData.locationId} onChange={(e) => setFormData({...formData, locationId: e.target.value})} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold focus:border-maroon-800 outline-none transition-all">
                 <option value="">-- Select Location --</option>
-                {locations.map(l => (
+                {(locations || []).map(l => (
                   <option key={l._id} value={l._id}>{l.name}</option>
                 ))}
               </select>
@@ -272,7 +283,7 @@ export default function StockAdjustmentForm({ onClose, initialData }: StockAdjus
               <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Employee</label>
               <select value={formData.employeeId} onChange={(e) => setFormData({...formData, employeeId: e.target.value})} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold focus:border-maroon-800 outline-none transition-all">
                 <option value="">-- Select Employee --</option>
-                {employees.map(emp => (
+                {(employees || []).map(emp => (
                   <option key={emp._id} value={emp._id}>{emp.name}</option>
                 ))}
               </select>
@@ -281,7 +292,7 @@ export default function StockAdjustmentForm({ onClose, initialData }: StockAdjus
               <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Job Reference</label>
               <select value={formData.jobId} onChange={(e) => setFormData({...formData, jobId: e.target.value})} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold focus:border-maroon-800 outline-none transition-all">
                 <option value="">-- Select Job --</option>
-                {jobs.map(job => (
+                {(jobs || []).map(job => (
                   <option key={job._id} value={job._id}>{job.name || job.title}</option>
                 ))}
               </select>
@@ -314,9 +325,9 @@ export default function StockAdjustmentForm({ onClose, initialData }: StockAdjus
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50 font-bold">
-                {items.map((item, index) => {
+                {(items || []).map((item, index) => {
                   const query = (item.itemCode || "").toLowerCase();
-                  const filteredItems = availableItems.filter(i => 
+                  const filteredItems = (availableItems || []).filter(i => 
                     i.code.toLowerCase().includes(query) || i.name.toLowerCase().includes(query)
                   ).sort((a, b) => {
                     const aStart = a.name.toLowerCase().startsWith(query) || a.code.toLowerCase().startsWith(query);

@@ -1,13 +1,22 @@
 import { fail, ok } from "@/lib/api";
-import dbConnect from "@/lib/db";
-import Invoice from "@/models/Invoice";
+import { offlineDB } from "@/lib/dexie";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const partyId = searchParams.get("partyId");
   if (!partyId) return fail("partyId is required");
-  await dbConnect();
-  const rows = await Invoice.find({ partyId }, { invoiceNo: 1, type: 1, date: 1, totalAmount: 1 }).sort({ date: -1 }).lean();
+
+  const allInvoices = await offlineDB.invoices.toArray();
+  const rows = allInvoices
+    .filter((inv: any) => inv.partyId === partyId)
+    .map((inv: any) => ({
+      invoiceNo: inv.invoiceNo,
+      type: inv.type,
+      date: inv.date,
+      totalAmount: inv.totalAmount
+    }))
+    .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
   return ok(rows);
 }
 

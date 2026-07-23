@@ -81,10 +81,10 @@ export default function CommandPalette({ isOpen, onClose, userRole }: CommandPal
 
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setSelectedIndex(prev => (prev + 1) % filteredItems.length);
+        setSelectedIndex(prev => (prev + 1) % (filteredItems || []).length);
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
-        setSelectedIndex(prev => (prev - 1 + filteredItems.length) % filteredItems.length);
+        setSelectedIndex(prev => (prev - 1 + (filteredItems || []).length) % (filteredItems || []).length);
       } else if (e.key === "Enter") {
         e.preventDefault();
         if (filteredItems[selectedIndex]) {
@@ -135,13 +135,13 @@ export default function CommandPalette({ isOpen, onClose, userRole }: CommandPal
 
         {/* Results */}
         <div className="max-h-[60vh] overflow-y-auto p-4 custom-scrollbar">
-          {filteredItems.length > 0 ? (
+          {(filteredItems || []).length > 0 ? (
             <div className="space-y-6">
               <div className="space-y-1">
                 <p className="px-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">
                   {query === "" ? "Recent & Suggested" : "Search Results"}
                 </p>
-                {filteredItems.map((item, idx) => {
+                {(filteredItems || []).map((item, idx) => {
                   const Icon = item.icon || FileText;
                   return (
                     <button

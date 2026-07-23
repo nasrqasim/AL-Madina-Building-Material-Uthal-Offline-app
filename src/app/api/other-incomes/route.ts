@@ -1,7 +1,5 @@
 import { fail, ok } from "@/lib/api";
-import dbConnect from "@/lib/db";
-import OtherIncome from "@/models/OtherIncome";
-import JournalEntry from "@/models/JournalEntry";
+import { offlineDB, generateUniqueId } from "@/lib/dexie";
 
 export const dynamic = 'force-dynamic';
 
@@ -14,36 +12,38 @@ export async function GET(req: Request) {
     const fromDate = searchParams.get("fromDate");
     const toDate = searchParams.get("toDate");
 
-    await dbConnect();
+    let incomes = await offlineDB.otherIncomes.toArray();
 
-    const query: any = {};
-
+    // Apply filters
     if (search) {
-      query.$or = [
-        { title: { $regex: search, $options: "i" } },
-        { description: { $regex: search, $options: "i" } }
-      ];
+      const searchLower = search.toLowerCase();
+      incomes = incomes.filter(inc => 
+        (inc.title || "").toLowerCase().includes(searchLower) ||
+        (inc.description || "").toLowerCase().includes(searchLower)
+      );
     }
 
     if (incomeType) {
-      query.incomeType = incomeType;
+      incomes = incomes.filter(inc => inc.incomeType === incomeType);
     }
 
     if (paymentMethod) {
-      query.paymentMethod = paymentMethod;
+      incomes = incomes.filter(inc => inc.paymentMethod === paymentMethod);
     }
 
     if (fromDate || toDate) {
-      query.date = {};
-      if (fromDate) query.date.$gte = new Date(fromDate);
-      if (toDate) query.date.$lte = new Date(toDate);
+      incomes = incomes.filter(inc => {
+        const incDate = new Date(inc.date);
+        if (fromDate && incDate < new Date(fromDate)) return false;
+        if (toDate && incDate > new Date(toDate)) return false;
+        return true;
+      });
     }
 
-    const rows = await OtherIncome.find(query)
-      .sort({ date: -1, createdAt: -1 })
-      .lean();
+    // Sort by date descending
+    incomes.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    return ok(rows);
+    return ok(incomes);
   } catch (e) {
     return fail((e as Error).message);
   }
@@ -52,41 +52,66 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    await dbConnect();
 
-    // 1. Create OtherIncome record
-    const row = await OtherIncome.create(body);
+    // Generate unique ID
+    const id = generateUniqueId();
+    
+    // Create other income record
+    const incomeRecord = {
+      id,
+      _id: id,
+      title: body.title,
+      description: body.description || "",
+      amount: Number(body.amount) || 0,
+      incomeType: body.incomeType || "One Time",
+      paymentMethod: body.paymentMethod || "Cash",
+      reference: body.reference || "",
+      date: body.date || new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
 
-    const voucherNo = `INC-${row._id}`;
+    // Save to IndexedDB
+    await offlineDB.otherIncomes.add(incomeRecord);
 
-    // 2. Create corresponding Journal Entries to feed reports & dashboard automatically
-    const isCash = row.paymentMethod === "Cash";
+    // Create corresponding Journal Entries to feed reports & dashboard automatically
+    const voucherNo = `INC-${id}`;
+    const isCash = incomeRecord.paymentMethod === "Cash";
     const assetCode = isCash ? "1111" : "1110";
-    const assetTitle = isCash ? "Cash" : "Bank";
+    const assetTitle = isCash ? "Cash Hand" : "Bank Account";
 
-    await JournalEntry.create([
+    const journalEntries = [
       {
-        date: row.date,
+        id: generateUniqueId(),
         voucherNo,
+        date: incomeRecord.date,
         accountCode: assetCode,
         accountTitle: assetTitle,
-        debit: row.amount,
+        debit: incomeRecord.amount,
         credit: 0,
-        remarks: row.description || row.title
+        remarks: incomeRecord.description || incomeRecord.title,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       },
       {
-        date: row.date,
+        id: generateUniqueId(),
         voucherNo,
+        date: incomeRecord.date,
         accountCode: "40002001",
         accountTitle: "Other Income",
         debit: 0,
-        credit: row.amount,
-        remarks: row.description || row.title
+        credit: incomeRecord.amount,
+        remarks: incomeRecord.description || incomeRecord.title,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       }
-    ]);
+    ];
 
-    return ok(row, 201);
+    await offlineDB.journalEntries.bulkAdd(journalEntries);
+
+    return ok(incomeRecord, 201);
   } catch (e) {
+    console.error("Error creating other income:", e);
     return fail((e as Error).message);
   }
 }

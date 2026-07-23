@@ -25,8 +25,8 @@ export default function StatutoryContributionsReportPage() {
       const payrollJson = await payrollRes.json();
       const empJson = await empRes.json();
       
-      if (payrollJson.ok) setPayrolls(payrollJson.data);
-      if (empJson.ok) setEmployees(empJson.data);
+      if (payrollJson.ok) setPayrolls(payrollJson.data || []);
+      if (empJson.ok) setEmployees(empJson.data || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -34,9 +34,9 @@ export default function StatutoryContributionsReportPage() {
     }
   };
 
-  const empMap = new Map(employees.map(e => [e._id, e]));
-  const empByName = new Map(employees.map(e => [e.name, e]));
-  const empByCode = new Map(employees.map(e => [e.code, e]));
+  const empMap = new Map((employees || []).map(e => [e._id, e]));
+  const empByName = new Map((employees || []).map(e => [e.name, e]));
+  const empByCode = new Map((employees || []).map(e => [e.code, e]));
 
   // Aggregate by month
   const monthlyMap = new Map();
@@ -47,7 +47,7 @@ export default function StatutoryContributionsReportPage() {
   const uniqueStaff = new Set();
   const uniqueMonths = new Set();
 
-  payrolls.forEach(p => {
+  (payrolls || []).forEach(p => {
     uniqueMonths.add(p.month);
     let monthDeduction = 0;
     

@@ -1,12 +1,12 @@
 import { fail, ok } from "@/lib/api";
-import dbConnect from "@/lib/db";
-import { DocumentSetting } from "@/models/DocumentSetting";
+import { offlineDB } from "@/lib/dexie";
+import { generateUniqueId } from "@/lib/dexie";
 
 export async function GET() {
   try {
-    await dbConnect();
-    const settings = await DocumentSetting.find({});
-    
+    const allSettings = await offlineDB.settings.toArray();
+    const settings = allSettings.filter((s: any) => s.key === "documentSettings");
+
     // Default settings if none exist
     if (settings.length === 0) {
       const defaults = [
@@ -16,11 +16,21 @@ export async function GET() {
         { type: "Cash Receipt", prefix: "CR-", nextNo: 1, padding: 5 },
         { type: "GRN", prefix: "GRN-", nextNo: 1, padding: 4 },
       ];
-      await DocumentSetting.insertMany(defaults);
+      for (const def of defaults) {
+        const id = generateUniqueId();
+        const newSetting = {
+          id,
+          key: "documentSettings",
+          value: def,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        await offlineDB.settings.add(newSetting as any);
+      }
       return ok(defaults);
     }
-    
-    return ok(settings);
+
+    return ok(settings.map((s: any) => s.value));
   } catch (e) {
     return fail((e as Error).message);
   }
@@ -33,14 +43,25 @@ export async function POST(req: Request) {
 
     if (!Array.isArray(settings)) return fail("Invalid data format");
 
-    await dbConnect();
+    const allSettings = await offlineDB.settings.toArray();
+    const existingSettings = allSettings.filter((s: any) => s.key === "documentSettings");
 
+    // Delete existing document settings
+    for (const es of existingSettings) {
+      await offlineDB.settings.delete(es.id);
+    }
+
+    // Add new settings
     for (const s of settings) {
-      await DocumentSetting.findOneAndUpdate(
-        { type: s.type },
-        { prefix: s.prefix, nextNo: s.nextNo, padding: s.padding },
-        { upsert: true }
-      );
+      const id = generateUniqueId();
+      const newSetting = {
+        id,
+        key: "documentSettings",
+        value: s,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      await offlineDB.settings.add(newSetting as any);
     }
 
     return ok({ message: "Settings saved successfully" });

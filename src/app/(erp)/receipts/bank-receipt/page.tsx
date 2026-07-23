@@ -22,7 +22,7 @@ export default function BankReceiptPage() {
     try {
       const res = await fetch("/api/bank-receipts");
       const json = await res.json();
-      if (json.ok) setReceipts(json.data);
+      if (json.ok) setReceipts(json.data || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -34,7 +34,7 @@ export default function BankReceiptPage() {
     try {
       const res = await fetch("/api/shop-profile");
       const json = await res.json();
-      if (json.ok) setShopProfile(json.data);
+      if (json.ok) setShopProfile(json.data || []);
     } catch (e) {
       console.error(e);
     }
@@ -56,7 +56,7 @@ export default function BankReceiptPage() {
     return <BankReceiptForm onClose={() => setShowForm(false)} />;
   }
 
-  const filteredReceipts = receipts.filter(p => p.receiptNumber?.toLowerCase().includes(searchQuery.toLowerCase()) || p.party?.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredReceipts = (receipts || []).filter(p => p.receiptNumber?.toLowerCase().includes(searchQuery.toLowerCase()) || p.party?.toLowerCase().includes(searchQuery.toLowerCase()));
 
   return (
     <div className="space-y-6">

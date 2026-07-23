@@ -48,10 +48,10 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (initialData && availableParties.length > 0) {
+    if (initialData && (availableParties || []).length > 0) {
       if (initialData.partyId) {
         const pId = initialData.partyId._id || initialData.partyId;
-        const found = availableParties.find(p => p._id === pId);
+        const found = (availableParties || []).find(p => p._id === pId);
         if (found) {
           setPartyType(found.type === "Vendor" ? "Vendor" : "Customer");
           setPreviewParty(found);
@@ -81,10 +81,10 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
           empRes.json(),
           jobRes.json()
         ]);
-        if (acctJson.ok) setAvailableAccounts(acctJson.data);
-        if (partyJson.ok) setAvailableParties(partyJson.data);
-        if (empJson.ok) setEmployees(empJson.data);
-        if (jobJson.ok) setJobs(jobJson.data);
+        if (acctJson.ok) setAvailableAccounts(acctJson.data || []);
+        if (partyJson.ok) setAvailableParties(partyJson.data || []);
+        if (empJson.ok) setEmployees(empJson.data || []);
+        if (jobJson.ok) setJobs(jobJson.data || []);
       } catch (e) {
         console.error("Error fetching lookups:", e);
       }
@@ -94,21 +94,21 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
 
   // Filter cash accounts (type = 'cash')
   const cashAccounts = useMemo(() => {
-    return availableAccounts.filter(a => a.type === "cash" || a.type === "bank");
+    return (availableAccounts || []).filter(a => a.type === "cash" || a.type === "bank");
   }, [availableAccounts]);
 
   // Filter customers for the simple Party Receipt
   const customers = useMemo(() => {
-    return availableParties.filter(p => p.type === "Customer");
+    return (availableParties || []).filter(p => p.type === "Customer");
   }, [availableParties]);
 
   // Filter vendors
   const vendors = useMemo(() => {
-    return availableParties.filter(p => p.type === "Vendor");
+    return (availableParties || []).filter(p => p.type === "Vendor");
   }, [availableParties]);
 
   const selectedParty = useMemo(
-    () => availableParties.find((p) => p._id === formData.partyId) || previewParty,
+    () => (availableParties || []).find((p) => p._id === formData.partyId) || previewParty,
     [availableParties, formData.partyId, previewParty]
   );
 
@@ -150,7 +150,7 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
         if (idx !== index) return line;
         const updated = { ...line, [field]: value };
         if (field === "accountId") {
-          const selected = availableAccounts.find(a => a._id === value);
+          const selected = (availableAccounts || []).find(a => a._id === value);
           updated.accountTitle = selected ? selected.title : "";
         }
         return updated;
@@ -176,7 +176,7 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
         if (idx !== index) return line;
         const updated = { ...line, [field]: value };
         if (field === "partyId") {
-          const selected = availableParties.find(p => p._id === value);
+          const selected = (availableParties || []).find(p => p._id === value);
           updated.partyName = selected ? (selected.companyName || selected.name) : "";
         }
         return updated;
@@ -472,7 +472,7 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
                 className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold outline-none"
               >
                 <option value="">-- Select Job --</option>
-                {jobs.map(j => (
+                {(jobs || []).map(j => (
                   <option key={j._id} value={j._id}>{j.title || j.name}</option>
                 ))}
               </select>
@@ -500,7 +500,7 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
                 type="button"
                 onClick={() => {
                   setPettySubTab("customer");
-                  const found = availableParties.find(p => p._id === formData.partyId);
+                  const found = (availableParties || []).find(p => p._id === formData.partyId);
                   if (!found || found.type !== "Customer") {
                     setFormData(prev => ({ ...prev, partyId: "" }));
                   }
@@ -517,7 +517,7 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
                 type="button"
                 onClick={() => {
                   setPettySubTab("vendor");
-                  const found = availableParties.find(p => p._id === formData.partyId);
+                  const found = (availableParties || []).find(p => p._id === formData.partyId);
                   if (!found || found.type !== "Vendor") {
                     setFormData(prev => ({ ...prev, partyId: "" }));
                   }
@@ -703,7 +703,7 @@ export default function CashReceiptForm({ onClose, initialData }: CashReceiptFor
                             className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-bold outline-none focus:border-maroon-800"
                           >
                             <option value="">-- Select Party --</option>
-                            {availableParties.map(p => (
+                            {(availableParties || []).map(p => (
                               <option key={p._id} value={p._id}>{p.companyName || p.name} ({p.type})</option>
                             ))}
                           </select>

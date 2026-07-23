@@ -7,6 +7,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import { offlineDB } from "@/lib/dexie";
+import { calculateCustomerBalance, calculateBalanceFromTransactions } from "@/lib/customerBalance";
+import { calculateVendorBalance, calculateVendorBalanceFromTransactions } from "@/lib/vendorBalance";
 
 interface StatsCardsProps {
   selectedDate?: string;
@@ -24,16 +27,144 @@ export default function StatsCards({ selectedDate }: StatsCardsProps) {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const url = selectedDate ? `/api/dashboard?date=${selectedDate}` : "/api/dashboard";
-        const res = await fetch(url);
-        const json = await res.json();
-        if (json.ok) {
-          setData({
-            cashBank: json.data.cashBank || { opening: 0, receipts: 0, payments: 0, current: 0 },
-            receivables: json.data.receivables || { opening: 0, sales: 0, receipts: 0, current: 0 },
-            payables: json.data.payables || { opening: 0, purchases: 0, payments: 0, current: 0 }
-          });
+        const targetDate = selectedDate ? new Date(selectedDate) : new Date();
+        const startOfDay = new Date(targetDate);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(targetDate);
+        endOfDay.setHours(23, 59, 59, 999);
+
+        // 1. Accounts & Banks initial opening balances
+        const cashBankAccs = await offlineDB.accounts
+          .filter(acc => acc && (acc.type === "cash" || acc.type === "bank" || ["1111", "1110", "1000", "1010"].includes(acc.code)))
+          .toArray();
+        const banksList = await offlineDB.banks.toArray();
+
+        const accountsOpening = cashBankAccs.reduce((sum, acc) => sum + (Number(acc.openingBalance) || 0), 0);
+        const banksOpening = banksList.reduce((sum, b) => sum + (Number(b.balance) || 0), 0);
+        const baseInitialOpening = accountsOpening + banksOpening;
+
+        // Known cash/bank codes
+        const knownCashBankCodes = ["1111", "1110", "1000", "1010"];
+        const accountCodes = cashBankAccs.map(a => a.code);
+        const cashBankCodes = Array.from(new Set([...knownCashBankCodes, ...accountCodes]));
+
+        const allJournalEntries = await offlineDB.journalEntries.toArray();
+
+        // Include all cash/bank transactions (Walk-in sales, cash invoices, receipts, payments)
+        // Exclude customer advance opening entries
+        const validJournalEntries = allJournalEntries.filter(entry => 
+          cashBankCodes.includes(entry.accountCode) && 
+          !entry.voucherNo?.startsWith("OPBAL-")
+        );
+
+        const cashBankTxBefore = validJournalEntries.filter(entry => 
+          entry.date && new Date(entry.date) < startOfDay
+        );
+        const cashBankOpening = baseInitialOpening + cashBankTxBefore.reduce((sum, entry) => 
+          sum + (Number(entry.debit) || 0) - (Number(entry.credit) || 0), 0);
+
+        const cashBankTxToday = validJournalEntries.filter(entry => 
+          entry.date && new Date(entry.date) >= startOfDay && new Date(entry.date) <= endOfDay
+        );
+
+        const cashBankReceipts = cashBankTxToday.reduce((sum, entry) => 
+          sum + (Number(entry.debit) || 0), 0);
+        const cashBankPayments = cashBankTxToday.reduce((sum, entry) => 
+          sum + (Number(entry.credit) || 0), 0);
+
+        const cashBankCurrent = cashBankOpening + cashBankReceipts - cashBankPayments;
+
+        // Receivables calculation using unified balance helper
+        const customers = await offlineDB.parties
+          .filter(p => p.type === "Customer")
+          .toArray();
+        
+        // Fetch all transactions for unified calculation
+        const [allSales, allCashReceipts, allBankReceipts, allCashPayments, allBankPayments] = await Promise.all([
+          offlineDB.invoices.where("type").anyOf(["sale", "non_tax_sale", "pos", "challan"]).toArray(),
+          offlineDB.cashReceipts.toArray(),
+          offlineDB.bankReceipts.toArray(),
+          offlineDB.cashPayments.toArray(),
+          offlineDB.bankPayments.toArray()
+        ]);
+
+        // Filter transactions for receivables
+        const salesBefore = allSales.filter(s => s.date && new Date(s.date) < startOfDay);
+        const cashRecBefore = allCashReceipts.filter(r => r.date && new Date(r.date) < startOfDay);
+        const bankRecBefore = allBankReceipts.filter(r => r.date && new Date(r.date) < startOfDay);
+        const cashPayBefore = allCashPayments.filter(p => p.date && new Date(p.date) < startOfDay);
+        const bankPayBefore = allBankPayments.filter(p => p.date && new Date(p.date) < startOfDay);
+
+        const salesToday = allSales.filter(s => s.date && new Date(s.date) >= startOfDay && new Date(s.date) <= endOfDay);
+        const cashRecToday = allCashReceipts.filter(r => r.date && new Date(r.date) >= startOfDay && new Date(r.date) <= endOfDay);
+        const bankRecToday = allBankReceipts.filter(r => r.date && new Date(r.date) >= startOfDay && new Date(r.date) <= endOfDay);
+        const cashPayToday = allCashPayments.filter(p => p.date && new Date(p.date) >= startOfDay && new Date(p.date) <= endOfDay);
+        const bankPayToday = allBankPayments.filter(p => p.date && new Date(p.date) >= startOfDay && new Date(p.date) <= endOfDay);
+
+        // Calculate receivables opening and current dynamically
+        let openingReceivables = 0;
+        let totalReceivables = 0;
+        for (const customer of customers) {
+          const balanceBefore = calculateBalanceFromTransactions(customer, salesBefore, cashRecBefore, bankRecBefore, cashPayBefore, bankPayBefore);
+          openingReceivables += balanceBefore.receivable;
+
+          const balanceCurrent = calculateBalanceFromTransactions(customer, allSales, allCashReceipts, allBankReceipts, allCashPayments, allBankPayments);
+          totalReceivables += balanceCurrent.receivable;
         }
+
+        const salesTodayTotal = salesToday.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
+        const receiptsTodayTotal = cashRecToday.reduce((sum, r) => sum + (Number(r.amount) || 0), 0) +
+                                   bankRecToday.reduce((sum, r) => sum + (Number(r.amount) || 0), 0) +
+                                   cashPayToday.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) +
+                                   bankPayToday.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+        // Payables calculation using unified balance helper
+        const vendors = await offlineDB.parties
+          .filter(p => p.type === "Vendor")
+          .toArray();
+        
+        // Fetch all transactions for unified calculation
+        const [allPurchases, allCashReceiptsV, allBankReceiptsV] = await Promise.all([
+          offlineDB.invoices.where("type").anyOf(["purchase", "non_tax_purchase", "import_purchase"]).toArray(),
+          offlineDB.cashReceipts.toArray(),
+          offlineDB.bankReceipts.toArray()
+        ]);
+
+        // Filter transactions for payables
+        const purchasesBefore = allPurchases.filter(p => p.date && new Date(p.date) < startOfDay);
+        const cashPayBeforeV = allCashPayments.filter(p => p.date && new Date(p.date) < startOfDay);
+        const bankPayBeforeV = allBankPayments.filter(p => p.date && new Date(p.date) < startOfDay);
+        const cashRecBeforeV = allCashReceiptsV.filter(r => r.date && new Date(r.date) < startOfDay);
+        const bankRecBeforeV = allBankReceiptsV.filter(r => r.date && new Date(r.date) < startOfDay);
+
+        const purchasesToday = allPurchases.filter(p => p.date && new Date(p.date) >= startOfDay && new Date(p.date) <= endOfDay);
+        const cashPayTodayV = allCashPayments.filter(p => p.date && new Date(p.date) >= startOfDay && new Date(p.date) <= endOfDay);
+        const bankPayTodayV = allBankPayments.filter(p => p.date && new Date(p.date) >= startOfDay && new Date(p.date) <= endOfDay);
+        const cashRecTodayV = allCashReceiptsV.filter(r => r.date && new Date(r.date) >= startOfDay && new Date(r.date) <= endOfDay);
+        const bankRecTodayV = allBankReceiptsV.filter(r => r.date && new Date(r.date) >= startOfDay && new Date(r.date) <= endOfDay);
+
+        // Calculate payables opening and current dynamically
+        let openingPayables = 0;
+        let totalPayables = 0;
+        for (const vendor of vendors) {
+          const balanceBefore = calculateVendorBalanceFromTransactions(vendor, purchasesBefore, [], cashPayBeforeV, bankPayBeforeV, cashRecBeforeV, bankRecBeforeV);
+          openingPayables += balanceBefore.payable;
+
+          const balanceCurrent = calculateVendorBalanceFromTransactions(vendor, allPurchases, [], allCashPayments, allBankPayments, allCashReceiptsV, allBankReceiptsV);
+          totalPayables += balanceCurrent.payable;
+        }
+
+        const purchasesTodayTotal = purchasesToday.reduce((sum, p) => sum + (Number(p.totalAmount) || 0), 0);
+        const paymentsTodayTotal = cashPayTodayV.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) +
+                                   bankPayTodayV.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) +
+                                   cashRecTodayV.reduce((sum, r) => sum + (Number(r.amount) || 0), 0) +
+                                   bankRecTodayV.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+
+        setData({
+          cashBank: { opening: Math.max(0, cashBankOpening), receipts: cashBankReceipts, payments: cashBankPayments, current: Math.max(0, cashBankCurrent) },
+          receivables: { opening: openingReceivables, sales: salesTodayTotal, receipts: receiptsTodayTotal, current: totalReceivables },
+          payables: { opening: openingPayables, purchases: purchasesTodayTotal, payments: paymentsTodayTotal, current: totalPayables }
+        });
       } catch (e) {
         console.error("Dashboard fetch error:", e);
       } finally {
@@ -41,6 +172,10 @@ export default function StatsCards({ selectedDate }: StatsCardsProps) {
       }
     };
     fetchData();
+
+    // Auto-refresh every 30 seconds for real-time updates
+    const interval = setInterval(fetchData, 30000);
+    return () => clearInterval(interval);
   }, [selectedDate]);
 
   const fmt = (n: number) => Math.round(n).toLocaleString();

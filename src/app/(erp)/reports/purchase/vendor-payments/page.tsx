@@ -43,15 +43,15 @@ export default function VendorPaymentsReportPage() {
     fetchData();
   }, []);
 
-  const totalPaid = data.reduce((s, r) => s + r.amount, 0);
-  const cashPaid = data.filter(d => d.type === 'CP').reduce((s, r) => s + r.amount, 0);
-  const bankPaid = data.filter(d => d.type === 'BP').reduce((s, r) => s + r.amount, 0);
+  const totalPaid = (data || []).reduce((s, r) => s + r.amount, 0);
+  const cashPaid = (data || []).filter(d => d.type === 'CP').reduce((s, r) => s + r.amount, 0);
+  const bankPaid = (data || []).filter(d => d.type === 'BP').reduce((s, r) => s + r.amount, 0);
 
   const stats = [
-    { title: "TOTAL PAID", value: `Rs. ${totalPaid.toLocaleString()}`, subtitle: `${data.length} payments`, icon: DollarSign, iconColor: "text-rose-600", iconBg: "bg-rose-50" },
-    { title: "CASH PAYMENTS (CP)", value: `Rs. ${cashPaid.toLocaleString()}`, subtitle: `${data.filter(d => d.type === 'CP').length} transactions`, icon: Banknote, iconColor: "text-emerald-600", iconBg: "bg-emerald-50" },
-    { title: "BANK PAYMENTS (BP)", value: `Rs. ${bankPaid.toLocaleString()}`, subtitle: `${data.filter(d => d.type === 'BP').length} transactions`, icon: CreditCard, iconColor: "text-blue-600", iconBg: "bg-blue-50" },
-    { title: "PAYMENT COUNT", value: data.length.toString(), subtitle: `CP: ${data.filter(d => d.type === 'CP').length} | BP: ${data.filter(d => d.type === 'BP').length}`, icon: Hash, iconColor: "text-amber-600", iconBg: "bg-amber-50" },
+    { title: "TOTAL PAID", value: `Rs. ${totalPaid.toLocaleString()}`, subtitle: `${(data || []).length} payments`, icon: DollarSign, iconColor: "text-rose-600", iconBg: "bg-rose-50" },
+    { title: "CASH PAYMENTS (CP)", value: `Rs. ${cashPaid.toLocaleString()}`, subtitle: `${(data || []).filter(d => d.type === 'CP').length} transactions`, icon: Banknote, iconColor: "text-emerald-600", iconBg: "bg-emerald-50" },
+    { title: "BANK PAYMENTS (BP)", value: `Rs. ${bankPaid.toLocaleString()}`, subtitle: `${(data || []).filter(d => d.type === 'BP').length} transactions`, icon: CreditCard, iconColor: "text-blue-600", iconBg: "bg-blue-50" },
+    { title: "PAYMENT COUNT", value: (data || []).length.toString(), subtitle: `CP: ${(data || []).filter(d => d.type === 'CP').length} | BP: ${(data || []).filter(d => d.type === 'BP').length}`, icon: Hash, iconColor: "text-amber-600", iconBg: "bg-amber-50" },
   ];
 
   const Filters = (
@@ -99,7 +99,7 @@ export default function VendorPaymentsReportPage() {
   );
 
 
-  const lineData = Object.entries(data.reduce((acc: any, curr) => {
+  const lineData = Object.entries((data || []).reduce((acc: any, curr) => {
     const month = curr.date.split('/').slice(1).join('/');
     if (!acc[month]) acc[month] = { name: month, bank: 0, cash: 0 };
     if (curr.type === 'BP') acc[month].bank += curr.amount;
@@ -107,7 +107,7 @@ export default function VendorPaymentsReportPage() {
     return acc;
   }, {})).map(([_, v]) => v);
 
-  const barData = Object.entries(data.reduce((acc: any, curr) => {
+  const barData = Object.entries((data || []).reduce((acc: any, curr) => {
     if (!acc[curr.vendor]) acc[curr.vendor] = { name: curr.vendor, value: 0 };
     acc[curr.vendor].value += curr.amount;
     return acc;
@@ -133,7 +133,7 @@ export default function VendorPaymentsReportPage() {
         <div className="px-4">
           <div className="flex items-center gap-2 mb-4">
             <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Vendor Payment Transactions</h3>
-            <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded text-xs font-bold">{data.length} records</span>
+            <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded text-xs font-bold">{(data || []).length} records</span>
           </div>
           <table className="w-full text-left border-collapse border-b border-slate-200 dark:border-slate-800">
             <thead className="bg-slate-50 dark:bg-slate-800/50 border-y border-slate-200 dark:border-slate-800">
@@ -148,7 +148,7 @@ export default function VendorPaymentsReportPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {data.map((row) => (
+              {(data || []).map((row) => (
                 <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition-colors">
                   <td className="px-4 py-3 text-[11px] font-medium text-slate-600 dark:text-slate-300">{row.date}</td>
                   <td className="px-4 py-3 text-[11px] font-bold text-maroon-800 cursor-pointer hover:underline">{row.docNo}</td>
@@ -166,7 +166,7 @@ export default function VendorPaymentsReportPage() {
                 </tr>
               ))}
               <tr className="bg-slate-50 dark:bg-slate-800/50 font-black">
-                <td colSpan={4} className="px-4 py-3 text-right text-[10px] uppercase tracking-widest text-slate-800 dark:text-slate-100">TOTAL ({data.length} records)</td>
+                <td colSpan={4} className="px-4 py-3 text-right text-[10px] uppercase tracking-widest text-slate-800 dark:text-slate-100">TOTAL ({(data || []).length} records)</td>
                 <td className="px-4 py-3 text-[11px] text-right">{totalPaid.toLocaleString()}</td>
                 <td colSpan={2}></td>
               </tr>

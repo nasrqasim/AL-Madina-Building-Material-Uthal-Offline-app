@@ -1,9 +1,5 @@
 import { ok } from "@/lib/api";
-import dbConnect from "@/lib/db";
-import Account from "@/models/Account";
-import JournalEntry from "@/models/JournalEntry";
-import Invoice from "@/models/Invoice";
-import Item from "@/models/Item";
+import { offlineDB } from "@/lib/dexie";
 
 function getLineQty(line: any): number {
   const cartons = Number(line.cartons) || 0;
@@ -23,52 +19,41 @@ export async function GET(req: Request) {
     const fromDate = searchParams.get("fromDate");
     const toDate = searchParams.get("toDate");
 
-    await dbConnect();
+    const journalEntries = await offlineDB.journalEntries.toArray();
+    const accounts = await offlineDB.accounts.toArray();
+    const items = await offlineDB.items.toArray();
+    const invoices = await offlineDB.invoices.toArray();
 
-    const match: any = {};
-    const invoiceMatch: any = { status: { $nin: ["cancelled", "Cancelled"] } };
-
-    if (fromDate || toDate) {
-      match.date = {};
-      invoiceMatch.date = {};
-      if (fromDate) {
-        const fromD = new Date(fromDate);
-        fromD.setHours(0, 0, 0, 0);
-        match.date.$gte = fromD;
-        invoiceMatch.date.$gte = fromD;
-      }
-      if (toDate) {
-        const toD = new Date(toDate);
-        toD.setHours(23, 59, 59, 999);
-        match.date.$lte = toD;
-        invoiceMatch.date.$lte = toD;
-      }
-    }
-
-    const journalBalances = await JournalEntry.aggregate([
-      { $match: match },
-      {
-        $group: {
-          _id: "$accountCode",
-          debit: { $sum: "$debit" },
-          credit: { $sum: "$credit" },
-        },
-      },
-    ]);
-
-    const balanceMap = new Map();
-    journalBalances.forEach((jb) => {
-      balanceMap.set(jb._id, jb);
+    // Filter journal entries by date range
+    const filteredEntries = journalEntries.filter(entry => {
+      const entryDate = entry.date.split("T")[0];
+      if (fromDate && entryDate < fromDate) return false;
+      if (toDate && entryDate > toDate) return false;
+      return true;
     });
 
-    const accounts = await Account.find().lean();
-    const accountMap = new Map();
-    accounts.forEach(a => accountMap.set(a.code, a));
+    // Filter invoices by date range and status
+    const filteredInvoices = invoices.filter(inv => {
+      if (inv.status === "cancelled" || inv.status === "Cancelled") return false;
+      const invDate = inv.date.split("T")[0];
+      if (fromDate && invDate < fromDate) return false;
+      if (toDate && invDate > toDate) return false;
+      return true;
+    });
 
-    // Calculate COGS dynamically for the period
-    const items = await Item.find().lean();
-    const invoices = await Invoice.find(invoiceMatch).lean();
+    // Group balances by code
+    const groupBalances: Record<string, { debit: number; credit: number; title: string }> = {};
+    filteredEntries.forEach(entry => {
+      if (!groupBalances[entry.accountCode]) {
+        groupBalances[entry.accountCode] = { debit: 0, credit: 0, title: entry.accountTitle };
+      }
+      groupBalances[entry.accountCode].debit += (entry.debit || 0);
+      groupBalances[entry.accountCode].credit += (entry.credit || 0);
+    });
 
+    const accountMap = new Map(accounts.map(a => [a.code, a]));
+
+    // Dynamic COGS calculation
     const OUT_TYPES = new Set([
       "sale", "non_tax_sale", "pos", "pos_counter_sale", "reduce_stock", "challan"
     ]);
@@ -79,7 +64,7 @@ export async function GET(req: Request) {
     let totalCogs = 0;
     items.forEach(item => {
       let qtyOut = 0;
-      invoices.forEach(inv => {
+      filteredInvoices.forEach(inv => {
         const invType = String(inv.type || "");
         const isOut = OUT_TYPES.has(invType);
         const isOutReturn = OUT_RETURN_TYPES.has(invType);
@@ -87,7 +72,7 @@ export async function GET(req: Request) {
 
         (inv.lines || []).forEach((line: any) => {
           const lineItemId = line.itemId?._id || line.itemId;
-          if (String(lineItemId) !== String(item._id)) return;
+          if (String(lineItemId) !== String(item.id)) return;
 
           const qty = getLineQty(line);
           if (qty > 0) {
@@ -107,42 +92,35 @@ export async function GET(req: Request) {
       netProfit: 0
     };
 
-    // First grab titles from Journal Entries in case they aren't in Account collection
-    const journalTitles = await JournalEntry.aggregate([
-      { $match: match },
-      { $group: { _id: "$accountCode", title: { $first: "$accountTitle" } } }
-    ]);
-    const titleMap = new Map(journalTitles.map((t: any) => [t._id, t.title]));
-
-    balanceMap.forEach((journal, code) => {
+    Object.entries(groupBalances).forEach(([code, bal]) => {
       // Skip Purchases (code 5100) since we replace it with COGS
       if (code === "5100") return;
 
       const acc = accountMap.get(code);
       let type = acc ? acc.type.toLowerCase() : "";
-      
-      // Infer type if missing or not an account
+
+      // Infer type if missing
       if (!type) {
-         if (code.startsWith("4")) type = "income";
-         else if (code.startsWith("5")) type = "expense";
-         else return; // Ignore assets/liabilities
+        if (code.startsWith("4")) type = "income";
+        else if (code.startsWith("5")) type = "expense";
+        else return; // Ignore assets/liabilities
       } else if (type === "revenue") {
-         type = "income";
+        type = "income";
       }
 
-      const title = acc ? acc.title : (titleMap.get(code) || `Account ${code}`);
+      const title = acc ? acc.title : bal.title;
 
       if (type === "income" || type === "revenue") {
-        const balance = (journal.credit - journal.debit);
-        if (balance !== 0) {
-            report.revenue.push({ title, amount: balance });
-            report.totalRevenue += balance;
+        const netAmount = bal.credit - bal.debit;
+        if (netAmount !== 0) {
+          report.revenue.push({ title, amount: netAmount });
+          report.totalRevenue += netAmount;
         }
       } else if (type === "expense") {
-        const balance = (journal.debit - journal.credit);
-        if (balance !== 0) {
-            report.expenses.push({ title, amount: balance });
-            report.totalExpenses += balance;
+        const netAmount = bal.debit - bal.credit;
+        if (netAmount !== 0) {
+          report.expenses.push({ title, amount: netAmount });
+          report.totalExpenses += netAmount;
         }
       }
     });

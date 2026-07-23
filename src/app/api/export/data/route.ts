@@ -1,44 +1,27 @@
 import { NextResponse } from "next/server";
-import dbConnect from "@/lib/db";
-import Account from "@/models/Account";
-import Category from "@/models/Category";
-import { DocumentSetting } from "@/models/DocumentSetting";
-import Employee from "@/models/Employee";
-import { FinancialYear } from "@/models/FinancialYear";
-import { InventorySetting } from "@/models/InventorySetting";
-import Invoice from "@/models/Invoice";
-import Item from "@/models/Item";
-import Journal from "@/models/Journal";
-import JournalEntry from "@/models/JournalEntry";
-import Party from "@/models/Party";
-import Payroll from "@/models/Payroll";
-import { PrintFormat } from "@/models/PrintFormat";
-import { Role } from "@/models/Role";
-import ShopProfile from "@/models/ShopProfile";
-import { User } from "@/models/User";
-import VehicleLog from "@/models/VehicleLog";
+import { offlineDB } from "@/lib/dexie";
 
 export async function GET() {
   try {
-    await dbConnect();
-
-    // 1. Fetch Real Data from Database
+    // 1. Fetch Real Data from IndexedDB
     const [
-      realInvoices, 
-      realJournals, 
-      realAccounts, 
-      realParties, 
-      realItems, 
-      realEmployees, 
-      realPayroll
+      realInvoices,
+      realJournalEntries,
+      realAccounts,
+      realParties,
+      realItems,
+      realEmployees,
+      realCashReceipts,
+      realBankReceipts
     ] = await Promise.all([
-      Invoice.find({}).lean(),
-      Journal.find({}).lean(),
-      Account.find({}).lean(),
-      Party.find({}).lean(),
-      Item.find({}).lean(),
-      Employee.find({}).lean(),
-      Payroll.find({}).lean()
+      offlineDB.invoices.toArray(),
+      offlineDB.journalEntries.toArray(),
+      offlineDB.accounts.toArray(),
+      offlineDB.parties.toArray(),
+      offlineDB.items.toArray(),
+      offlineDB.employees.toArray(),
+      offlineDB.cashReceipts.toArray(),
+      offlineDB.bankReceipts.toArray()
     ]);
 
     // 2. Prepare Sample Data for the "Wow" factor
@@ -75,15 +58,17 @@ export async function GET() {
       "Maintain - Customers": realParties.filter((p: any) => p.type === "Customer"),
       "Maintain - Vendors": realParties.filter((p: any) => p.type === "Vendor"),
       "Maintain - Employees": realEmployees,
-      "Purchase Records": realInvoices.filter((i: any) => i.type === "purchase").length > 0 
-        ? realInvoices.filter((i: any) => i.type === "purchase") 
+      "Purchase Records": realInvoices.filter((i: any) => i.type === "purchase").length > 0
+        ? realInvoices.filter((i: any) => i.type === "purchase")
         : sampleData.purchase,
-      "Sale Records": realInvoices.filter((i: any) => i.type === "sale").length > 0 
-        ? realInvoices.filter((i: any) => i.type === "sale") 
+      "Sale Records": realInvoices.filter((i: any) => i.type === "sale").length > 0
+        ? realInvoices.filter((i: any) => i.type === "sale")
         : sampleData.sale,
-      "Salary & Payroll": realPayroll.length > 0 ? realPayroll : sampleData.payroll,
+      "Salary & Payroll": realEmployees.length > 0 ? realEmployees : sampleData.payroll,
       "Banks & Chart of Accounts": realAccounts,
-      "Cash & Bank Receipts": sampleData.receipts, // receipts are currently mostly local state, so use sample
+      "Cash & Bank Receipts": [...realCashReceipts, ...realBankReceipts].length > 0
+        ? [...realCashReceipts, ...realBankReceipts]
+        : sampleData.receipts,
       "Reports Summary": sampleData.reports
     };
 

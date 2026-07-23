@@ -25,7 +25,7 @@ export default function ProfitLossReportPage() {
     try {
       const res = await fetch(`/api/reports/profit-loss?fromDate=${fromDate}&toDate=${toDate}`);
       const json = await res.json();
-      if (json.ok) setReport(json.data);
+      if (json.ok) setReport(json.data || []);
     } catch (e) {
       console.error(e);
     } finally {

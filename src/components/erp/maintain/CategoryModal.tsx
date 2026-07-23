@@ -98,7 +98,7 @@ export default function CategoryModal({ isOpen, onClose, onSave, type, parentId,
               required
             >
               <option value="">Select Parent Category</option>
-              {categories.filter(c => c.type === "main").map(c => (
+              {(categories || []).filter(c => c.type === "main").map(c => (
                 <option key={c._id} value={c._id}>{c.name}</option>
               ))}
             </select>

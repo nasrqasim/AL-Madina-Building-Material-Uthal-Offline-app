@@ -19,7 +19,7 @@ export default function BanksPage() {
     try {
       const res = await fetch("/api/banks");
       const json = await res.json();
-      if (json.ok) setBanks(json.data);
+      if (json.ok) setBanks(json.data || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -85,7 +85,7 @@ export default function BanksPage() {
     setIsModalOpen(false);
   };
 
-  const filteredBanks = banks.filter(bank => {
+  const filteredBanks = (banks || []).filter(bank => {
     const q = searchTerm.toLowerCase();
     return (
       (bank.name || "").toLowerCase().includes(q) ||

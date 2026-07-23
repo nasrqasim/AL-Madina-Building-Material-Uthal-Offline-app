@@ -42,10 +42,10 @@ export default function SOTrackingReportPage() {
   }, []);
 
   const stats = [
-    { title: "Total SOs", value: data.length.toString(), icon: ShoppingBag, iconColor: "text-rose-600", iconBg: "bg-rose-50" },
-    { title: "Open SOs", value: data.filter(d => d.status === 'draft' || d.status === 'Open').length.toString(), icon: Clock, iconColor: "text-blue-600", iconBg: "bg-blue-50" },
-    { title: "Deliveries", value: data.filter(d => d.fulfillment === 100).length.toString(), icon: Truck, iconColor: "text-amber-600", iconBg: "bg-amber-50" },
-    { title: "Total Value", value: `Rs. ${data.reduce((acc, curr) => acc + curr.soAmount, 0).toLocaleString()}`, icon: DollarSign, iconColor: "text-yellow-600", iconBg: "bg-yellow-50" },
+    { title: "Total SOs", value: (data || []).length.toString(), icon: ShoppingBag, iconColor: "text-rose-600", iconBg: "bg-rose-50" },
+    { title: "Open SOs", value: (data || []).filter(d => d.status === 'draft' || d.status === 'Open').length.toString(), icon: Clock, iconColor: "text-blue-600", iconBg: "bg-blue-50" },
+    { title: "Deliveries", value: (data || []).filter(d => d.fulfillment === 100).length.toString(), icon: Truck, iconColor: "text-amber-600", iconBg: "bg-amber-50" },
+    { title: "Total Value", value: `Rs. ${(data || []).reduce((acc, curr) => acc + curr.soAmount, 0).toLocaleString()}`, icon: DollarSign, iconColor: "text-yellow-600", iconBg: "bg-yellow-50" },
   ];
 
   const Filters = (
@@ -112,7 +112,7 @@ export default function SOTrackingReportPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-              {data.map((row) => (
+              {(data || []).map((row) => (
                 <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                   <td className="px-4 py-3 text-slate-400 dark:text-slate-500 text-xs text-center">&gt;</td>
                   <td className="px-4 py-3 text-xs font-bold text-slate-600 dark:text-slate-300">{row.date}</td>

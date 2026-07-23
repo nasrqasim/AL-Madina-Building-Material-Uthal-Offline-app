@@ -9,6 +9,7 @@ import {
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import ERPStatCard from "@/components/erp/ui/ERPStatCard";
 import WhatsAppShareModal from "@/components/erp/whatsapp/WhatsAppShareModal";
+import { calculateBalanceFromTransactions } from "@/lib/customerBalance";
 
 interface CustomerProfileHistoryProps {
   customer: any;
@@ -102,7 +103,7 @@ export default function CustomerProfileHistory({
       ]);
 
       if (partyJson.ok && partyJson.data) {
-        setCurrentCustomer(partyJson.data);
+        setCurrentCustomer(partyJson.data || []);
       }
 
       let customerSales: any[] = [];
@@ -194,7 +195,7 @@ export default function CustomerProfileHistory({
     }
 
     // Process Sales & Returns
-    sales.forEach((s: any) => {
+    (sales || []).forEach((s: any) => {
       const isReturn = s.type === "sale_return" || s.type === "non_tax_sale_return";
       txs.push({
         date: new Date(s.date || s.createdAt),
@@ -207,7 +208,7 @@ export default function CustomerProfileHistory({
     });
 
     // Process Receipts
-    receipts.forEach((r: any) => {
+    (receipts || []).forEach((r: any) => {
       txs.push({
         date: new Date(r.date || r.createdAt),
         voucherNo: r.receiptNumber,
@@ -256,16 +257,22 @@ export default function CustomerProfileHistory({
   const ledgerData = getProcessedLedger();
 
   // Overview metrics calculations
-  const totalSales = sales.filter(s => s.type !== "sale_return" && s.type !== "non_tax_sale_return").reduce((a, s) => a + (s.totalAmount || 0), 0);
-  const totalReceived = receipts.reduce((a, r) => a + (r.amount || 0), 0);
+  const totalSales = (sales || []).filter(s => s.type !== "sale_return" && s.type !== "non_tax_sale_return").reduce((a, s) => a + (s.totalAmount || 0), 0);
+  const totalReceived = (receipts || []).reduce((a, r) => a + (r.amount || 0), 0);
   
-  const lastPurchaseTx = sales.find(s => s.type !== "sale_return" && s.type !== "non_tax_sale_return");
+  const lastPurchaseTx = (sales || []).find(s => s.type !== "sale_return" && s.type !== "non_tax_sale_return");
   const lastPaymentTx = receipts[0];
 
-  const outstandingAmount = Math.max(0, (currentCustomer.openingBalance || 0) + totalSales - totalReceived);
+  // Use unified balance calculation
+  const balanceResult = calculateBalanceFromTransactions(currentCustomer, sales || [], receipts || [], []);
+  const receivable = balanceResult.receivable;
+  const advance = balanceResult.advance;
+  const netBalance = balanceResult.netBalance;
+  const status = balanceResult.status;
+  const outstandingAmount = Math.max(0, receivable);
 
   // TAB 1: Filtered Sales
-  const filteredSales = sales.filter(s => {
+  const filteredSales = (sales || []).filter(s => {
     const isReturn = s.type === "sale_return" || s.type === "non_tax_sale_return";
     const matchesSearch = s.invoiceNo?.toLowerCase().includes(salesSearch.toLowerCase()) ||
       s.items?.some((item: any) => item.description?.toLowerCase().includes(salesSearch.toLowerCase())) ||
@@ -283,7 +290,7 @@ export default function CustomerProfileHistory({
   const paginatedSales = filteredSales.slice((salesPage - 1) * itemsPerPage, salesPage * itemsPerPage);
 
   // TAB 2: Filtered Payments
-  const filteredPayments = receipts.filter(p => {
+  const filteredPayments = (receipts || []).filter(p => {
     const matchesSearch = p.receiptNumber?.toLowerCase().includes(paymentsSearch.toLowerCase()) ||
       p.reference?.toLowerCase().includes(paymentsSearch.toLowerCase());
     const matchesMethod = paymentsMethod === "all" || p.method?.toLowerCase() === paymentsMethod.toLowerCase();
@@ -296,7 +303,7 @@ export default function CustomerProfileHistory({
   const getProductHistory = () => {
     const productsMap = new Map<string, any>();
     
-    sales.forEach(s => {
+    (sales || []).forEach(s => {
       const itemsList = s.lines || s.items || [];
       const date = new Date(s.date || s.createdAt);
 
@@ -339,7 +346,7 @@ export default function CustomerProfileHistory({
 
   // TAB 4: Outstanding Invoices computation
   const getOutstandingInvoices = () => {
-    return sales.filter(s => {
+    return (sales || []).filter(s => {
       const outstanding = (s.totalAmount || 0) - (s.amountReceived || 0);
       const matchesSearch = s.invoiceNo?.toLowerCase().includes(outstandingSearch.toLowerCase());
       return outstanding > 0 && matchesSearch;
@@ -364,7 +371,7 @@ export default function CustomerProfileHistory({
     }
 
     // Map sales to months
-    sales.forEach(s => {
+    (sales || []).forEach(s => {
       if (s.type === "sale_return" || s.type === "non_tax_sale_return") return;
       const d = new Date(s.date || s.createdAt);
       const label = d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
@@ -374,7 +381,7 @@ export default function CustomerProfileHistory({
     });
 
     // Map payments to months
-    receipts.forEach(r => {
+    (receipts || []).forEach(r => {
       const d = new Date(r.date || r.createdAt);
       const label = d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
       if (monthlyData[label]) {
@@ -455,26 +462,32 @@ export default function CustomerProfileHistory({
           </div>
 
           <div className="flex flex-wrap gap-4 border-t lg:border-t-0 lg:border-l border-slate-100 dark:border-slate-850 pt-4 lg:pt-0 lg:pl-8">
-            {currentCustomer.advanceStats && currentCustomer.advanceStats.remainingAdvance > 0 && (
-              <div className="text-left min-w-[120px] bg-emerald-55 border border-emerald-100 dark:border-emerald-950/20 px-3 py-1.5 rounded-xl">
-                <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Advance Bal</p>
-                <p className="text-lg font-black text-emerald-600 mt-0.5">PKR {Math.round(currentCustomer.advanceStats.remainingAdvance || 0).toLocaleString()}</p>
-              </div>
-            )}
             <div className="text-left min-w-[120px]">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Credit Limit</p>
-              <p className="text-lg font-black text-slate-800 dark:text-slate-200 mt-0.5">PKR {Math.round(currentCustomer.creditLimit || 0).toLocaleString()}</p>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Receivable</p>
+              <p className="text-lg font-black text-rose-600 mt-0.5">PKR {Math.round(receivable).toLocaleString()}</p>
             </div>
             <div className="text-left min-w-[120px]">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Current Balance</p>
-              <p className={`text-lg font-black mt-0.5 ${currentCustomer.balance < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                PKR {Math.round(currentCustomer.balance || 0).toLocaleString()}
-                <span className="text-xs ml-0.5 font-bold">{currentCustomer.balance < 0 ? ' (Dr)' : ' (Cr)'}</span>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Advance Balance</p>
+              <p className="text-lg font-black text-emerald-600 mt-0.5">PKR {Math.round(advance).toLocaleString()}</p>
+            </div>
+            <div className="text-left min-w-[120px]">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Net Balance</p>
+              <p className={`text-lg font-black mt-0.5 ${netBalance > 0 ? 'text-rose-600' : netBalance < 0 ? 'text-emerald-600' : 'text-slate-600'}`}>
+                PKR {Math.round(Math.abs(netBalance)).toLocaleString()}
+                <span className="text-xs ml-0.5 font-bold">{netBalance > 0 ? ' (Dr)' : netBalance < 0 ? ' (Cr)' : ''}</span>
               </p>
             </div>
             <div className="text-left min-w-[120px]">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-black">Outstanding Dues</p>
-              <p className="text-lg font-black text-[#800000] mt-0.5">PKR {Math.round(outstandingAmount).toLocaleString()}</p>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</p>
+              <p className="text-sm font-black mt-0.5">
+                {status === "Customer Owes" && "🔴 Customer Owes"}
+                {status === "Advance Available" && "🟢 Advance Available"}
+                {status === "Settled" && "⚪ Settled"}
+              </p>
+            </div>
+            <div className="text-left min-w-[120px]">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Credit Limit</p>
+              <p className="text-lg font-black text-slate-800 dark:text-slate-200 mt-0.5">PKR {Math.round(currentCustomer.creditLimit || 0).toLocaleString()}</p>
             </div>
           </div>
         </div>
@@ -1079,7 +1092,7 @@ export default function CustomerProfileHistory({
                   <div className="p-5 bg-gradient-to-tr from-blue-50 to-blue-100 dark:from-slate-800 dark:to-slate-800/60 rounded-3xl border border-blue-200/50 dark:border-slate-750 flex flex-col justify-between">
                     <p className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest flex items-center gap-1.5"><TrendingUp size={12} /> Average Invoice Value</p>
                     <p className="text-2xl font-black text-blue-900 dark:text-white mt-2">
-                      PKR {sales.length > 0 ? Math.round(totalSales / sales.filter(s => s.type !== "sale_return" && s.type !== "non_tax_sale_return").length || 0).toLocaleString() : 0}
+                      PKR {(sales || []).length > 0 ? Math.round(totalSales / (sales || []).filter(s => s.type !== "sale_return" && s.type !== "non_tax_sale_return").length || 0).toLocaleString() : 0}
                     </p>
                   </div>
                   <div className="p-5 bg-gradient-to-tr from-emerald-50 to-emerald-100 dark:from-slate-800 dark:to-slate-800/60 rounded-3xl border border-emerald-200/50 dark:border-slate-750 flex flex-col justify-between">
@@ -1092,7 +1105,7 @@ export default function CustomerProfileHistory({
                   <div className="p-5 bg-gradient-to-tr from-indigo-50 to-indigo-100 dark:from-slate-800 dark:to-slate-800/60 rounded-3xl border border-indigo-200/50 dark:border-slate-750 flex flex-col justify-between">
                     <p className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest flex items-center gap-1.5"><ShoppingBag size={12} /> Total Sales Count</p>
                     <p className="text-2xl font-black text-indigo-900 dark:text-white mt-2">
-                      {sales.filter(s => s.type !== "sale_return" && s.type !== "non_tax_sale_return").length} Invoices
+                      {(sales || []).filter(s => s.type !== "sale_return" && s.type !== "non_tax_sale_return").length} Invoices
                     </p>
                   </div>
                   <div className="p-5 bg-gradient-to-tr from-rose-50 to-rose-100 dark:from-slate-800 dark:to-slate-800/60 rounded-3xl border border-rose-200/50 dark:border-slate-750 flex flex-col justify-between">

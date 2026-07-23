@@ -1,16 +1,14 @@
 import { fail, ok } from "@/lib/api";
-import dbConnect from "@/lib/db";
-import OtherIncome from "@/models/OtherIncome";
-import JournalEntry from "@/models/JournalEntry";
+import { offlineDB } from "@/lib/dexie";
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   try {
-    await dbConnect();
-    const row = await OtherIncome.findById(params.id).lean();
+    const allSettings = await offlineDB.settings.toArray();
+    const row = allSettings.find((s: any) => s.key === "otherIncome" && s.id === params.id);
     if (!row) {
       return fail("Record not found", 404);
     }
-    return ok(row);
+    return ok((row as any).value);
   } catch (e) {
     return fail((e as Error).message);
   }
@@ -19,45 +17,56 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   try {
     const body = await req.json();
-    await dbConnect();
 
     // 1. Update OtherIncome record
-    const row = await OtherIncome.findByIdAndUpdate(params.id, body, { new: true });
+    const updatedIncome = {
+      ...body,
+      updatedAt: new Date().toISOString()
+    };
+    await offlineDB.settings.update(params.id, { value: updatedIncome });
+    const row = await offlineDB.settings.get(params.id);
     if (!row) {
       return fail("Record not found", 404);
     }
 
-    const voucherNo = `INC-${row._id}`;
+    const incomeValue = (row as any).value;
+    const voucherNo = `INC-${params.id}`;
 
     // 2. Refresh/update corresponding Journal Entries
-    await JournalEntry.deleteMany({ voucherNo });
+    const allJournalEntries = await offlineDB.journalEntries.toArray();
+    const entriesToDelete = allJournalEntries.filter((je: any) => je.voucherNo === voucherNo);
+    for (const entry of entriesToDelete) {
+      await offlineDB.journalEntries.delete(entry.id);
+    }
 
-    const isCash = row.paymentMethod === "Cash";
+    const isCash = incomeValue.paymentMethod === "Cash";
     const assetCode = isCash ? "1111" : "1110";
     const assetTitle = isCash ? "Cash" : "Bank";
 
-    await JournalEntry.create([
+    await offlineDB.journalEntries.bulkAdd([
       {
-        date: row.date,
+        date: incomeValue.date,
         voucherNo,
         accountCode: assetCode,
         accountTitle: assetTitle,
-        debit: row.amount,
+        debit: incomeValue.amount,
         credit: 0,
-        remarks: row.description || row.title
+        remarks: incomeValue.description || incomeValue.title,
+        createdAt: new Date().toISOString()
       },
       {
-        date: row.date,
+        date: incomeValue.date,
         voucherNo,
         accountCode: "40002001",
         accountTitle: "Other Income",
         debit: 0,
-        credit: row.amount,
-        remarks: row.description || row.title
+        credit: incomeValue.amount,
+        remarks: incomeValue.description || incomeValue.title,
+        createdAt: new Date().toISOString()
       }
-    ]);
+    ] as any);
 
-    return ok(row);
+    return ok(incomeValue);
   } catch (e) {
     return fail((e as Error).message);
   }
@@ -65,18 +74,21 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 
 export async function DELETE(req: Request, { params }: { params: { id: string } }) {
   try {
-    await dbConnect();
-
     // 1. Delete OtherIncome record
-    const row = await OtherIncome.findByIdAndDelete(params.id);
+    const row = await offlineDB.settings.get(params.id);
     if (!row) {
       return fail("Record not found", 404);
     }
+    await offlineDB.settings.delete(params.id);
 
-    const voucherNo = `INC-${row._id}`;
+    const voucherNo = `INC-${params.id}`;
 
     // 2. Delete corresponding Journal Entries
-    await JournalEntry.deleteMany({ voucherNo });
+    const allJournalEntries = await offlineDB.journalEntries.toArray();
+    const entriesToDelete = allJournalEntries.filter((je: any) => je.voucherNo === voucherNo);
+    for (const entry of entriesToDelete) {
+      await offlineDB.journalEntries.delete(entry.id);
+    }
 
     return ok({ message: "Record deleted successfully" });
   } catch (e) {

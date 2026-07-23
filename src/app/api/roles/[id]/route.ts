@@ -1,6 +1,5 @@
 import { fail, ok } from "@/lib/api";
-import dbConnect from "@/lib/db";
-import { Role } from "@/models/Role";
+import { offlineDB } from "@/lib/dexie";
 
 export async function DELETE(
   req: Request,
@@ -8,8 +7,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = params;
-    await dbConnect();
-    await Role.findByIdAndDelete(id);
+    await offlineDB.settings.delete(id);
     return ok({ message: "Role deleted successfully" });
   } catch (e) {
     return fail((e as Error).message);

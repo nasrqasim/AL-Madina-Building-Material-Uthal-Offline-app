@@ -8,9 +8,10 @@ import VendorModal from "@/components/erp/maintain/VendorModal";
 import QuickPaymentModal from "@/components/erp/maintain/QuickPaymentModal";
 import WhatsAppShareModal from "@/components/erp/whatsapp/WhatsAppShareModal";
 import VendorProfileHistory from "@/components/erp/maintain/VendorProfileHistory";
-import { Plus, FileText, Download, Printer, UserCheck, UserX, Wallet, Search, Edit2, Trash2, MapPin, User, Hash, FileSpreadsheet, MessageCircle } from "lucide-react";
+import { Plus, FileText, Download, Printer, UserCheck, UserX, Wallet, Search, Edit2, Trash2, MapPin, User, Hash, FileSpreadsheet, MessageCircle, ArrowLeft } from "lucide-react";
 import ERPStatCard from "@/components/erp/ui/ERPStatCard";
 import { exportToExcel, downloadTemplate, printPage, printListDocument, triggerFileInput, importFromExcel } from "@/lib/excel";
+import { calculateVendorBalanceFromTransactions } from "@/lib/vendorBalance";
 
 export default function VendorsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -31,7 +32,43 @@ export default function VendorsPage() {
       const res = await fetch("/api/parties?type=vendor");
       const json = await res.json();
       if (json.ok) {
-        setVendors(json.data);
+        const vendorsData = json.data || [];
+        
+        // Fetch all transactions for balance calculation
+        const [purRes, cashPayRes, bankPayRes, cashRecRes, bankRecRes] = await Promise.all([
+          fetch("/api/purchases"),
+          fetch("/api/cash-payments"),
+          fetch("/api/bank-payments"),
+          fetch("/api/cash-receipts"),
+          fetch("/api/bank-receipts")
+        ]);
+        
+        const purJson = await purRes.json();
+        const cashPayJson = await cashPayRes.json();
+        const bankPayJson = await bankPayRes.json();
+        const cashRecJson = await cashRecRes.json();
+        const bankRecJson = await bankRecRes.json();
+
+        const purchases = purJson.ok ? purJson.data || [] : [];
+        const cashPayments = cashPayJson.ok ? cashPayJson.data || [] : [];
+        const bankPayments = bankPayJson.ok ? bankPayJson.data || [] : [];
+        const cashReceipts = cashRecJson.ok ? cashRecJson.data || [] : [];
+        const bankReceipts = bankRecJson.ok ? bankRecJson.data || [] : [];
+
+        // Calculate balances for each vendor using unified function
+        const vendorsWithBalances = vendorsData.map((vendor: any) => {
+          const balance = calculateVendorBalanceFromTransactions(vendor, purchases, [], cashPayments, bankPayments, cashReceipts, bankReceipts);
+          
+          return {
+            ...vendor,
+            payable: balance.payable,
+            advance: balance.advance,
+            netBalance: balance.netBalance,
+            status: balance.status
+          };
+        });
+
+        setVendors(vendorsWithBalances);
       }
     } catch (e) {
       console.error(e);
@@ -44,7 +81,7 @@ export default function VendorsPage() {
     try {
       const res = await fetch("/api/shop-profile");
       const json = await res.json();
-      if (json.ok) setShopProfile(json.data);
+      if (json.ok) setShopProfile(json.data || []);
     } catch (e) {
       console.error(e);
     }
@@ -56,11 +93,11 @@ export default function VendorsPage() {
   }, []);
 
   useEffect(() => {
-    if (vendors.length > 0 && typeof window !== "undefined") {
+    if ((vendors || []).length > 0 && typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const vendorId = params.get("vendorId");
       if (vendorId) {
-        const matched = vendors.find((v: any) => v._id === vendorId);
+        const matched = (vendors || []).find((v: any) => v._id === vendorId);
         if (matched) {
           setSelectedProfileVendor(matched);
         }
@@ -132,20 +169,14 @@ export default function VendorsPage() {
 
   const columns = [
     { 
-      header: "Account Code", 
-      accessor: "code",
-      render: (val: string) => (
-        <span className="font-bold text-slate-700 dark:text-slate-300 uppercase tracking-tighter">{val || "-"}</span>
-      )
-    },
-    { 
-      header: "Vendor Name", 
+      header: "Vendor", 
       accessor: "name",
       render: (val: string, row: any) => {
         const hasValidPhone = row.phone && row.phone.replace(/[^0-9]/g, "").length >= 10;
         return (
           <div className="flex flex-col">
             <span className="font-black text-slate-900 dark:text-white">{val}</span>
+            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{row.code || "-"}</span>
             {(row.phone || row.contactPerson) && (
               <div className="flex items-center gap-2 mt-0.5">
                 <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
@@ -171,64 +202,27 @@ export default function VendorsPage() {
       }
     },
     { 
-      header: "Type", 
-      accessor: "category", // Storing types of vendors in category similar to customers
-      render: (val: string, row: any) => (
-        <span className="px-2 py-1 bg-maroon-50 dark:bg-maroon-900/30 text-maroon-800 dark:text-maroon-400 rounded-lg text-[10px] font-bold uppercase tracking-wider">
-          {val || row.vendorType || "Supplier"}
-        </span>
+      header: "Payable (We Owe Vendor)", 
+      accessor: "payable", 
+      render: (val: number) => (
+        <span className="text-sm font-bold text-rose-600">Rs. {(val || 0).toLocaleString()}</span>
       )
     },
     { 
-      header: "Opening Balance", 
-      accessor: "openingBalance", 
+      header: "Advance Balance (Vendor Owes Us)", 
+      accessor: "advance",
+      render: (val: number) => (
+        <span className="text-sm font-bold text-emerald-600">Rs. {(val || 0).toLocaleString()}</span>
+      )
+    },
+    { 
+      header: "Net Balance", 
+      accessor: "netBalance", 
       render: (val: number) => {
-        const isNegative = val < 0;
-        const formattedVal = isNegative 
-          ? `-Rs. ${Math.abs(val).toLocaleString()}` 
-          : `+Rs. ${val?.toLocaleString() || "0"}`;
-        const balanceLabel = isNegative ? " (Debit)" : val > 0 ? " (Credit)" : "";
+        const formattedVal = `Rs. ${Math.abs(val || 0).toLocaleString()}`;
         return (
-          <span className="text-sm font-bold text-slate-600 dark:text-slate-400">
-            {formattedVal}{balanceLabel}
-          </span>
-        );
-      }
-    },
-    { 
-      header: "Debit (Payment)", 
-      accessor: "debit",
-      render: (val: number) => {
-        const num = Number(val) || 0;
-        if (num !== 0) {
-          return <span className="text-sm font-bold text-rose-600">-Rs. {Math.abs(num).toLocaleString()}</span>;
-        }
-        return <span className="text-sm font-bold text-slate-500">Rs. 0</span>;
-      }
-    },
-    { 
-      header: "Credit (Purchased)", 
-      accessor: "credit",
-      render: (val: number) => {
-        const num = Number(val) || 0;
-        if (num !== 0) {
-          return <span className="text-sm font-bold text-emerald-600">+Rs. {Math.abs(num).toLocaleString()}</span>;
-        }
-        return <span className="text-sm font-bold text-slate-500">Rs. 0</span>;
-      }
-    },
-    { 
-      header: "Closing Balance", 
-      accessor: "balance", 
-      render: (val: number) => {
-        const isNegative = val < 0;
-        const formattedVal = isNegative 
-          ? `-Rs. ${Math.abs(val).toLocaleString()}` 
-          : `+Rs. ${val?.toLocaleString() || "0"}`;
-        const balanceLabel = isNegative ? " (Debit)" : val > 0 ? " (Credit)" : "";
-        return (
-          <span className={`text-sm font-black ${isNegative ? "text-rose-600" : "text-emerald-600"}`}>
-            {formattedVal}{balanceLabel}
+          <span className={`text-sm font-black ${val < 0 ? "text-emerald-600" : val > 0 ? "text-rose-600" : "text-slate-600"}`}>
+            {val < 0 ? "-" : val > 0 ? "" : ""}{formattedVal}
           </span>
         );
       }
@@ -236,18 +230,51 @@ export default function VendorsPage() {
     { 
       header: "Status", 
       accessor: "status", 
-      render: (val: string) => (
-        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
-          val === "Active" ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400" : "bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400"
-        }`}>
-          {val || "Active"}
-        </span>
-      )
+      render: (val: string) => {
+        const emoji = val === "We Owe Vendor" ? "🔴" : val === "Advance Available" ? "🟢" : "⚪";
+        return (
+          <span className="flex items-center gap-2">
+            <span>{emoji}</span>
+            <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{val}</span>
+          </span>
+        );
+      }
     },
+    {
+      header: "Actions",
+      accessor: "_id",
+      render: (val: string, row: any) => (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              setSelectedProfileVendor(row);
+            }}
+            className="p-1.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors"
+            title="View Ledger"
+          >
+            <FileText size={14} />
+          </button>
+          <button
+            onClick={() => handleEdit(row)}
+            className="p-1.5 rounded bg-slate-50 hover:bg-slate-100 text-slate-600 transition-colors"
+            title="Edit"
+          >
+            <Edit2 size={14} />
+          </button>
+          <button
+            onClick={() => handleDelete(val)}
+            className="p-1.5 rounded bg-red-50 hover:bg-red-100 text-red-600 transition-colors"
+            title="Delete"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+      )
+    }
   ];
 
   // Filter vendors by search term
-  const filteredVendors = vendors.filter(v => {
+  const filteredVendors = (vendors || []).filter(v => {
     const term = searchTerm.toLowerCase();
     return (
       v.name?.toLowerCase().includes(term) ||
@@ -258,6 +285,11 @@ export default function VendorsPage() {
       v.ntn?.toLowerCase().includes(term)
     );
   });
+
+  // Calculate totals for summary cards
+  const totalPayable = vendors.reduce((sum, v) => sum + (v.payable || 0), 0);
+  const totalAdvance = vendors.reduce((sum, v) => sum + (v.advance || 0), 0);
+  const netBalance = totalPayable - totalAdvance;
 
   if (selectedProfileVendor) {
     return (
@@ -342,13 +374,13 @@ export default function VendorsPage() {
                   { header: "Closing Bal.", key: "balance" },
                   { header: "Status", key: "status" },
                 ],
-                rows: filteredVendors.map((v, i) => ({ ...v, _idx: i + 1, openingBalance: `Rs.${(v.openingBalance || 0).toLocaleString()}`, debit: `Rs.${(v.debit || 0).toLocaleString()}`, credit: `Rs.${(v.credit || 0).toLocaleString()}`, balance: `Rs.${(v.balance || 0).toLocaleString()}` })),
+                rows: (filteredVendors || []).map((v, i) => ({ ...v, _idx: i + 1, openingBalance: `Rs.${(v.openingBalance || 0).toLocaleString()}`, debit: `Rs.${(v.debit || 0).toLocaleString()}`, credit: `Rs.${(v.credit || 0).toLocaleString()}`, balance: `Rs.${(v.balance || 0).toLocaleString()}` })),
                 totals: {
-                  _idx: "", code: "TOTAL", name: `${filteredVendors.length} Vendors`, category: "", phone: "",
-                  openingBalance: `Rs.${filteredVendors.reduce((a, v) => a + (v.openingBalance || 0), 0).toLocaleString()}`,
-                  debit: `Rs.${filteredVendors.reduce((a, v) => a + (v.debit || 0), 0).toLocaleString()}`,
-                  credit: `Rs.${filteredVendors.reduce((a, v) => a + (v.credit || 0), 0).toLocaleString()}`,
-                  balance: `Rs.${filteredVendors.reduce((a, v) => a + (v.balance || 0), 0).toLocaleString()}`,
+                  _idx: "", code: "TOTAL", name: `${(filteredVendors || []).length} Vendors`, category: "", phone: "",
+                  openingBalance: `Rs.${(filteredVendors || []).reduce((a, v) => a + (v.openingBalance || 0), 0).toLocaleString()}`,
+                  debit: `Rs.${(filteredVendors || []).reduce((a, v) => a + (v.debit || 0), 0).toLocaleString()}`,
+                  credit: `Rs.${(filteredVendors || []).reduce((a, v) => a + (v.credit || 0), 0).toLocaleString()}`,
+                  balance: `Rs.${(filteredVendors || []).reduce((a, v) => a + (v.balance || 0), 0).toLocaleString()}`,
                   status: "",
                 },
               }), icon: Printer },
@@ -358,10 +390,11 @@ export default function VendorsPage() {
         />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 no-print">
-        <ERPStatCard label="Active Vendors" value={vendors.filter(v => v.status === "Active").length} icon={UserCheck} variant="green" />
-        <ERPStatCard label="Inactive Vendors" value={vendors.filter(v => v.status === "Inactive").length} icon={UserX} variant="slate" />
-        <ERPStatCard label="Total Payable" value={`Rs. ${(vendors.reduce((acc, v) => acc + (v.balance > 0 ? v.balance : 0), 0) / 1000000).toFixed(1)}M`} icon={Wallet} variant="maroon" />
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 no-print">
+        <ERPStatCard label="Total Vendors" value={vendors.length} icon={User} variant="slate" />
+        <ERPStatCard label="Total Vendor Payables" value={`Rs. ${totalPayable.toLocaleString()}`} icon={UserX} variant="maroon" />
+        <ERPStatCard label="Total Vendor Advances" value={`Rs. ${totalAdvance.toLocaleString()}`} icon={UserCheck} variant="green" />
+        <ERPStatCard label="Net Vendor Balance" value={`Rs. ${Math.abs(netBalance).toLocaleString()}`} icon={Wallet} variant={netBalance >= 0 ? "maroon" : "green"} />
       </div>
 
       <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mb-8 no-print">
@@ -394,13 +427,13 @@ export default function VendorsPage() {
                   { header: "Closing Bal.", key: "balance" },
                   { header: "Status", key: "status" },
                 ],
-                rows: filteredVendors.map((v, i) => ({ ...v, _idx: i + 1, openingBalance: `Rs.${(v.openingBalance || 0).toLocaleString()}`, debit: `Rs.${(v.debit || 0).toLocaleString()}`, credit: `Rs.${(v.credit || 0).toLocaleString()}`, balance: `Rs.${(v.balance || 0).toLocaleString()}` })),
+                rows: (filteredVendors || []).map((v, i) => ({ ...v, _idx: i + 1, openingBalance: `Rs.${(v.openingBalance || 0).toLocaleString()}`, debit: `Rs.${(v.debit || 0).toLocaleString()}`, credit: `Rs.${(v.credit || 0).toLocaleString()}`, balance: `Rs.${(v.balance || 0).toLocaleString()}` })),
                 totals: {
-                  _idx: "", code: "TOTAL", name: `${filteredVendors.length} Vendors`, category: "",
-                  openingBalance: `Rs.${filteredVendors.reduce((a, v) => a + (v.openingBalance || 0), 0).toLocaleString()}`,
-                  debit: `Rs.${filteredVendors.reduce((a, v) => a + (v.debit || 0), 0).toLocaleString()}`,
-                  credit: `Rs.${filteredVendors.reduce((a, v) => a + (v.credit || 0), 0).toLocaleString()}`,
-                  balance: `Rs.${filteredVendors.reduce((a, v) => a + (v.balance || 0), 0).toLocaleString()}`,
+                  _idx: "", code: "TOTAL", name: `${(filteredVendors || []).length} Vendors`, category: "",
+                  openingBalance: `Rs.${(filteredVendors || []).reduce((a, v) => a + (v.openingBalance || 0), 0).toLocaleString()}`,
+                  debit: `Rs.${(filteredVendors || []).reduce((a, v) => a + (v.debit || 0), 0).toLocaleString()}`,
+                  credit: `Rs.${(filteredVendors || []).reduce((a, v) => a + (v.credit || 0), 0).toLocaleString()}`,
+                  balance: `Rs.${(filteredVendors || []).reduce((a, v) => a + (v.balance || 0), 0).toLocaleString()}`,
                   status: "",
                 },
               })}
@@ -429,7 +462,7 @@ export default function VendorsPage() {
         </div>
 
         <div className="p-1">
-          {filteredVendors.length > 0 ? (
+          {(filteredVendors || []).length > 0 ? (
             <ERPDataTable 
               columns={columns} 
               data={filteredVendors} 
@@ -448,10 +481,10 @@ export default function VendorsPage() {
               footerContent={
                 <tr>
                   <td colSpan={3} className="px-6 py-4 text-right uppercase tracking-widest text-xs">Total PKR:</td>
-                  <td className="px-6 py-4 text-sm">Rs.{filteredVendors.reduce((acc, v) => acc + (v.openingBalance || 0), 0).toLocaleString()}</td>
-                  <td className="px-6 py-4 text-sm text-emerald-600">Rs.{filteredVendors.reduce((acc, v) => acc + (v.debit || 0), 0).toLocaleString()}</td>
-                  <td className="px-6 py-4 text-sm text-rose-600">Rs.{filteredVendors.reduce((acc, v) => acc + (v.credit || 0), 0).toLocaleString()}</td>
-                  <td className="px-6 py-4 text-sm text-maroon-800 dark:text-maroon-400">Rs.{filteredVendors.reduce((acc, v) => acc + (v.balance || 0), 0).toLocaleString()}</td>
+                  <td className="px-6 py-4 text-sm">Rs.{(filteredVendors || []).reduce((acc, v) => acc + (v.openingBalance || 0), 0).toLocaleString()}</td>
+                  <td className="px-6 py-4 text-sm text-emerald-600">Rs.{(filteredVendors || []).reduce((acc, v) => acc + (v.debit || 0), 0).toLocaleString()}</td>
+                  <td className="px-6 py-4 text-sm text-rose-600">Rs.{(filteredVendors || []).reduce((acc, v) => acc + (v.credit || 0), 0).toLocaleString()}</td>
+                  <td className="px-6 py-4 text-sm text-maroon-800 dark:text-maroon-400">Rs.{(filteredVendors || []).reduce((acc, v) => acc + (v.balance || 0), 0).toLocaleString()}</td>
                   <td className="px-6 py-4 text-center">-</td>
                   <td className="px-6 py-4 print:hidden"></td>
                 </tr>

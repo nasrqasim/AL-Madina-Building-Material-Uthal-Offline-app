@@ -6,24 +6,16 @@ import StatsCards from "@/components/dashboard/StatsCards";
 import ActivityFeed from "@/components/dashboard/ActivityFeed";
 import QuickActions from "@/components/dashboard/QuickActions";
 import QuickReports from "@/components/dashboard/QuickReports";
-import FinancialHealth from "@/components/dashboard/FinancialHealth";
-import SalesIntelligence from "@/components/dashboard/SalesIntelligence";
 import InventoryIntelligence from "@/components/dashboard/InventoryIntelligence";
-import CashFlowManagement from "@/components/dashboard/CashFlowManagement";
 import DecisionSupport from "@/components/dashboard/DecisionSupport";
-import OperationalMetrics from "@/components/dashboard/OperationalMetrics";
 import { WIDGET_KEYS, WidgetKey } from "@/components/dashboard/WidgetVisibilityPanel";
 import WebsiteSnapshot from "@/components/dashboard/WebsiteSnapshot";
 
 const DEFAULT_VISIBILITY: Record<WidgetKey, boolean> = {
   executiveSummary: true,
   kpiCards: true,
-  financialHealth: true,
-  salesIntelligence: true,
   inventoryIntelligence: true,
-  cashFlow: true,
   decisionSupport: true,
-  operationalMetrics: true,
   activityFeed: true,
 };
 
@@ -176,37 +168,11 @@ export default function DashboardClientContent({ userName, userRole }: Dashboard
       {/* Quick Reports */}
       {show("executiveSummary") && <QuickReports />}
 
-      {/* Financial Health + Sales Intelligence */}
-      {(show("financialHealth") || show("salesIntelligence")) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {show("financialHealth") && <FinancialHealth />}
-          {show("salesIntelligence") && <SalesIntelligence />}
-        </div>
-      )}
+      {/* Inventory Intelligence */}
+      {show("inventoryIntelligence") && <InventoryIntelligence />}
 
-      {/* Inventory Intelligence + Cash Flow */}
-      {(show("inventoryIntelligence") || show("cashFlow")) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {show("inventoryIntelligence") && <InventoryIntelligence />}
-          {show("cashFlow") && <CashFlowManagement />}
-        </div>
-      )}
-
-      {/* Decision Support + Operational Metrics */}
-      {(show("decisionSupport") || show("operationalMetrics")) && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {show("decisionSupport") && (
-            <div className="lg:col-span-2">
-              <DecisionSupport />
-            </div>
-          )}
-          {show("operationalMetrics") && (
-            <div>
-              <OperationalMetrics />
-            </div>
-          )}
-        </div>
-      )}
+      {/* Decision Support */}
+      {show("decisionSupport") && <DecisionSupport />}
 
       {/* Footer */}
       <footer className="flex items-center justify-between px-4 py-6 border-t border-slate-200 dark:border-slate-800 no-print">

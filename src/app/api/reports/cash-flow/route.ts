@@ -1,7 +1,5 @@
 import { ok } from "@/lib/api";
-import dbConnect from "@/lib/db";
-import Account from "@/models/Account";
-import JournalEntry from "@/models/JournalEntry";
+import { offlineDB } from "@/lib/dexie";
 
 export async function GET(req: Request) {
   try {
@@ -9,38 +7,37 @@ export async function GET(req: Request) {
     const fromDate = searchParams.get("fromDate");
     const toDate = searchParams.get("toDate");
 
-    await dbConnect();
+    const accounts = await offlineDB.accounts.toArray();
+    const journalEntries = await offlineDB.journalEntries.toArray();
 
-    // 1. Get all cash and bank accounts
-    const cashBankAccounts = await Account.find({ type: { $in: ["cash", "bank"] } }).lean();
-    const cbCodes = cashBankAccounts.map((a: any) => a.code);
+    // Get cash and bank account codes
+    const cashBankAccounts = accounts.filter(a => a.type === "cash" || a.type === "bank");
+    const cbCodes = cashBankAccounts.map(a => a.code);
 
-    // 2. Opening Balance (total cash/bank balance before fromDate)
-    const openingMatch: any = { accountCode: { $in: cbCodes } };
-    if (fromDate) openingMatch.date = { $lt: new Date(fromDate) };
+    // Opening Balance (total cash/bank balance before fromDate)
+    const openingEntries = journalEntries.filter(entry => {
+      const isCashBank = cbCodes.includes(entry.accountCode);
+      if (!isCashBank) return false;
+      if (fromDate) {
+        const entryDate = entry.date.split("T")[0];
+        return entryDate < fromDate;
+      }
+      return true;
+    });
 
-    const openingRes = await JournalEntry.aggregate([
-      { $match: openingMatch },
-      { $group: { _id: null, balance: { $sum: { $subtract: ["$debit", "$credit"] } } } }
-    ]);
-    const openingBalance = openingRes[0]?.balance || 0;
+    const openingBalance = openingEntries.reduce((sum, entry) => {
+      return sum + (entry.debit || 0) - (entry.credit || 0);
+    }, 0);
 
-    // 3. Transactions during period
-    const match: any = { date: {} };
-    if (fromDate) match.date.$gte = new Date(fromDate);
-    if (toDate) match.date.$lte = new Date(toDate);
-
-    // Fetch all journal entries during period that involve cash/bank
-    // We want to find the OTHER side of the transaction to categorize it
-    // But since JournalEntry is flat, we might need the invoiceId or voucherNo to find the counterparts.
-    // For now, let's simplify: 
-    // Inflows = total debits to cash/bank
-    // Outflows = total credits to cash/bank
-
-    const movements = await JournalEntry.find({
-      ...match,
-      accountCode: { $in: cbCodes }
-    }).lean();
+    // Transactions during period
+    const periodEntries = journalEntries.filter(entry => {
+      const isCashBank = cbCodes.includes(entry.accountCode);
+      if (!isCashBank) return false;
+      const entryDate = entry.date.split("T")[0];
+      if (fromDate && entryDate < fromDate) return false;
+      if (toDate && entryDate > toDate) return false;
+      return true;
+    });
 
     let totalInflow = 0;
     let totalOutflow = 0;
@@ -50,16 +47,15 @@ export async function GET(req: Request) {
       financing: [] as any[]
     };
 
-    movements.forEach((m: any) => {
+    periodEntries.forEach(m => {
       if (m.debit > 0) totalInflow += m.debit;
       if (m.credit > 0) totalOutflow += m.credit;
       
-      // Basic categorization based on remarks or account types if we had them linked
-      // For now, put everything in operating
+      // Basic categorization - put everything in operating for now
       details.operating.push({
         date: m.date,
         remarks: m.remarks,
-        amount: m.debit - m.credit
+        amount: (m.debit || 0) - (m.credit || 0)
       });
     });
 

@@ -4,7 +4,7 @@ import ERPReportLayout from "@/components/erp/reports/ERPReportLayout";
 import { Download, Printer, Play, Box, DollarSign, ArrowUpRight, ArrowDownRight, LayoutGrid, Search, FileSpreadsheet } from "lucide-react";
 import { exportToExcel, printPage } from "@/lib/excel";
 import { useState, useEffect, useMemo } from "react";
-import { lineStockQty } from "@/lib/itemUnits";
+import { getProductUnit } from "@/lib/dynamicUnits";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from 'recharts';
 
 export default function InventoryBalancesReportPage() {
@@ -16,7 +16,7 @@ export default function InventoryBalancesReportPage() {
   const filteredData = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return data;
-    return data.filter(
+    return (data || []).filter(
       (r) =>
         String(r.code || "").toLowerCase().includes(q) ||
         String(r.name || "").toLowerCase().includes(q)
@@ -43,18 +43,18 @@ export default function InventoryBalancesReportPage() {
           const sales = salesJson.data;
           const purchases = purJson.data;
 
-          const balancedData = items.map((item: any) => {
+          const balancedData = (items || []).map((item: any) => {
             // Find all sales for this item
-            const itemSales = sales.flatMap((s: any) => 
+            const itemSales = sales.flatMap((s: any) =>
               (s.lines || []).filter((l: any) => (l.itemId?._id || l.itemId) === item._id)
             );
-            const qtyOut = itemSales.reduce((sum: number, l: any) => sum + lineStockQty(l), 0);
+            const qtyOut = itemSales.reduce((sum: number, l: any) => sum + (l.qty || l.quantity || l.cartons || 0), 0);
 
             // Find all purchases for this item
-            const itemPurchases = purchases.flatMap((p: any) => 
+            const itemPurchases = purchases.flatMap((p: any) =>
               (p.lines || []).filter((l: any) => (l.itemId?._id || l.itemId) === item._id)
             );
-            const qtyIn = itemPurchases.reduce((sum: number, l: any) => sum + lineStockQty(l), 0);
+            const qtyIn = itemPurchases.reduce((sum: number, l: any) => sum + (l.qty || l.quantity || l.cartons || 0), 0);
 
             // Opening stock is current stock - in + out (simplified)
             // But we have stockQtyCartons as "current" stock
@@ -159,7 +159,7 @@ export default function InventoryBalancesReportPage() {
     </div>
   );
 
-  const pieData = Object.entries(data.reduce((acc: any, curr) => {
+  const pieData = Object.entries((data || []).reduce((acc: any, curr) => {
     if (!acc[curr.category]) acc[curr.category] = { name: curr.category, value: 0, color: '#881337' };
     acc[curr.category].value += curr.value;
     return acc;
@@ -269,7 +269,7 @@ export default function InventoryBalancesReportPage() {
                 <h3 className="text-xs font-black text-slate-800 dark:text-slate-100 mb-6 uppercase tracking-widest">Top 5 Items by Closing Value</h3>
                 <div className="h-64">
                    <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={data.sort((a, b) => b.value - a.value).slice(0, 5)} layout="vertical" margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
+                    <BarChart data={(data || []).sort((a, b) => b.value - a.value).slice(0, 5)} layout="vertical" margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                       <XAxis type="number" tick={{fontSize: 10}} />
                       <YAxis dataKey="name" type="category" tick={{fontSize: 10}} width={80} />

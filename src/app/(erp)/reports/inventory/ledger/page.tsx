@@ -29,7 +29,7 @@ export default function InventoryLedgerReportPage() {
   const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
 
   const handleInvoiceClick = (refNo: string) => {
-    const inv = invoices.find(i => i.invoiceNo === refNo);
+    const inv = (invoices || []).find(i => i.invoiceNo === refNo);
     if (inv) {
       setSelectedInvoice(inv);
     } else {
@@ -40,7 +40,7 @@ export default function InventoryLedgerReportPage() {
   useEffect(() => {
     fetch('/api/items')
       .then(r => r.json())
-      .then(json => { if (json.ok) setItems(json.data); })
+      .then(json => { if (json.ok) setItems(json.data || []); })
       .catch(console.error);
 
     fetch('/api/categories')
@@ -50,7 +50,7 @@ export default function InventoryLedgerReportPage() {
 
     fetch('/api/invoices')
       .then(r => r.json())
-      .then(json => { if (json.ok) setInvoices(json.data); })
+      .then(json => { if (json.ok) setInvoices(json.data || []); })
       .catch(console.error);
   }, []);
 
@@ -68,7 +68,7 @@ export default function InventoryLedgerReportPage() {
       if (json.ok) {
         const payload = json.data;
         const rows = Array.isArray(payload) ? payload : (payload.rows || []);
-        setData(rows.map((t: any) => ({
+        setData((rows || []).map((t: any) => ({
           ...t,
           date: new Date(t.date).toISOString(),
         })));
@@ -80,10 +80,10 @@ export default function InventoryLedgerReportPage() {
             closingBalance: payload.closingBalance ?? 0,
           });
         } else {
-          const totalIn = rows.reduce((s: number, r: any) => s + (r.in || 0), 0);
-          const totalOut = rows.reduce((s: number, r: any) => s + (r.out || 0), 0);
-          const closingBalance = rows.length > 0 ? rows[rows.length - 1].balance : 0;
-          const openingBalance = rows.length > 0 ? rows[0].balance - rows[0].in + rows[0].out : 0;
+          const totalIn = (rows || []).reduce((s: number, r: any) => s + (r.in || 0), 0);
+          const totalOut = (rows || []).reduce((s: number, r: any) => s + (r.out || 0), 0);
+          const closingBalance = (rows || []).length > 0 ? rows[(rows || []).length - 1].balance : 0;
+          const openingBalance = (rows || []).length > 0 ? rows[0].balance - rows[0].in + rows[0].out : 0;
           setSummary({ openingBalance, totalIn, totalOut, closingBalance });
         }
       } else {
@@ -103,9 +103,9 @@ export default function InventoryLedgerReportPage() {
     handleGenerate(itemId);
   };
 
-  const filteredItems = items.filter(item => {
+  const filteredItems = (items || []).filter(item => {
     if (selectedCategory === "All") return true;
-    const catObj = categories.find(c => c.name.toLowerCase() === selectedCategory.toLowerCase());
+    const catObj = (categories || []).find(c => c.name.toLowerCase() === selectedCategory.toLowerCase());
     if (!catObj) return false;
     return item.mainCategoryId === catObj.id || item.mainCategoryId === catObj._id;
   });
@@ -113,7 +113,7 @@ export default function InventoryLedgerReportPage() {
   const itemsWithOpening = useMemo(() => {
     const startRange = fromDate ? new Date(fromDate) : new Date("2000-01-01");
     
-    return filteredItems.map(item => {
+    return (filteredItems || []).map(item => {
       let qtyIn = 0;
       let qtyOut = 0;
       
@@ -124,7 +124,7 @@ export default function InventoryLedgerReportPage() {
         "sale", "non_tax_sale", "pos", "pos_counter_sale", "purchase_return", "non_tax_purchase_return", "reduce_stock", "challan"
       ]);
       
-      invoices.forEach((inv: any) => {
+      (invoices || []).forEach((inv: any) => {
         if (inv.status === "cancelled" || inv.status === "Cancelled") return;
         const invDate = new Date(inv.date || inv.createdAt);
         if (invDate < startRange) return;
@@ -178,7 +178,7 @@ export default function InventoryLedgerReportPage() {
     return itemsWithOpening.reduce((sum, item) => sum + (item.stockQtyCartons || 0) * (item.retailRate || 0), 0);
   }, [itemsWithOpening]);
 
-  const selectedItemObj = items.find(i => i._id === selectedItemId);
+  const selectedItemObj = (items || []).find(i => i._id === selectedItemId);
 
   const stats = [
     { title: "Opening Balance", value: summary.openingBalance.toLocaleString(), icon: Box, iconColor: "text-slate-600 dark:text-slate-300", iconBg: "bg-slate-50 dark:bg-slate-800/50" },
@@ -248,7 +248,7 @@ export default function InventoryLedgerReportPage() {
     </div>
   );
 
-  const trendData = data.map(t => ({
+  const trendData = (data || []).map(t => ({
     name: new Date(t.date).toLocaleDateString('default', { day: '2-digit', month: 'short' }),
     balance: t.balance
   }));
@@ -283,7 +283,7 @@ export default function InventoryLedgerReportPage() {
           >
             All
           </button>
-          {categories.map((cat: any) => (
+          {(categories || []).map((cat: any) => (
             <button
               key={cat.id || cat._id}
               onClick={() => {
@@ -339,7 +339,7 @@ export default function InventoryLedgerReportPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {data.map((row, i) => {
+                      {(data || []).map((row, i) => {
                         const qty = row.in > 0 ? row.in : row.out;
                         const grossAmt = qty * row.rate;
                         return (
@@ -433,7 +433,7 @@ export default function InventoryLedgerReportPage() {
                     <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Item Name</th>
                     <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Purchase Rate</th>
                     <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Retail Rate</th>
-                    <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Ltr / Pcs per Ctn</th>
+                    <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Units</th>
                     <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Opening Balance</th>
                     <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Stock (Cartons)</th>
                     <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Reorder Level</th>
@@ -448,7 +448,7 @@ export default function InventoryLedgerReportPage() {
                       <td className="px-4 py-3 text-[11px] font-bold text-slate-900 dark:text-white uppercase">{item.name}</td>
                       <td className="px-4 py-3 text-[11px] font-medium text-slate-600 dark:text-slate-300 text-right">Rs. {(item.purchaseRate || 0).toLocaleString()}</td>
                       <td className="px-4 py-3 text-[11px] font-medium text-slate-600 dark:text-slate-300 text-right">Rs. {(item.retailRate || 0).toLocaleString()}</td>
-                      <td className="px-4 py-3 text-[11px] font-medium text-slate-500 text-right">{(item.litersInCtn || item.liters || 0)}</td>
+                      <td className="px-4 py-3 text-[11px] font-medium text-slate-500 text-right">{item.unit || ""}</td>
                       <td className="px-4 py-3 text-sm font-black text-slate-800 dark:text-slate-100 text-right">{(item.openingStock || 0).toFixed(2)}</td>
                       <td className="px-4 py-3 text-sm font-black text-slate-800 dark:text-slate-100 text-right">{(item.stockQtyCartons || 0).toFixed(2)}</td>
                       <td className="px-4 py-3 text-[11px] font-medium text-slate-500 text-right">{(item.reorderLevel || 0).toFixed(2)}</td>

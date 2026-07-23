@@ -29,22 +29,22 @@ export default function BankReceiptForm({ onClose }: BankReceiptFormProps) {
     fetch("/api/banks")
       .then((res) => res.json())
       .then((json) => {
-        if (json.ok) setBanks(json.data);
+        if (json.ok) setBanks(json.data || []);
       });
     fetch("/api/parties")
       .then((res) => res.json())
       .then((json) => {
-        if (json.ok) setParties(json.data);
+        if (json.ok) setParties(json.data || []);
       });
   }, []);
 
   const selectedParty = useMemo(
-    () => parties.find((p) => p._id === formData.partyId) || previewParty,
+    () => (parties || []).find((p) => p._id === formData.partyId) || previewParty,
     [parties, formData.partyId, previewParty]
   );
 
   const selectedBank = useMemo(
-    () => banks.find((b) => b._id === formData.bankAccountId) || null,
+    () => (banks || []).find((b) => b._id === formData.bankAccountId) || null,
     [banks, formData.bankAccountId]
   );
 
@@ -144,7 +144,7 @@ export default function BankReceiptForm({ onClose }: BankReceiptFormProps) {
                     className="w-full px-4 py-3 border rounded-xl text-sm font-bold"
                   >
                     <option value="">Select Bank Account</option>
-                    {banks.map((b) => (
+                    {(banks || []).map((b) => (
                       <option key={b._id} value={b._id}>
                         {b.name} - {b.accountNo} (Rs.{(b.balance || 0).toLocaleString()})
                       </option>
