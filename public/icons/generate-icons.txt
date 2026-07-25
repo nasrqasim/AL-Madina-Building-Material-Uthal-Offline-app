@@ -1,0 +1,8 @@
+This directory contains icons for the PWA.
+You should generate standard icons from the main logo.png file.
+
+Required sizes:
+- icon-192x192.png (192x192 pixels)
+- icon-512x512.png (512x512 pixels)
+
+Make sure they are PNG format and suitable for maskable purposes.

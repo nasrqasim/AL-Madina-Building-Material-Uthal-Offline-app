@@ -115,6 +115,9 @@ export function setupMockApi() {
       }
     }
 
+    // Log all API calls for debugging
+    console.log(`[Mock API] Intercepting: ${urlStr}`);
+
     // Extract path, e.g., "/api/items"
     let path = "";
     try {
@@ -1575,12 +1578,24 @@ export function setupMockApi() {
         });
       }
 
-      // Default fallback for unhandled /api/ routes
-      return mockResponse({ ok: true, message: "Offline first route matched (mocked)" });
+      // Default fallback for unhandled /api/ routes - return empty data to prevent errors
+      console.warn(`Mock API: Unhandled route [${method}] ${path}, returning empty data`);
+      
+      // Return appropriate empty response based on method
+      if (method === "GET") {
+        return mockResponse({ ok: true, data: [] });
+      } else if (method === "POST") {
+        return mockResponse({ ok: true, data: { id: generateUniqueId(), _id: generateUniqueId() } });
+      } else if (method === "PUT" || method === "DELETE") {
+        return mockResponse({ ok: true });
+      }
+      
+      return mockResponse({ ok: true, data: null });
 
     } catch (e: any) {
       console.error(`Mock API Error: ${path}`, e);
-      return mockResponse({ ok: false, message: e.message || "Internal server error" }, 500);
+      // Return error response but don't throw to prevent app crashes
+      return mockResponse({ ok: false, message: e.message || "Internal server error", data: null }, 500);
     }
   };
 }

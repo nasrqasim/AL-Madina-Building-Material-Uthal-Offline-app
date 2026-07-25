@@ -58,13 +58,19 @@ export async function POST(req: Request) {
     // Generate unique ID
     const id = generateUniqueId();
     
-    // Check for walk-in customer or cash payment method
+    // Check for walk-in customer, cash payment method, or direct purchase
     if (body.partyId) {
       const party = await offlineDB.parties.get(body.partyId);
       const isWalkIn = party && (party.name || party.companyName || "").toLowerCase().includes("walk-in");
       const isCashPayment = body.paymentMethod === "Cash" || body.paymentMethod === "Card";
       
       if (isWalkIn || (isCashPayment && !body.isOnCredit)) {
+        body.amountReceived = body.totalAmount;
+        body.balance = 0;
+      }
+    } else {
+      // Direct spot purchase / sale without party selection
+      if (body.paymentMethod === "Cash" || body.paymentMethod === "Card" || body.paymentMethod === "Bank") {
         body.amountReceived = body.totalAmount;
         body.balance = 0;
       }

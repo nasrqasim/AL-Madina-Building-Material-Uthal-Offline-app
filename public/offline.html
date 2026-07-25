@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AL Madina Building Material ERP</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #050110; color: #e2e8f0; font-family: system-ui, -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .container { text-align: center; padding: 2rem; }
+    .spinner { width: 48px; height: 48px; border: 4px solid #7c3aed; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1.5rem; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    h1 { font-size: 1.25rem; margin-bottom: 0.5rem; color: #a78bfa; }
+    p { font-size: 0.875rem; color: #94a3b8; margin-bottom: 1rem; }
+  </style>
+  <script>
+    // Auto-redirect to dashboard - never stay on offline page
+    window.addEventListener('load', function() {
+      setTimeout(function() {
+        window.location.href = '/dashboard';
+      }, 1500);
+    });
+  </script>
+</head>
+<body>
+  <div class="container">
+    <div class="spinner"></div>
+    <h1>AL Madina Building Material ERP</h1>
+    <p>Loading application...</p>
+  </div>
+</body>
+</html>

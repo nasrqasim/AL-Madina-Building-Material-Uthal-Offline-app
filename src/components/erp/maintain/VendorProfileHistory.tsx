@@ -9,7 +9,7 @@ import {
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import ERPStatCard from "@/components/erp/ui/ERPStatCard";
 import WhatsAppShareModal from "@/components/erp/whatsapp/WhatsAppShareModal";
-import { calculateVendorBalanceFromTransactions } from "@/lib/vendorBalance";
+import { calculateVendorBalanceFromTransactions, isSameParty } from "@/lib/vendorBalance";
 
 interface VendorProfileHistoryProps {
   vendor: any;
@@ -106,16 +106,15 @@ export default function VendorProfileHistory({
       // 1. Process Purchases & Returns
       if (purchasesJson.ok && purchasesJson.data) {
         vendorPurchases = purchasesJson.data.filter((p: any) => 
-          p.partyId?._id === vendor._id || 
-          p.vendor === vendor.name || 
-          p.vendor === vendor.companyName
+          isSameParty(p.partyId, vendor) || 
+          isSameParty(p.vendor, vendor)
         );
       }
 
       // 2. Process Cash Payments
       if (cashJson.ok && cashJson.data) {
         cashJson.data.forEach((p: any) => {
-          const match = p.partyId?._id === vendor._id || p.partyId === vendor._id || p.vendor === vendor._id || p.vendor === vendor.name || p.vendor === vendor.companyName;
+          const match = isSameParty(p.partyId, vendor) || isSameParty(p.vendor, vendor);
           if (match) {
             vendorPayments.push({
               ...p,
@@ -130,8 +129,7 @@ export default function VendorProfileHistory({
       // 3. Process Bank Payments
       if (bankJson.ok && bankJson.data) {
         bankJson.data.forEach((p: any) => {
-          // bank-payments Aggregate joins with party and populates vendor string
-          const match = p.vendor === vendor.name || p.vendor === vendor.companyName || p.partyId === vendor._id;
+          const match = isSameParty(p.partyId, vendor) || isSameParty(p.vendor, vendor);
           if (match) {
             vendorPayments.push({
               ...p,
@@ -193,11 +191,25 @@ export default function VendorProfileHistory({
     // Process Purchases & Returns (Purchases increase credit (payable), Returns increase debit (receivable))
     (purchases || []).forEach((p: any) => {
       const isReturn = p.type === "purchase_return" || p.type === "non_tax_purchase_return";
+      const advUsed = p.advanceAmountUsed || (p.useAdvance ? p.totalAmount : 0);
+      const isAdvUsed = !isReturn && (p.useAdvance || advUsed > 0);
+
+      let remarks = p.notes;
+      if (!remarks) {
+        if (isReturn) {
+          remarks = "Goods Returned to Vendor";
+        } else if (isAdvUsed) {
+          remarks = "Purchase Invoice (Advance Utilized)";
+        } else {
+          remarks = `Purchase invoice posted (${p.paymentMethod || 'Credit'})`;
+        }
+      }
+
       txs.push({
         date: new Date(p.date || p.createdAt),
         voucherNo: p.invoiceNo || p.poNumber,
-        type: isReturn ? "Purchase Return" : "Purchase Invoice",
-        remarks: p.notes || (isReturn ? "Goods Returned to Vendor" : `Purchase invoice posted (${p.paymentMethod || 'Credit'})`),
+        type: isReturn ? "Purchase Return" : isAdvUsed ? "Purchase Invoice (Advance Utilized)" : "Purchase Invoice",
+        remarks: remarks,
         debit: isReturn ? p.totalAmount || 0 : 0,
         credit: isReturn ? 0 : p.totalAmount || 0
       });
@@ -222,9 +234,9 @@ export default function VendorProfileHistory({
     const beforeTxs = txs.filter(t => t.date.getTime() < startRange.getTime());
     const duringTxs = txs.filter(t => t.date.getTime() >= startRange.getTime() && t.date.getTime() <= endRange.getTime());
 
-    // Compute dynamic opening balance up to From Date
+    // Compute dynamic opening balance up to From Date (For vendor: debit increases net balance/advance, credit decreases net balance/advance)
     beforeTxs.forEach(t => {
-      opening += t.credit - t.debit;
+      opening += t.debit - t.credit;
     });
 
     let runningBalance = opening;
@@ -232,7 +244,7 @@ export default function VendorProfileHistory({
     let totalCr = 0;
 
     const rows = duringTxs.map(t => {
-      runningBalance += t.credit - t.debit;
+      runningBalance += t.debit - t.credit;
       totalDr += t.debit;
       totalCr += t.credit;
       return {

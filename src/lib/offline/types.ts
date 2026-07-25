@@ -133,6 +133,7 @@ export interface PartyRecord extends Timestamps {
   isActive?: boolean;
   notes?: string;
   advanceBalance?: number;
+  payable?: number;
   totalPurchase?: number;
   totalPaid?: number;
   lastPurchaseDate?: string;

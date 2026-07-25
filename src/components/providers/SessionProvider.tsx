@@ -36,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     async function initAuth() {
-      // Setup Mock API fetch interceptor
+      // Setup Mock API fetch interceptor FIRST - before any data loading
       setupMockApi();
 
       // Ensure database is seeded on app startup

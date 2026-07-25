@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import ItemSearchInput from "@/components/erp/ui/ItemSearchInput";
 import { getProductUnit, formatQuantityWithUnit } from "@/lib/dynamicUnits";
-import { calculateVendorBalance, calculateVendorBalanceFromTransactions } from "@/lib/vendorBalance";
+import { calculateVendorBalance, calculateVendorBalanceFromTransactions, isSameParty } from "@/lib/vendorBalance";
 import {
   Plus, Trash2, Save, ArrowLeft, X, CheckCircle2, Wallet, User
 } from "lucide-react";
@@ -193,12 +193,8 @@ export default function PurchaseInvoiceForm({ onClose, onSave, initialData }: Pu
   // Display balance for vendor panel
   const displayVendorBalance = useMemo(() => {
     const fd = formData as any;
-    if (!fd.vendorId && !fd.vendorCode && !fd.vendorName) return { payable: "0.00", advance: "0.00" };
-    const vendor = allVendors.find(v => 
-      (fd.vendorId && (v._id === fd.vendorId || v.id === fd.vendorId || String(v._id) === String(fd.vendorId))) ||
-      (fd.vendorCode && v.code === fd.vendorCode) ||
-      (fd.vendorName && (v.name?.toLowerCase() === fd.vendorName.toLowerCase() || v.companyName?.toLowerCase() === fd.vendorName.toLowerCase()))
-    );
+    if (!fd.vendorId) return { payable: "0.00", advance: "0.00" };
+    const vendor = allVendors.find(v => isSameParty(v, fd.vendorId));
     if (!vendor) return { payable: "0.00", advance: "0.00" };
     
     const balanceResult = calculateVendorBalanceFromTransactions(vendor, purchasesData, [], cashPaymentsData, bankPaymentsData, cashReceiptsData, bankReceiptsData);
@@ -209,20 +205,16 @@ export default function PurchaseInvoiceForm({ onClose, onSave, initialData }: Pu
       payable: payable.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       advance: advance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     };
-  }, [formData, allVendors, purchasesData, cashPaymentsData, bankPaymentsData, cashReceiptsData, bankReceiptsData]);
+  }, [formData.vendorId, allVendors, purchasesData, cashPaymentsData, bankPaymentsData, cashReceiptsData, bankReceiptsData]);
 
   const vendorAdvance = useMemo(() => {
     const fd = formData as any;
-    if (!fd.vendorId && !fd.vendorCode && !fd.vendorName) return 0;
-    const vendor = allVendors.find(v => 
-      (fd.vendorId && (v._id === fd.vendorId || v.id === fd.vendorId || String(v._id) === String(fd.vendorId))) ||
-      (fd.vendorCode && v.code === fd.vendorCode) ||
-      (fd.vendorName && (v.name?.toLowerCase() === fd.vendorName.toLowerCase() || v.companyName?.toLowerCase() === fd.vendorName.toLowerCase()))
-    );
+    if (!fd.vendorId) return 0;
+    const vendor = allVendors.find(v => isSameParty(v, fd.vendorId));
     if (!vendor) return 0;
     const balanceResult = calculateVendorBalanceFromTransactions(vendor, purchasesData, [], cashPaymentsData, bankPaymentsData, cashReceiptsData, bankReceiptsData);
     return balanceResult.advance || 0;
-  }, [formData, allVendors, purchasesData, cashPaymentsData, bankPaymentsData, cashReceiptsData, bankReceiptsData]);
+  }, [formData.vendorId, allVendors, purchasesData, cashPaymentsData, bankPaymentsData, cashReceiptsData, bankReceiptsData]);
 
   // Automatically select 'Credit' when vendor has advance to consume from it
   useEffect(() => {
@@ -289,7 +281,8 @@ export default function PurchaseInvoiceForm({ onClose, onSave, initialData }: Pu
         employeeId: formData.employeeId || null,
         jobId: formData.jobId || null,
         locationId: formData.locationId || null,
-        amountReceived: Number(formData.amountPaid) || 0,
+        // For credit purchases with advance, amountReceived should be 0 (advance is consumed via journal entries)
+        amountReceived: formData.paymentMethod === "Credit" && vendorAdvance > 0 ? 0 : Number(formData.amountPaid) || 0,
         notes: formData.notes,
         lines: (items || []).filter(i => i.itemId || i.description).map(i => ({
           itemId: i.itemId || null,
@@ -392,9 +385,9 @@ export default function PurchaseInvoiceForm({ onClose, onSave, initialData }: Pu
               </select>
             </div>
             <div className="space-y-1.5 md:col-span-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Vendor *</label>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Vendor (Optional)</label>
               <select value={formData.vendorId} onChange={e => setFormData({ ...formData, vendorId: e.target.value })} className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:border-maroon-800 outline-none">
-                <option value="">-- Select Vendor --</option>
+                <option value="">-- Direct / Walk-in Purchase (No Vendor) --</option>
                 {(vendors || []).map(v => <option key={v._id} value={v._id}>{v.companyName || v.name}</option>)}
               </select>
             </div>

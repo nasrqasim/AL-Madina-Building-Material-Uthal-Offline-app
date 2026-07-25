@@ -342,11 +342,15 @@ export async function recalculatePartyBalance(partyId: string) {
     advanceBalance = balanceResult.advance;
   }
 
+  const payableVal = !isCustomer && "payable" in balanceResult ? (balanceResult as any).payable : 0;
+  const advanceVal = "advance" in balanceResult ? (balanceResult as any).advance : 0;
+
   await offlineDB.parties.update(partyId, {
     debit: isCustomer ? (party.manualDebit || 0) + totalInvoices + totalAdjustments : (party.manualDebit || 0) + totalReturns + totalReceiptsPayments,
     credit: isCustomer ? (party.manualCredit || 0) + totalReturns + totalReceiptsPayments : (party.manualCredit || 0) + totalInvoices + totalAdjustments,
-    balance: isCustomer ? openingBalance + (party.manualDebit || 0) + totalInvoices + totalAdjustments - (party.manualCredit || 0) - totalReturns - totalReceiptsPayments : openingBalance + (party.manualCredit || 0) + totalInvoices + totalAdjustments - (party.manualDebit || 0) - totalReturns - totalReceiptsPayments,
-    advanceBalance: advanceBalance,
+    balance: balanceResult.netBalance,
+    payable: payableVal,
+    advanceBalance: advanceVal,
     totalPurchase: totalInvoices,
     totalPaid: totalReceiptsPayments,
     lastPurchaseDate: activeInvoices.length ? activeInvoices[activeInvoices.length - 1].date : undefined,
@@ -507,6 +511,8 @@ export async function generateInvoiceJournalEntries(invoice: InvoiceRecord) {
     const subTotal = Number(invoice.subTotal) || 0;
     const discountAmount = Number(invoice.discountAmount) || 0;
     const purchasesAmt = subTotal - discountAmount;
+    const advUsed = invoice.useAdvance ? (Number(invoice.advanceAmountUsed) || 0) : 0;
+    const remainingLiability = Math.max(0, total - advUsed);
 
     // Debit Purchases
     addEntry("5100", "Purchases", purchasesAmt, 0, `Purchase invoice posted (${paymentMethod})`, invoice.partyId);
@@ -516,15 +522,32 @@ export async function generateInvoiceJournalEntries(invoice: InvoiceRecord) {
       addEntry("Tax on Purchased Items", "Tax on Purchased Items", taxAmount, 0, `Purchase Tax`, invoice.partyId);
     }
 
-    // Credit Accounts Payable / Cash / Bank
-    addEntry(liabilityCode, liabilityTitle, 0, total, `Purchase invoice posted (${paymentMethod})`, invoice.partyId);
+    // Vendor Advance Usage: Credit 1200 Vendor Advance Asset
+    if (advUsed > 0) {
+      addEntry("1200", "Vendor Advance Asset", 0, advUsed, `Vendor advance used against purchase invoice`, invoice.partyId);
+    }
 
-    // Down payment made
-    if (liabilityCode === "2100" && (invoice.amountReceived || 0) > 0) {
-      const payMethod = invoice.paymentMethod === "Bank" ? "1110" : "1111";
-      const payTitle = invoice.paymentMethod === "Bank" ? "Bank Account" : "Cash Hand";
-      addEntry("2100", "Accounts Payable", invoice.amountReceived || 0, 0, `Payment made at purchase`, invoice.partyId);
-      addEntry(payMethod, payTitle, 0, invoice.amountReceived || 0, `Payment made at purchase`);
+    // For direct cash/bank purchases (not on credit), credit cash/bank directly
+    if ((isCash || isBank) && !isWalkIn) {
+      const cashBankCode = isBank ? "1110" : "1111";
+      const cashBankTitle = isBank ? "Bank Account" : "Cash Hand";
+      const amountPaid = Number(invoice.amountReceived) || Number((invoice as any).amountPaid) || 0;
+      if (amountPaid > 0) {
+        addEntry(cashBankCode, cashBankTitle, 0, amountPaid, `Direct cash/bank payment at purchase`);
+      }
+    } else {
+      // Credit Accounts Payable for remaining liability (credit purchases)
+      if (remainingLiability > 0) {
+        addEntry(liabilityCode, liabilityTitle, 0, remainingLiability, `Purchase invoice posted (${paymentMethod})`, invoice.partyId);
+      }
+
+      // Down payment made for credit purchases
+      if (liabilityCode === "2100" && (invoice.amountReceived || 0) > 0) {
+        const payMethod = invoice.paymentMethod === "Bank" ? "1110" : "1111";
+        const payTitle = invoice.paymentMethod === "Bank" ? "Bank Account" : "Cash Hand";
+        addEntry("2100", "Accounts Payable", invoice.amountReceived || 0, 0, `Payment made at purchase`, invoice.partyId);
+        addEntry(payMethod, payTitle, 0, invoice.amountReceived || 0, `Payment made at purchase`);
+      }
     }
   } else if (["purchase_return", "non_tax_purchase_return"].includes(invoice.type)) {
     addEntry(liabilityCode, liabilityTitle, total, 0, `Purchase return posted`, invoice.partyId);

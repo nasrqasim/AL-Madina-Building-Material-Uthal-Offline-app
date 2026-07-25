@@ -89,6 +89,22 @@ export async function calculateVendorBalance(
   }
 }
 
+export function isSameParty(p1: any, p2: any): boolean {
+  if (!p1 || !p2) return false;
+  
+  // Extract IDs
+  const id1 = typeof p1 === "object" ? (p1._id || p1.id || p1.code) : p1;
+  const id2 = typeof p2 === "object" ? (p2._id || p2.id || p2.code) : p2;
+  if (id1 && id2 && String(id1).toLowerCase() === String(id2).toLowerCase()) return true;
+
+  // Extract Names
+  const name1 = typeof p1 === "object" ? (p1.name || p1.companyName) : p1;
+  const name2 = typeof p2 === "object" ? (p2.name || p2.companyName) : p2;
+  if (name1 && name2 && String(name1).trim().toLowerCase() === String(name2).trim().toLowerCase()) return true;
+
+  return false;
+}
+
 /**
  * Calculate vendor balance from provided transaction arrays (synchronous, for batch/listing pages).
  * Uses the EXACT same formula as customer balance but inverted for vendor perspective.
@@ -106,22 +122,8 @@ export function calculateVendorBalanceFromTransactions(
     return { payable: 0, advance: 0, netBalance: 0, status: "Settled" };
   }
 
-  const vendorId = vendor._id || vendor.id || "";
-
-  // Helper to match vendor ID across different field formats
   const matchesVendor = (partyVal: any): boolean => {
-    if (!partyVal && !vendorId) return false;
-    const pId = typeof partyVal === "object" ? partyVal?._id || partyVal?.id || partyVal?.code || partyVal?.name : partyVal;
-    const pStr = String(pId || "").toLowerCase();
-    const vIdStr = String(vendorId || "").toLowerCase();
-    const vCodeStr = String(vendor.code || "").toLowerCase();
-    const vNameStr = String(vendor.name || vendor.companyName || "").toLowerCase();
-
-    return Boolean(
-      (vIdStr && pStr === vIdStr) ||
-      (vCodeStr && pStr === vCodeStr) ||
-      (vNameStr && pStr === vNameStr)
-    );
+    return isSameParty(partyVal, vendor);
   };
 
   // ── 1. Purchases & Purchase Returns ─────────────────────────────
@@ -167,7 +169,16 @@ export function calculateVendorBalanceFromTransactions(
     }
   }
 
-  const totalPaymentsMade = totalPayments + totalPaidAtCreation;
+  // ── 3.5. Advance used on purchases (advanceAmountUsed) ──
+  // When vendor advance is used on a purchase, it counts as a payment (debit) to reduce the advance
+  let totalAdvanceUsed = 0;
+  for (const inv of activePurchases) {
+    if (["purchase", "non_tax_purchase"].includes(inv.type) && inv.useAdvance === true) {
+      totalAdvanceUsed += Number(inv.advanceAmountUsed) || 0;
+    }
+  }
+
+  const totalPaymentsMade = totalPayments + totalPaidAtCreation + totalAdvanceUsed;
 
   // ── 4. Receipts FROM Vendor (Cash + Bank) - rare but possible ─────
   const activeCashReceipts = (cashReceipts || []).filter(
