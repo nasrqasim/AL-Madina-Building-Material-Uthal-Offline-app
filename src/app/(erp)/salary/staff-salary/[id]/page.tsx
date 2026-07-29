@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import ERPPageHeader from "@/components/erp/ui/ERPPageHeader";
 import PaySalaryModal from "@/components/salary/PaySalaryModal";
-import { offlineDB } from "@/lib/dexie";
 import {
   ArrowLeft, User, DollarSign, Calendar, CheckCircle2, Clock, AlertCircle,
   CreditCard, TrendingDown, TrendingUp, Wallet, FileText, ChevronDown, ChevronUp
@@ -28,47 +27,24 @@ export default function EmployeeLedgerPage() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      // Fetch employee from IndexedDB directly
       let empData = null;
       try {
-        const allEmployees = await offlineDB.employees.toArray();
-        empData = allEmployees.find((e: any) =>
-          e._id === employeeId || e.id === employeeId || e.code === employeeId
-        );
+        const empRes = await fetch(`/api/employees/${employeeId}`);
+        const empJson = await empRes.json();
+        if (empJson.ok && empJson.data) empData = empJson.data;
       } catch (_) {}
-
-      // Fallback to API
-      if (!empData) {
-        try {
-          const empRes = await fetch(`/api/employees/${employeeId}`);
-          const empJson = await empRes.json();
-          if (empJson.ok && empJson.data) empData = empJson.data;
-        } catch (_) {}
-      }
 
       setEmployee(empData);
 
       const targetEmpName = (empData?.name || "").trim().toLowerCase();
       const targetEmpId = empData?._id || empData?.id || employeeId;
 
-      // ── Fetch salary payments directly from IndexedDB ──
-      const allSettings = await offlineDB.settings.toArray();
-      const salarySettings = allSettings.filter((s: any) => s.key === "salary_payment");
-
-      const allPayments = salarySettings
-        .map((s: any) => (s.value ? { ...s.value, _settingId: s.id } : s))
-        .filter((p: any) => {
-          const pEmpId = p.employeeId || "";
-          const pEmpName = (p.employeeName || p.employee || "").trim().toLowerCase();
-          return (
-            (pEmpId && (pEmpId === targetEmpId || pEmpId === employeeId)) ||
-            (targetEmpName && pEmpName && (pEmpName.includes(targetEmpName) || targetEmpName.includes(pEmpName)))
-          );
-        });
-
-      // Also check cashPayments with SAL- vouchers
+      // ── Fetch salary payments from API ──
+      const allPayments: any[] = [];
       try {
-        const allCashPays = await offlineDB.cashPayments.toArray();
+        const cpRes = await fetch("/api/cash-payments");
+        const cpJson = await cpRes.json();
+        const allCashPays = cpJson.ok ? (cpJson.data || []) : [];
         allCashPays.forEach((cp: any) => {
           const isSalVoucher = (cp.voucherNo || "").startsWith("SAL-");
           const narration = (cp.narration || cp.notes || "").toLowerCase();
@@ -92,59 +68,32 @@ export default function EmployeeLedgerPage() {
 
       setSalaryPayments(allPayments);
 
-      // ── Fetch advances from IndexedDB ──
+      // ── Fetch advances from API ──
       let empAdvances: any[] = [];
       try {
-        const allAdvances = await offlineDB.salaryAdvances.toArray();
-        empAdvances = allAdvances.filter((a: any) => {
-          const aEmpId = a.employeeId || "";
+        const advRes = await fetch("/api/salary-advances");
+        const advJson = await advRes.json();
+        empAdvances = (advJson.ok ? (advJson.data || []) : []).filter((a: any) => {
           const aEmpName = (a.employee || "").trim().toLowerCase();
-          return aEmpId === targetEmpId || aEmpId === employeeId || (targetEmpName && aEmpName.includes(targetEmpName));
+          return a.employeeId === employeeId || (targetEmpName && aEmpName.includes(targetEmpName));
         });
-      } catch (_) {
-        // Fallback to API
-        try {
-          const advRes = await fetch("/api/salary-advances");
-          const advJson = await advRes.json();
-          empAdvances = (advJson.ok ? (advJson.data || []) : []).filter((a: any) => {
-            const aEmpName = (a.employee || "").trim().toLowerCase();
-            return a.employeeId === employeeId || (targetEmpName && aEmpName.includes(targetEmpName));
-          });
-        } catch (_) {}
-      }
+      } catch (_) {}
       setAdvances(empAdvances);
 
-      // ── Fetch loans from IndexedDB ──
+      // ── Fetch loans from API ──
       let empLoans: any[] = [];
       try {
-        const allLoans = await offlineDB.salaryLoans.toArray();
-        empLoans = allLoans.filter((l: any) => {
-          const lEmpId = l.employeeId || "";
+        const loanRes = await fetch("/api/salary-loans");
+        const loanJson = await loanRes.json();
+        empLoans = (loanJson.ok ? (loanJson.data || []) : []).filter((l: any) => {
           const lEmpName = (l.employee || "").trim().toLowerCase();
-          return lEmpId === targetEmpId || lEmpId === employeeId || (targetEmpName && lEmpName.includes(targetEmpName));
+          return l.employeeId === employeeId || (targetEmpName && lEmpName.includes(targetEmpName));
         });
-      } catch (_) {
-        try {
-          const loanRes = await fetch("/api/salary-loans");
-          const loanJson = await loanRes.json();
-          empLoans = (loanJson.ok ? (loanJson.data || []) : []).filter((l: any) => {
-            const lEmpName = (l.employee || "").trim().toLowerCase();
-            return l.employeeId === employeeId || (targetEmpName && lEmpName.includes(targetEmpName));
-          });
-        } catch (_) {}
-      }
+      } catch (_) {}
       setLoans(empLoans);
 
-      // ── Fetch loan repayments from IndexedDB ──
-      const repaySettings = allSettings.filter((s: any) => s.key === "loan_repayment");
-      const empRepayments = repaySettings
-        .map((s: any) => (s.value ? { ...s.value, _settingId: s.id } : s))
-        .filter((r: any) => {
-          const rEmpId = r.employeeId || "";
-          const rEmpName = (r.employeeName || r.employee || "").trim().toLowerCase();
-          return rEmpId === targetEmpId || rEmpId === employeeId || (targetEmpName && rEmpName.includes(targetEmpName));
-        });
-      setLoanRepayments(empRepayments);
+      // ── Loan repayments ──
+      setLoanRepayments([]);
 
     } catch (e) {
       console.error("Ledger fetchData error:", e);

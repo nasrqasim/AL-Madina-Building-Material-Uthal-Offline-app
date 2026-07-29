@@ -11,8 +11,6 @@
  *   advance    = max(0, -netBalance)
  */
 
-import { offlineDB } from "./dexie";
-
 export interface CustomerBalanceResult {
   receivable: number;           // Customer owes us (always >= 0)
   advance: number;              // We owe customer (always >= 0)
@@ -20,10 +18,6 @@ export interface CustomerBalanceResult {
   status: "Customer Owes" | "Advance Available" | "Settled";
 }
 
-/**
- * Calculate customer balance live from Dexie IndexedDB.
- * Can also accept pre-fetched transaction arrays for batch operations.
- */
 export async function calculateCustomerBalance(
   customer: any,
   providedTransactions?: {
@@ -42,6 +36,7 @@ export async function calculateCustomerBalance(
   let custObj = typeof customer === "string" ? null : customer;
 
   try {
+    const { offlineDB } = await import("./dexie");
     if (!custObj && customerId) {
       custObj = await offlineDB.parties.get(customerId);
     }

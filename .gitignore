@@ -10,28 +10,32 @@
 /.next/
 /out/
 
-# production
+# production & desktop builds
 /build
+/dist
+/*.exe
+/*.blockmap
 
-# misc
-.DS_Store
-*.pem
+# local databases & backups
+/*.db
+/*.db-journal
+/database
+/backups
+/scratch
 
-# debug
+# debug & logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+*.log
 
 # local env files
 .env*.local
 .env
 
-# vercel
+# vercel & system
 .vercel
-
-# typescript
+.DS_Store
+*.pem
 *.tsbuildinfo
 next-env.d.ts
-
-.vercel
-.env*.local

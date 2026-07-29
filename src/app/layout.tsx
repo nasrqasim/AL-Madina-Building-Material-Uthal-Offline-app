@@ -6,6 +6,10 @@ import PWARegistration from "@/components/pwa/PWARegistration";
 import { PWAInstallPrompt } from "@/components/pwa/PWAInstallPrompt";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
+// Force all pages to dynamic rendering (no static generation)
+// Required for desktop ERP with native SQLite module
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: APP_NAME,
   description: `${APP_NAME} — Building Construction Material`,

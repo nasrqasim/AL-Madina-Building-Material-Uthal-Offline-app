@@ -11,8 +11,6 @@
  *   advance    = max(0, netBalance)   // Vendor owes us
  */
 
-import { offlineDB } from "./dexie";
-
 export interface VendorBalanceResult {
   payable: number;              // We owe vendor (always >= 0)
   advance: number;              // Vendor owes us (always >= 0)
@@ -20,10 +18,6 @@ export interface VendorBalanceResult {
   status: "We Owe Vendor" | "Advance Available" | "Settled";
 }
 
-/**
- * Calculate vendor balance live from Dexie IndexedDB.
- * Can also accept pre-fetched transaction arrays for batch operations.
- */
 export async function calculateVendorBalance(
   vendor: any,
   providedTransactions?: {
@@ -43,6 +37,7 @@ export async function calculateVendorBalance(
   let vendorObj = typeof vendor === "string" ? null : vendor;
 
   try {
+    const { offlineDB } = await import("./dexie");
     if (!vendorObj && vendorId) {
       vendorObj = await offlineDB.parties.get(vendorId);
     }

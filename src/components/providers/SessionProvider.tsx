@@ -2,9 +2,6 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import bcrypt from "bcryptjs";
-import { offlineDB, seedOfflineDatabase } from "@/lib/dexie";
-import { setupMockApi } from "@/lib/offline/mockApi";
 import { UserRole } from "@/lib/offline/types";
 
 interface SessionUser {
@@ -36,12 +33,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     async function initAuth() {
-      // Setup Mock API fetch interceptor FIRST - before any data loading
-      setupMockApi();
-
-      // Ensure database is seeded on app startup
-      await seedOfflineDatabase();
-
       const stored = localStorage.getItem("erp_session");
       if (stored) {
         try {
@@ -67,31 +58,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      // Find user in Dexie
-      const usernameLower = credentials.username.trim().toLowerCase();
-      const user = await offlineDB.users.where("username").equalsIgnoreCase(usernameLower).first();
-      
-      if (!user) {
-        return { ok: false, error: "Invalid username or password" };
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(credentials),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        return { ok: false, error: data.error || "Invalid username or password" };
       }
 
-      if (!user.isActive) {
-        return { ok: false, error: "User account is suspended" };
-      }
-
-      const match = await bcrypt.compare(credentials.password, user.password);
-      if (!match) {
-        return { ok: false, error: "Invalid username or password" };
-      }
-
-      const sessionUser: SessionUser = {
-        id: user.id,
-        name: user.name,
-        username: user.username,
-        role: user.role,
-        financialYear: user.financialYear,
-      };
-
+      const sessionUser: SessionUser = data.user;
       localStorage.setItem("erp_session", JSON.stringify(sessionUser));
       setSession({ user: sessionUser });
       setStatus("authenticated");

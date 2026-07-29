@@ -1,20 +1,69 @@
 {
-  "name": "oilshop-erp",
+  "name": "almadina-erp",
   "version": "1.0.0",
   "private": true,
+  "main": "electron/main.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "seed": "tsx scripts/seed.ts"
+    "seed": "tsx scripts/seed.ts",
+    "electron:dev": "electron .",
+    "dist": "next build && electron-builder --win nsis portable",
+    "dist:win": "next build && electron-builder --win nsis",
+    "dist:portable": "next build && electron-builder --win portable"
+  },
+  "build": {
+    "appId": "com.almadina.erp",
+    "productName": "AlMadina Building Material ERP",
+    "copyright": "Copyright © 2026 Al Madina Building Material Uthal",
+    "npmRebuild": false,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      ".next/**/*",
+      "public/**/*",
+      "package.json",
+      "src/**/*",
+      "next.config.js",
+      "!database/**/*",
+      "!backups/**/*"
+    ],
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "public/icon.png",
+      "verifyUpdateCodeSignature": false,
+      "signAndEditExecutable": false,
+      "forceCodeSigning": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "AlMadina ERP",
+      "uninstallDisplayName": "Uninstall AlMadina ERP",
+      "artifactName": "AlMadina ERP Setup.exe"
+    },
+    "portable": {
+      "artifactName": "AlMadina ERP Portable.exe"
+    }
   },
   "dependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.7.0",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
-    "dexie": "^4.0.8",
-    "dexie-react-hooks": "^1.1.7",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
     "jszip": "^3.10.1",
@@ -36,6 +85,8 @@
     "@types/react": "^18.3.2",
     "@types/react-dom": "^18.3.0",
     "autoprefixer": "^10.4.19",
+    "electron": "^33.2.1",
+    "electron-builder": "^24.13.3",
     "eslint": "^8.57.0",
     "eslint-config-next": "14.2.3",
     "postcss": "^8.4.38",

@@ -293,7 +293,7 @@ export default function PrintTemplate({
                 ? 'A5 portrait'
                 : '80mm auto'
             };
-            margin: ${activeFormat === 'thermal' ? '0' : activeFormat === 'a5' ? '10mm' : '15mm'};
+            margin: ${activeFormat === 'thermal' ? '0' : activeFormat === 'a5' ? '5mm' : '8mm'};
           }
         }
       `}</style>

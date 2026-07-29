@@ -52,10 +52,9 @@ export default function BlackCopperS4C({
 
   return (
     <div 
-      className="black-copper-s4c-container bg-white text-black flex flex-col font-sans h-full w-full box-border relative overflow-hidden"
+      className="black-copper-s4c-container bg-white text-black flex flex-col font-sans w-full box-border relative"
       style={{
-        padding: activeFormat === "a5" ? "8mm" : "12mm",
-        minHeight: activeFormat === "a5" ? "210mm" : "297mm",
+        padding: activeFormat === "a5" ? "4mm" : "6mm",
         fontFamily: "'Inter', 'Noto Sans Arabic', sans-serif"
       }}
     >
