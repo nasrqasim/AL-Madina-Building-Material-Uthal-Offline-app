@@ -94,10 +94,9 @@ Output binaries will be generated in the `dist/` directory:
 
 ---
 
-## 🔐 Default Login Credentials
+## 🔐 Login
 
-- **Email**: `Almadinabuildingmaterialuthalshop@gmail.com`
-- **Password**: `Shop#Almadina@Akram`
+Default credentials are configured during initial setup. Contact the administrator for access.
 
 ---
 
