@@ -567,8 +567,7 @@ export default function ItemModal({ isOpen, onClose, item, onSave }: ItemModalPr
               type="number"
               value={formData.stockQtyCartons}
               onChange={(e) => handleFieldChange("stockQtyCartons", parseFloat(e.target.value) || 0)}
-              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-black"
-              disabled={!!item} // prevent modifications to opening stock on edits
+              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-black text-emerald-600 dark:text-emerald-400"
             />
           </div>
           <div className="space-y-1">
