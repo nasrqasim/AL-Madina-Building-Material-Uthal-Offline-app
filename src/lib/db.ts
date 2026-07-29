@@ -564,6 +564,28 @@ export function initSQLiteSchema(targetDb?: BetterSqlite3.Database) {
     CREATE INDEX IF NOT EXISTS idx_bank_receipts_date ON bank_receipts(date);
     CREATE INDEX IF NOT EXISTS idx_bank_payments_date ON bank_payments(date);
   `);
+
+  // Seed default admin user if no users exist
+  const userCount = db.prepare("SELECT COUNT(*) as cnt FROM users").get() as any;
+  if (!userCount || userCount.cnt === 0) {
+    const bcrypt = eval("require")("bcryptjs");
+    const hashedPassword = bcrypt.hashSync("Shop#Almadina@Akram", 10);
+    const now = new Date().toISOString();
+    db.prepare(`
+      INSERT INTO users (id, name, username, email, password, role, isActive, createdAt, updatedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      "admin-001",
+      "Administrator",
+      "admin",
+      "almadinabuildingmaterialuthalshop@gmail.com",
+      hashedPassword,
+      "admin",
+      1,
+      now,
+      now
+    );
+  }
 }
 
 // Schema is auto-initialized lazily when the database is first accessed
