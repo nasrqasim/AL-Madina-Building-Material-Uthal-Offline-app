@@ -218,32 +218,36 @@ export default function SaleInvoiceForm({ onClose, initialData }: SaleInvoiceFor
 
   const fetchData = useCallback(async () => {
     try {
-      const [itemsRes, partiesRes, locsRes, empsRes, banksRes, salesRes, cashRes, bankRes, cashPayRes, bankPayRes] = await Promise.all([
-        fetch("/api/items"),
-        fetch("/api/parties"),
-        fetch("/api/locations"),
-        fetch("/api/employees"),
-        fetch("/api/banks"),
-        fetch("/api/sales"),
-        fetch("/api/cash-receipts"),
-        fetch("/api/bank-receipts"),
-        fetch("/api/cash-payments"),
-        fetch("/api/bank-payments")
-      ]);
-      const [itemsData, partiesData, locsData, empsData, banksData, salesData, cashData, bankData, cashPayData, bankPayData] = await Promise.all([
-        itemsRes.json(),
-        partiesRes.json(),
-        locsRes.json(),
-        empsRes.json(),
-        banksRes.json(),
-        salesRes.json(),
-        cashRes.json(),
-        bankRes.json(),
-        cashPayRes.json(),
-        bankPayRes.json()
-      ]);
-      if (itemsData.ok) setAvailableItems(Array.isArray(itemsData.data) ? itemsData.data : []);
-      if (partiesData.ok) {
+      const endpoints = [
+        "/api/items",
+        "/api/parties",
+        "/api/locations",
+        "/api/employees",
+        "/api/banks",
+        "/api/sales",
+        "/api/cash-receipts",
+        "/api/bank-receipts",
+        "/api/cash-payments",
+        "/api/bank-payments"
+      ];
+      
+      const results = await Promise.allSettled(endpoints.map(ep => fetch(ep).then(r => r.json())));
+      
+      const getResult = (index: number) => results[index].status === "fulfilled" ? (results[index] as PromiseFulfilledResult<any>).value : null;
+
+      const itemsData = getResult(0);
+      const partiesData = getResult(1);
+      const locsData = getResult(2);
+      const empsData = getResult(3);
+      const banksData = getResult(4);
+      const salesData = getResult(5);
+      const cashData = getResult(6);
+      const bankData = getResult(7);
+      const cashPayData = getResult(8);
+      const bankPayData = getResult(9);
+
+      if (itemsData?.ok) setAvailableItems(Array.isArray(itemsData.data) ? itemsData.data : []);
+      if (partiesData?.ok) {
         const rawParties = Array.isArray(partiesData.data) ? partiesData.data : [];
         const activeCustomers = rawParties.filter((p: any) => 
           (p.type?.toLowerCase() === "customer" || p.type?.toLowerCase()?.includes("customer")) && 

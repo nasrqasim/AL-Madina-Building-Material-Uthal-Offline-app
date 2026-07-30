@@ -157,7 +157,7 @@ export function lineStockQty(line: { cartons?: number; qty?: number }): number {
 }
 
 export function filterAndSortItems<
-  T extends { _id: string; code?: string; name?: string }
+  T extends { _id: string; code?: string; name?: string; barcode?: string; brand?: string; category?: string; brandId?: string; mainCategoryId?: string }
 >(items: T[], query: string): T[] {
   const q = query.trim().toLowerCase();
   if (!q) return items;
@@ -168,18 +168,21 @@ export function filterAndSortItems<
     .map((item) => {
       const code = String(item.code || "").toLowerCase();
       const name = String(item.name || "").toLowerCase();
-      const haystack = `${code} ${name}`;
+      const barcode = String(item.barcode || "").toLowerCase();
+      const brand = String(item.brand || item.brandId || "").toLowerCase();
+      const category = String(item.category || item.mainCategoryId || "").toLowerCase();
+      const haystack = `${code} ${name} ${barcode} ${brand} ${category}`;
       let score = 0;
 
-      if (code === q || name === q) score += 1000;
-      if (code.includes(q) || name.includes(q)) score += 500;
-      if (name.endsWith(` ${q}`) || name.endsWith(q) || code.endsWith(q)) score += 400;
+      if (code === q || name === q || barcode === q) score += 1000;
+      if (code.includes(q) || name.includes(q) || barcode.includes(q)) score += 500;
+      if (name.endsWith(` ${q}`) || name.endsWith(q) || code.endsWith(q) || barcode.endsWith(q)) score += 400;
       if (tokens.every((t) => haystack.includes(t))) score += 300;
 
       for (const t of tokens) {
-        if (code === t || name === t) score += 200;
-        else if (code.startsWith(t) || name.startsWith(t)) score += 120;
-        else if (code.includes(t) || name.includes(t)) score += 80;
+        if (code === t || name === t || barcode === t || brand === t || category === t) score += 200;
+        else if (code.startsWith(t) || name.startsWith(t) || barcode.startsWith(t) || brand.startsWith(t) || category.startsWith(t)) score += 120;
+        else if (haystack.includes(t)) score += 80;
       }
 
       return { item, score };

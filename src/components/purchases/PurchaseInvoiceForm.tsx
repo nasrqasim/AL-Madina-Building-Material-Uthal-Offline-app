@@ -135,34 +135,39 @@ export default function PurchaseInvoiceForm({ onClose, onSave, initialData }: Pu
   useEffect(() => {
     const fetchAll = async () => {
       try {
-        const [ir, pr, er, jr, lr, purRes, cashPayRes, bankPayRes, cashRecRes, bankRecRes] = await Promise.all([
-          fetch("/api/items"), 
-          fetch("/api/parties"),
-          fetch("/api/employees"), 
-          fetch("/api/jobs"), 
-          fetch("/api/locations"),
-          fetch("/api/purchases"),
-          fetch("/api/cash-payments"),
-          fetch("/api/bank-payments"),
-          fetch("/api/cash-receipts"),
-          fetch("/api/bank-receipts")
-        ]);
-        const [ij, pj, ej, jj, lj] = await Promise.all([
-          ir.json(), pr.json(), er.json(), jr.json(), lr.json()
-        ]);
-        const purJson = await purRes.json();
-        const cashPayJson = await cashPayRes.json();
-        const bankPayJson = await bankPayRes.json();
-        const cashRecJson = await cashRecRes.json();
-        const bankRecJson = await bankRecRes.json();
+        const endpoints = [
+          "/api/items",
+          "/api/parties",
+          "/api/employees",
+          "/api/jobs",
+          "/api/locations",
+          "/api/purchases",
+          "/api/cash-payments",
+          "/api/bank-payments",
+          "/api/cash-receipts",
+          "/api/bank-receipts"
+        ];
+        const results = await Promise.allSettled(endpoints.map(ep => fetch(ep).then(r => r.json())));
+        const getResult = (index: number) => results[index].status === "fulfilled" ? (results[index] as PromiseFulfilledResult<any>).value : null;
+
+        const ij = getResult(0);
+        const pj = getResult(1);
+        const ej = getResult(2);
+        const jj = getResult(3);
+        const lj = getResult(4);
+        const purJson = getResult(5);
+        const cashPayJson = getResult(6);
+        const bankPayJson = getResult(7);
+        const cashRecJson = getResult(8);
+        const bankRecJson = getResult(9);
         
-        if (ij.ok) setAvailableItems(ij.data || []);
-        if (pj.ok) {
-          const activeVendors = (pj.data || []).filter((p: any) => p.type === "Vendor");
-          setVendors(activeVendors);
-          setAllVendors(activeVendors);
+        if (ij?.ok) setAvailableItems(ij.data || []);
+        if (pj?.ok) {
+          const activeVendors = (pj.data || []).filter((p: any) => p.type === "Vendor" || p.type?.toLowerCase()?.includes("vendor"));
+          setVendors(activeVendors.length > 0 ? activeVendors : pj.data || []);
+          setAllVendors(pj.data || []);
         }
-        if (ej.ok) setEmployees(ej.data || []);
+        if (ej?.ok) setEmployees(ej.data || []);
         if (jj.ok) setJobs(jj.data || []);
         if (lj.ok) setLocations(lj.data || []);
         

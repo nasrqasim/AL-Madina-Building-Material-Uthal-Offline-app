@@ -25,6 +25,9 @@ export async function POST(req: Request) {
     }
     
     const id = generateUniqueId();
+    const openingBal = Number(body.openingBalance ?? body.balance ?? 0);
+    const currentBal = Number(body.currentBalance ?? body.balance ?? openingBal);
+    
     const bankRecord = {
       id,
       _id: id,
@@ -32,11 +35,18 @@ export async function POST(req: Request) {
       name: body.name || "",
       accountNo: body.accountNo || "",
       accountTitle: body.accountTitle || "",
+      iban: body.iban || "",
+      swift: body.swift || "",
       type: body.type || "Current Account",
       branch: body.branch || "",
-      balance: Number(body.balance) || 0,
+      branchCode: body.branchCode || "",
+      openingBalance: openingBal,
+      currentBalance: currentBal,
+      availableBalance: Number(body.availableBalance ?? currentBal),
+      balance: currentBal,
       status: body.status || "Active",
       isDefault: body.isDefault || false,
+      lastUpdated: new Date().toISOString(),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -66,16 +76,24 @@ export async function PUT(req: Request) {
       }
     }
     
+    const currentBal = Number(body.currentBalance ?? body.balance ?? 0);
     const updatedBank = {
       code: body.code,
       name: body.name,
       accountNo: body.accountNo,
       accountTitle: body.accountTitle,
+      iban: body.iban,
+      swift: body.swift,
       type: body.type,
       branch: body.branch,
-      balance: Number(body.balance) || 0,
+      branchCode: body.branchCode,
+      openingBalance: Number(body.openingBalance ?? 0),
+      currentBalance: currentBal,
+      availableBalance: Number(body.availableBalance ?? currentBal),
+      balance: currentBal,
       status: body.status,
       isDefault: body.isDefault,
+      lastUpdated: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
     
