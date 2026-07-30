@@ -19,6 +19,8 @@ function getSqliteInstance(): BetterSqlite3.Database {
     _sqlite!.pragma("journal_mode = WAL");
     _sqlite!.pragma("foreign_keys = ON");
     _sqlite!.pragma("synchronous = NORMAL");
+    _sqlite!.pragma("cache_size = -64000"); // 64MB RAM cache for instant search
+    _sqlite!.pragma("temp_store = MEMORY");  // Temp tables & sorts stored in RAM
     // Run schema creation on first open using direct instance
     initSQLiteSchema(_sqlite!);
   }
@@ -548,21 +550,34 @@ export function initSQLiteSchema(targetDb?: BetterSqlite3.Database) {
     CREATE INDEX IF NOT EXISTS idx_items_code ON items(code);
     CREATE INDEX IF NOT EXISTS idx_items_name ON items(name);
     CREATE INDEX IF NOT EXISTS idx_items_barcode ON items(barcode);
+    CREATE INDEX IF NOT EXISTS idx_items_main_cat ON items(mainCategoryId);
+    CREATE INDEX IF NOT EXISTS idx_items_sub_cat ON items(subCategoryId);
+    CREATE INDEX IF NOT EXISTS idx_categories_type ON categories(type);
+    CREATE INDEX IF NOT EXISTS idx_categories_parent ON categories(parentId);
     CREATE INDEX IF NOT EXISTS idx_parties_code ON parties(code);
     CREATE INDEX IF NOT EXISTS idx_parties_name ON parties(name);
     CREATE INDEX IF NOT EXISTS idx_parties_type ON parties(type);
+    CREATE INDEX IF NOT EXISTS idx_parties_phone ON parties(phone);
     CREATE INDEX IF NOT EXISTS idx_invoices_no ON invoices(invoiceNo);
     CREATE INDEX IF NOT EXISTS idx_invoices_type ON invoices(type);
     CREATE INDEX IF NOT EXISTS idx_invoices_date ON invoices(date);
     CREATE INDEX IF NOT EXISTS idx_invoices_party ON invoices(partyId);
+    CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
+    CREATE INDEX IF NOT EXISTS idx_invoices_payment_status ON invoices(paymentStatus);
     CREATE INDEX IF NOT EXISTS idx_journal_entries_date ON journal_entries(date);
     CREATE INDEX IF NOT EXISTS idx_journal_entries_acc ON journal_entries(accountCode);
     CREATE INDEX IF NOT EXISTS idx_journal_entries_party ON journal_entries(partyId);
     CREATE INDEX IF NOT EXISTS idx_journal_entries_voucher ON journal_entries(voucherNo);
     CREATE INDEX IF NOT EXISTS idx_cash_receipts_date ON cash_receipts(date);
+    CREATE INDEX IF NOT EXISTS idx_cash_receipts_party ON cash_receipts(partyId);
     CREATE INDEX IF NOT EXISTS idx_cash_payments_date ON cash_payments(date);
+    CREATE INDEX IF NOT EXISTS idx_cash_payments_party ON cash_payments(partyId);
     CREATE INDEX IF NOT EXISTS idx_bank_receipts_date ON bank_receipts(date);
+    CREATE INDEX IF NOT EXISTS idx_bank_receipts_party ON bank_receipts(partyId);
     CREATE INDEX IF NOT EXISTS idx_bank_payments_date ON bank_payments(date);
+    CREATE INDEX IF NOT EXISTS idx_bank_payments_party ON bank_payments(partyId);
+    CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category);
+    CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date);
   `);
 
   // Seed default admin user if no users exist

@@ -64,26 +64,47 @@ if (!gotTheLock) {
 
   app.whenReady().then(async () => {
     const isDev = !app.isPackaged;
-    const PORT = process.env.PORT || "3000";
-    const serverUrl = `http://localhost:${PORT}`;
+    const PORT = parseInt(process.env.PORT || "3000", 10);
+    const serverUrl = `http://127.0.0.1:${PORT}`;
 
     if (isDev) {
-      createWindow(serverUrl);
+      createWindow(`http://localhost:${PORT}`);
     } else {
-      // In production mode: Start Next.js server dynamically
-      const next = require("next");
-      const nextApp = next({ dev: false, dir: path.join(__dirname, "..") });
-      const handle = nextApp.getRequestHandler();
+      try {
+        // In production mode: Start embedded Next.js server on 127.0.0.1
+        const next = require("next");
+        const nextApp = next({ dev: false, dir: path.join(__dirname, "..") });
+        const handle = nextApp.getRequestHandler();
 
-      await nextApp.prepare();
-      const server = http.createServer((req, res) => {
-        handle(req, res);
-      });
+        await nextApp.prepare();
+        const server = http.createServer((req, res) => {
+          handle(req, res);
+        });
 
-      server.listen(PORT, () => {
-        console.log(`Al Madina ERP Server running on ${serverUrl}`);
-        createWindow(serverUrl);
-      });
+        server.on("error", (err) => {
+          if (err.code === "EADDRINUSE") {
+            // Fallback to random available port if 3000 is occupied
+            server.listen(0, "127.0.0.1", () => {
+              const assignedPort = server.address().port;
+              console.log(`Al Madina ERP Server running on port ${assignedPort}`);
+              createWindow(`http://127.0.0.1:${assignedPort}`);
+            });
+          } else {
+            const { dialog } = require("electron");
+            dialog.showErrorBox("Al Madina ERP Startup Error", `Failed to start local server: ${err.message}`);
+            app.quit();
+          }
+        });
+
+        server.listen(PORT, "127.0.0.1", () => {
+          console.log(`Al Madina ERP Server running on ${serverUrl}`);
+          createWindow(serverUrl);
+        });
+      } catch (err) {
+        const { dialog } = require("electron");
+        dialog.showErrorBox("Al Madina ERP Initialization Error", `Failed to initialize application server: ${err.message}`);
+        app.quit();
+      }
     }
   });
 }
