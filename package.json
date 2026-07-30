@@ -50,6 +50,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
+      "killProcessOnUninstall": true,
       "shortcutName": "AlMadina ERP",
       "uninstallDisplayName": "Uninstall AlMadina ERP",
       "artifactName": "AlMadina ERP Setup.exe"
