@@ -6,334 +6,262 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const dateParam = searchParams.get("date"); // YYYY-MM-DD format
     
-    const targetDate = dateParam ? new Date(dateParam) : new Date();
-    
-    const startOfDay = new Date(targetDate);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(targetDate);
-    endOfDay.setHours(23, 59, 59, 999);
-    
-    const startStr = startOfDay.toISOString().split("T")[0];
-    const endStr = endOfDay.toISOString().split("T")[0];
+    // Determine target date string (YYYY-MM-DD)
+    const targetDateStr = dateParam || new Date().toISOString().split("T")[0];
 
-    // 1. Sales today (Daily Sales) - representing actual cash received
-    // Include: Sale Invoices cash received (amountReceived), POS Sales total (since POS is cash/card received, so totalAmount)
-    // Less: Sale Returns and POS Returns total amount
-    const salesInvoicesToday = await offlineDB.invoices
-      .where("date")
-      .between(startStr, endStr, true, true)
-      .filter(inv => ["sale", "non_tax_sale", "challan"].includes(inv.type) && inv.status !== "cancelled")
-      .toArray();
-    
-    const posSalesToday = await offlineDB.invoices
-      .where("date")
-      .between(startStr, endStr, true, true)
-      .filter(inv => inv.type === "pos" && inv.status !== "cancelled")
-      .toArray();
-    
-    const returnsToday = await offlineDB.invoices
-      .where("date")
-      .between(startStr, endStr, true, true)
-      .filter(inv => ["sale_return", "non_tax_sale_return"].includes(inv.type) && inv.status !== "cancelled")
-      .toArray();
+    // Helper functions for date comparison on YYYY-MM-DD
+    const getDateStr = (d?: string) => {
+      if (!d) return "";
+      try {
+        return new Date(d).toISOString().split("T")[0];
+      } catch {
+        return String(d).slice(0, 10);
+      }
+    };
 
-    const saleInvoiceTotal = salesInvoicesToday.reduce((sum, inv) => sum + (Number(inv.totalAmount) || 0), 0);
-    const posSalesTotal = posSalesToday.reduce((sum, inv) => sum + (Number(inv.totalAmount) || 0), 0);
-    const returnTotal = returnsToday.reduce((sum, inv) => sum + (Number(inv.totalAmount) || 0), 0);
+    const isTargetDay = (d?: string) => getDateStr(d) === targetDateStr;
+    const isBeforeTargetDay = (d?: string) => {
+      const ds = getDateStr(d);
+      return ds !== "" && ds < targetDateStr;
+    };
 
-    const salesToday = (saleInvoiceTotal + posSalesTotal) - returnTotal;
+    // ==========================================
+    // 1. INVOICES TODAY & SALES TODAY
+    // ==========================================
+    const allInvoices = await offlineDB.invoices.toArray();
+    const activeInvoices = allInvoices.filter(inv => inv.status !== "cancelled" && inv.status !== "draft");
 
-    // 2. Low Stock Count
+    const salesInvoicesToday = activeInvoices.filter(inv => 
+      ["sale", "non_tax_sale", "pos", "challan"].includes(inv.type) && isTargetDay(inv.date)
+    );
+    const saleReturnsToday = activeInvoices.filter(inv => 
+      ["sale_return", "non_tax_sale_return"].includes(inv.type) && isTargetDay(inv.date)
+    );
+
+    const purchaseInvoicesToday = activeInvoices.filter(inv => 
+      ["purchase", "non_tax_purchase", "import_purchase"].includes(inv.type) && isTargetDay(inv.date)
+    );
+    const purchaseReturnsToday = activeInvoices.filter(inv => 
+      ["purchase_return", "non_tax_purchase_return"].includes(inv.type) && isTargetDay(inv.date)
+    );
+
+    const totalSalesTodayAmount = salesInvoicesToday.reduce((sum, inv) => sum + (Number(inv.totalAmount) || 0), 0);
+    const totalSaleReturnsTodayAmount = saleReturnsToday.reduce((sum, inv) => sum + (Number(inv.totalAmount) || 0), 0);
+    const salesToday = totalSalesTodayAmount - totalSaleReturnsTodayAmount;
+
+    const totalPurchasesTodayAmount = purchaseInvoicesToday.reduce((sum, inv) => sum + (Number(inv.totalAmount) || 0), 0);
+    const totalPurchaseReturnsTodayAmount = purchaseReturnsToday.reduce((sum, inv) => sum + (Number(inv.totalAmount) || 0), 0);
+
+    // ==========================================
+    // 2. LOW STOCK COUNT
+    // ==========================================
     const allItems = await offlineDB.items.toArray();
     const lowStockCount = allItems.filter(item => 
       (Number(item.stockQtyCartons) || 0) <= (Number(item.reorderLevel) || 0)
     ).length;
 
     // ==========================================
-    // CASH & BANK BALANCES CALCULATIONS
+    // 3. CASH & BANK BALANCES CALCULATIONS
     // ==========================================
-    const cashBankAccs = await offlineDB.accounts
-      .filter(acc => acc.type === "cash" || acc.type === "bank")
-      .toArray();
-    const cashBankCodes = cashBankAccs.map(a => a.code);
+    const accounts = await offlineDB.accounts.toArray();
+    const cashBankAccs = accounts.filter(acc => acc.type === "cash" || acc.type === "bank");
     
-    // Initial opening balance from Account schema
+    // Always include standard cash & bank codes
+    const defaultCashBankCodes = new Set(["1111", "1110", "1101", "1102", "CASH", "BANK"]);
+    cashBankAccs.forEach(a => { if (a.code) defaultCashBankCodes.add(a.code); });
+
+    // Initial opening balance from accounts schema
     const cashBankInitialOpening = cashBankAccs.reduce((sum, acc) => sum + (Number(acc.openingBalance) || 0), 0);
     
-    // Transactions before today (Opening Balance)
     const allJournalEntries = await offlineDB.journalEntries.toArray();
+
+    // Cash/Bank entries before target date
     const cashBankTxBefore = allJournalEntries.filter(entry => 
-      cashBankCodes.includes(entry.accountCode) && new Date(entry.date) < startOfDay
+      defaultCashBankCodes.has(entry.accountCode) && isBeforeTargetDay(entry.date)
     );
     const cashBankOpening = cashBankInitialOpening + cashBankTxBefore.reduce((sum, entry) => 
       sum + (Number(entry.debit) || 0) - (Number(entry.credit) || 0), 0);
 
-    // Receipts today (Debits today) - from JournalEntries
-    const cashBankReceiptsToday = allJournalEntries.filter(entry => 
-      cashBankCodes.includes(entry.accountCode) && new Date(entry.date) >= startOfDay && new Date(entry.date) <= endOfDay
+    // Cash/Bank entries on target date
+    const cashBankTxToday = allJournalEntries.filter(entry => 
+      defaultCashBankCodes.has(entry.accountCode) && isTargetDay(entry.date)
     );
-    const cashBankReceipts = cashBankReceiptsToday.reduce((sum, entry) => 
-      sum + (Number(entry.debit) || 0), 0);
+    const cashBankReceipts = cashBankTxToday.reduce((sum, entry) => sum + (Number(entry.debit) || 0), 0);
+    const cashBankPayments = cashBankTxToday.reduce((sum, entry) => sum + (Number(entry.credit) || 0), 0);
 
-    // Payments today (Credits today) - from JournalEntries
-    const cashBankPayments = cashBankReceiptsToday.reduce((sum, entry) => 
-      sum + (Number(entry.credit) || 0), 0);
-    
-    const cashBankCurrent = cashBankOpening + cashBankReceipts - cashBankPayments;
+    // Total Cash/Bank balance across all entries up to end of target date
+    const cashBankTxAll = allJournalEntries.filter(entry => 
+      defaultCashBankCodes.has(entry.accountCode) && (isBeforeTargetDay(entry.date) || isTargetDay(entry.date))
+    );
+    const cashBankCurrent = cashBankInitialOpening + cashBankTxAll.reduce((sum, entry) => 
+      sum + (Number(entry.debit) || 0) - (Number(entry.credit) || 0), 0);
 
     // ==========================================
-    // RECEIVABLES CALCULATIONS (CUSTOMERS)
+    // 4. RECEIVABLES CALCULATIONS (CUSTOMERS)
     // ==========================================
-    const customers = await offlineDB.parties
-      .filter(p => p.type === "Customer")
-      .toArray();
+    const allParties = await offlineDB.parties.toArray();
+    const customers = allParties.filter(p => p.type === "Customer");
     const recInitialOpening = customers.reduce((sum, c) => sum + (Number(c.openingBalance) || 0), 0);
 
-    // Get receivable account code dynamically
-    const recAccount = cashBankAccs.find(a => a.type === "receivable");
-    const recAccountCode = recAccount?.code || "1100";
+    const recAccountCodes = new Set(["1100", "AR"]);
 
-    // Opening Receivables before today
+    // Receivables before target date
     const recTxBefore = allJournalEntries.filter(entry => 
-      entry.accountCode === recAccountCode && new Date(entry.date) < startOfDay
+      recAccountCodes.has(entry.accountCode) && isBeforeTargetDay(entry.date)
     );
     const recOpening = recInitialOpening + recTxBefore.reduce((sum, entry) => 
       sum + (Number(entry.debit) || 0) - (Number(entry.credit) || 0), 0);
 
-    // Sales (debits) today
-    const recSalesToday = allJournalEntries.filter(entry => 
-      entry.accountCode === recAccountCode && new Date(entry.date) >= startOfDay && new Date(entry.date) <= endOfDay
+    // Receivables debits (Sales on credit) & credits (Customer payments) today
+    const recTxToday = allJournalEntries.filter(entry => 
+      recAccountCodes.has(entry.accountCode) && isTargetDay(entry.date)
     );
-    const recSalesTodayTotal = recSalesToday.reduce((sum, entry) => 
-      sum + (Number(entry.debit) || 0), 0);
+    
+    // Total Sales today (sum of invoice totals for sales today)
+    const recSalesTodayTotal = totalSalesTodayAmount;
+    
+    // Customer receipts today (from journal entries or direct cash/bank receipts)
+    const recReceiptsTodayTotal = recTxToday.reduce((sum, entry) => sum + (Number(entry.credit) || 0), 0) +
+      salesInvoicesToday.filter(inv => inv.paymentMethod === "Cash" || inv.paymentMethod === "Card").reduce((sum, inv) => sum + (Number(inv.amountReceived) || 0), 0);
 
-    // Receipts/Credits today
-    const recReceiptsTodayTotal = recSalesToday.reduce((sum, entry) => 
-      sum + (Number(entry.credit) || 0), 0);
-
-    const recCurrent = recOpening + recSalesTodayTotal - recReceiptsTodayTotal;
+    // Current total Customer Receivables (sum of all customer party balances in SQLite)
+    const recCurrent = customers.reduce((sum, c) => sum + (Number(c.balance) || 0), 0);
 
     // ==========================================
-    // PAYABLES CALCULATIONS (VENDORS)
+    // 5. PAYABLES CALCULATIONS (VENDORS)
     // ==========================================
-    const vendors = await offlineDB.parties
-      .filter(p => p.type === "Vendor")
-      .toArray();
+    const vendors = allParties.filter(p => p.type === "Vendor");
     const payInitialOpening = vendors.reduce((sum, v) => sum + (Number(v.openingBalance) || 0), 0);
 
-    // Get payable account code dynamically
-    const payAccount = cashBankAccs.find(a => a.type === "payable");
-    const payAccountCode = payAccount?.code || "2100";
+    const payAccountCodes = new Set(["2100", "AP"]);
 
-    // Opening Payables before today (Credit is positive, Debit is negative)
+    // Payables before target date
     const payTxBefore = allJournalEntries.filter(entry => 
-      entry.accountCode === payAccountCode && new Date(entry.date) < startOfDay
+      payAccountCodes.has(entry.accountCode) && isBeforeTargetDay(entry.date)
     );
     const payOpening = payInitialOpening + payTxBefore.reduce((sum, entry) => 
       sum + (Number(entry.credit) || 0) - (Number(entry.debit) || 0), 0);
 
-    // Purchases/Credits today
-    const payPurchasesToday = allJournalEntries.filter(entry => 
-      entry.accountCode === payAccountCode && new Date(entry.date) >= startOfDay && new Date(entry.date) <= endOfDay
+    // Payables credits (Purchases) & debits (Vendor payments) today
+    const payTxToday = allJournalEntries.filter(entry => 
+      payAccountCodes.has(entry.accountCode) && isTargetDay(entry.date)
     );
-    const payPurchasesTodayTotal = payPurchasesToday.reduce((sum, entry) => 
-      sum + (Number(entry.credit) || 0), 0);
+    
+    const payPurchasesTodayTotal = totalPurchasesTodayAmount;
+    const payPaymentsTodayTotal = payTxToday.reduce((sum, entry) => sum + (Number(entry.debit) || 0), 0) +
+      purchaseInvoicesToday.filter(inv => inv.paymentMethod === "Cash" || inv.paymentMethod === "Card").reduce((sum, inv) => sum + (Number(inv.amountReceived) || 0), 0);
 
-    // Payments/Debits today
-    const payPaymentsTodayTotal = payPurchasesToday.reduce((sum, entry) => 
-      sum + (Number(entry.debit) || 0), 0);
-
-    const payCurrent = payOpening + payPurchasesTodayTotal - payPaymentsTodayTotal;
+    // Current total Vendor Payables (sum of all vendor party balances in SQLite)
+    const payCurrent = vendors.reduce((sum, v) => sum + (Number(v.balance) || Number(v.payable) || 0), 0);
 
     // ==========================================
-    // ACTIVITY FEED
+    // 6. ACTIVITY FEED
     // ==========================================
-    const activities = [];
-    
-    // Recent Sales Invoices
-    const recentSales = await offlineDB.invoices
-      .filter(inv => 
-        ["sale", "non_tax_sale", "pos", "challan"].includes(inv.type) && 
-        inv.status !== "cancelled" &&
-        new Date(inv.date) >= startOfDay && 
-        new Date(inv.date) <= endOfDay
-      )
-      .reverse()
-      .limit(10)
-      .toArray();
-    
-    for (const sale of recentSales) {
-      const party = sale.partyId ? await offlineDB.parties.get(sale.partyId) : null;
+    const activities: any[] = [];
+    const partyMap = new Map(allParties.map(p => [p.id || p._id, p]));
+
+    // Sales Invoices today
+    for (const sale of salesInvoicesToday) {
+      const party = sale.partyId ? partyMap.get(sale.partyId) : null;
       activities.push({
         type: "sale",
         description: `Sale Invoice #${sale.invoiceNo} created`,
-        amount: sale.totalAmount,
-        party: party?.name || "Unknown",
+        amount: Number(sale.totalAmount) || 0,
+        party: party?.name || party?.companyName || "Walk-in Customer",
         date: sale.date
       });
     }
     
-    // Recent Sale Returns
-    const recentSaleReturns = await offlineDB.invoices
-      .filter(inv => 
-        ["sale_return", "non_tax_sale_return"].includes(inv.type) && 
-        inv.status !== "cancelled" &&
-        new Date(inv.date) >= startOfDay && 
-        new Date(inv.date) <= endOfDay
-      )
-      .reverse()
-      .limit(5)
-      .toArray();
-    
-    for (const ret of recentSaleReturns) {
-      const party = ret.partyId ? await offlineDB.parties.get(ret.partyId) : null;
+    // Sale Returns today
+    for (const ret of saleReturnsToday) {
+      const party = ret.partyId ? partyMap.get(ret.partyId) : null;
       activities.push({
         type: "sale_return",
         description: `Sale Return #${ret.invoiceNo} posted`,
-        amount: ret.totalAmount,
-        party: party?.name || "Unknown",
+        amount: Number(ret.totalAmount) || 0,
+        party: party?.name || party?.companyName || "Walk-in Customer",
         date: ret.date
       });
     }
     
-    // Recent Purchase Invoices
-    const recentPurchases = await offlineDB.invoices
-      .filter(inv => 
-        ["purchase", "non_tax_purchase", "import_purchase"].includes(inv.type) && 
-        inv.status !== "cancelled" &&
-        new Date(inv.date) >= startOfDay && 
-        new Date(inv.date) <= endOfDay
-      )
-      .reverse()
-      .limit(5)
-      .toArray();
-    
-    for (const purchase of recentPurchases) {
-      const party = purchase.partyId ? await offlineDB.parties.get(purchase.partyId) : null;
+    // Purchase Invoices today
+    for (const purchase of purchaseInvoicesToday) {
+      const party = purchase.partyId ? partyMap.get(purchase.partyId) : null;
       activities.push({
         type: "purchase",
         description: `Purchase Invoice #${purchase.invoiceNo} posted`,
-        amount: purchase.totalAmount,
-        party: party?.name || "Unknown",
+        amount: Number(purchase.totalAmount) || 0,
+        party: party?.name || party?.companyName || "Walk-in Vendor",
         date: purchase.date
       });
     }
     
-    // Recent Purchase Returns
-    const recentPurchaseReturns = await offlineDB.invoices
-      .filter(inv => 
-        ["purchase_return", "non_tax_purchase_return"].includes(inv.type) && 
-        inv.status !== "cancelled" &&
-        new Date(inv.date) >= startOfDay && 
-        new Date(inv.date) <= endOfDay
-      )
-      .reverse()
-      .limit(5)
-      .toArray();
-    
-    for (const ret of recentPurchaseReturns) {
-      const party = ret.partyId ? await offlineDB.parties.get(ret.partyId) : null;
+    // Purchase Returns today
+    for (const ret of purchaseReturnsToday) {
+      const party = ret.partyId ? partyMap.get(ret.partyId) : null;
       activities.push({
         type: "purchase_return",
         description: `Purchase Return #${ret.invoiceNo} posted`,
-        amount: ret.totalAmount,
-        party: party?.name || "Unknown",
+        amount: Number(ret.totalAmount) || 0,
+        party: party?.name || party?.companyName || "Walk-in Vendor",
         date: ret.date
       });
     }
     
-    // Recent Cash Receipts
-    const recentCashReceipts = await offlineDB.cashReceipts
-      .filter(r => 
-        r.status === "Posted" &&
-        new Date(r.date) >= startOfDay && 
-        new Date(r.date) <= endOfDay
-      )
-      .reverse()
-      .limit(5)
-      .toArray();
-    
-    for (const receipt of recentCashReceipts) {
-      const party = receipt.partyId ? await offlineDB.parties.get(receipt.partyId) : null;
+    // Cash Receipts today
+    const cashReceipts = await offlineDB.cashReceipts.toArray();
+    for (const receipt of cashReceipts.filter(r => r.status === "Posted" && isTargetDay(r.date))) {
+      const party = receipt.partyId ? partyMap.get(receipt.partyId) : null;
       activities.push({
         type: "cash_receipt",
         description: `Cash Receipt #${receipt.receiptNumber} received`,
-        amount: receipt.amount,
-        party: party?.name || "Unknown",
+        amount: Number(receipt.amount) || 0,
+        party: party?.name || party?.companyName || "Customer",
         date: receipt.date
       });
     }
     
-    // Recent Cash Payments
-    const recentCashPayments = await offlineDB.cashPayments
-      .filter(p => 
-        p.status === "Posted" &&
-        new Date(p.date) >= startOfDay && 
-        new Date(p.date) <= endOfDay
-      )
-      .reverse()
-      .limit(5)
-      .toArray();
-    
-    for (const payment of recentCashPayments) {
-      const party = payment.partyId ? await offlineDB.parties.get(payment.partyId) : null;
+    // Cash Payments today
+    const cashPayments = await offlineDB.cashPayments.toArray();
+    for (const payment of cashPayments.filter(p => p.status === "Posted" && isTargetDay(p.date))) {
+      const party = payment.partyId ? partyMap.get(payment.partyId) : null;
       activities.push({
         type: "cash_payment",
         description: `Cash Payment #${payment.voucherNo} made`,
-        amount: payment.amount,
-        party: party?.name || "Unknown",
+        amount: Number(payment.amount) || 0,
+        party: party?.name || party?.companyName || "Vendor",
         date: payment.date
       });
     }
     
-    // Recent Bank Receipts
-    const recentBankReceipts = await offlineDB.bankReceipts
-      .filter(r => 
-        r.status === "Posted" &&
-        new Date(r.date) >= startOfDay && 
-        new Date(r.date) <= endOfDay
-      )
-      .reverse()
-      .limit(5)
-      .toArray();
-    
-    for (const receipt of recentBankReceipts) {
-      const party = receipt.partyId ? await offlineDB.parties.get(receipt.partyId) : null;
+    // Bank Receipts today
+    const bankReceipts = await offlineDB.bankReceipts.toArray();
+    for (const receipt of bankReceipts.filter(r => r.status === "Posted" && isTargetDay(r.date))) {
+      const party = (receipt.partyId || receipt.party) ? partyMap.get(receipt.partyId || receipt.party) : null;
       activities.push({
         type: "bank_receipt",
         description: `Bank Receipt #${receipt.receiptNumber} received`,
-        amount: receipt.amount,
-        party: party?.name || "Unknown",
+        amount: Number(receipt.amount) || 0,
+        party: party?.name || party?.companyName || "Customer",
         date: receipt.date
       });
     }
     
-    // Recent Bank Payments
-    const recentBankPayments = await offlineDB.bankPayments
-      .filter(p => 
-        p.status === "Posted" &&
-        new Date(p.date) >= startOfDay && 
-        new Date(p.date) <= endOfDay
-      )
-      .reverse()
-      .limit(5)
-      .toArray();
-    
-    for (const payment of recentBankPayments) {
-      const party = payment.partyId ? await offlineDB.parties.get(payment.partyId) : null;
+    // Bank Payments today
+    const bankPayments = await offlineDB.bankPayments.toArray();
+    for (const payment of bankPayments.filter(p => p.status === "Posted" && isTargetDay(p.date))) {
+      const party = (payment.vendor || payment.partyId) ? partyMap.get(payment.vendor || payment.partyId) : null;
       activities.push({
         type: "bank_payment",
         description: `Bank Payment #${payment.voucherNo} made`,
-        amount: payment.amount,
-        party: party?.name || "Unknown",
+        amount: Number(payment.amount) || 0,
+        party: party?.name || party?.companyName || "Vendor",
         date: payment.date
       });
     }
     
-    // Sort activities by date (most recent first)
-    activities.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    
-    // Limit to 20 most recent activities
+    // Sort activities by date descending
+    activities.sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
     const recentActivities = activities.slice(0, 20);
 
     return ok({
@@ -367,3 +295,4 @@ export async function GET(req: Request) {
 }
 
 export const dynamic = "force-dynamic";
+
