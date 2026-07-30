@@ -463,17 +463,21 @@ export async function seedOfflineDatabase() {
     if (itemCount === 0 && SEED_ITEMS.length > 0) {
       const itemsToInsert: ItemRecord[] = SEED_ITEMS.map((item, idx) => ({
         id: `item_${idx + 1}`,
-        code: `ITEM-${1000 + idx}`,
+        code: `ITEM-${String(1000 + idx).padStart(4, '0')}`,
         name: item.name,
         mainCategoryId: item.category ? makeId("cat_main_", item.category) : undefined,
         subCategoryId: item.subCategory && item.category ? makeId("cat_sub_", `${item.category}_${item.subCategory}`) : undefined,
         brandId: item.brand && item.category ? makeId("brand_", `${item.category}_${item.brand}`) : undefined,
         unit: item.unit || "Pcs",
+        size: item.size || "",
         purchaseRate: item.purchaseRate || 0,
         wholesaleRate: item.wholesaleRate || item.retailRate || 0,
         retailRate: item.retailRate || 0,
+        openingStock: item.openingStock || 0,
         stockQty: item.openingStock || 0,
+        stockQtyCartons: item.openingStock || 0,
         reorderLevel: 5,
+        status: "Active",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       }));

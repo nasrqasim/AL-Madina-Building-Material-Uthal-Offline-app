@@ -16,28 +16,22 @@ export async function POST(req: Request) {
     
     const id = generateUniqueId();
     
+    // Pass all fields from body, add defaults for id, code, timestamps
     const itemRecord = {
+      ...body,
       id,
-      _id: id,
       code: body.code || `ITEM-${Date.now().toString().slice(-6)}`,
       name: body.name || "",
-      mainCategoryId: body.mainCategoryId || null,
-      subCategoryId: body.subCategoryId || null,
-      brandId: body.brandId || null,
-      unit: body.unit || "",
-      purchaseRate: body.purchaseRate || 0,
-      wholesaleRate: body.wholesaleRate || 0,
-      retailRate: body.retailRate || 0,
-      stockQtyCartons: body.stockQtyCartons || 0,
-      stockQty: body.stockQty || 0,
-      reorderLevel: body.reorderLevel || 10,
       status: body.status || "Active",
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
 
+    // Remove _id if present (MongoDB artifact, not needed in SQLite)
+    delete itemRecord._id;
+
     await offlineDB.items.add(itemRecord);
-    return ok(itemRecord, 201);
+    return ok({ ...itemRecord, _id: id }, 201);
   } catch (e) {
     console.error("API Error [items POST]:", e);
     return fail((e as Error).message);

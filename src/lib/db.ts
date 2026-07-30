@@ -7,6 +7,7 @@ import { getDatabaseFilePath } from "./dataDir";
 // The native better-sqlite3 module is NOT loaded at import time,
 // only when the database is first accessed at runtime.
 let _sqlite: BetterSqlite3.Database | null = null;
+let _seeded = false;
 
 function getSqliteInstance(): BetterSqlite3.Database {
   if (typeof window !== "undefined") {
@@ -23,6 +24,21 @@ function getSqliteInstance(): BetterSqlite3.Database {
     _sqlite!.pragma("temp_store = MEMORY");  // Temp tables & sorts stored in RAM
     // Run schema creation on first open using direct instance
     initSQLiteSchema(_sqlite!);
+  }
+  // Seed default data (categories, brands, units, items) after schema is ready
+  if (!_seeded) {
+    _seeded = true;
+    // Inline synchronous seed: directly call the seed logic
+    // seedOfflineDatabase is async but all its SQLite ops are synchronous under the hood
+    try {
+      const sqliteModule = eval("require")("./sqlite");
+      if (sqliteModule && typeof sqliteModule.seedOfflineDatabase === "function") {
+        // Call synchronously - the async wrapper just wraps sync SQLite calls
+        sqliteModule.seedOfflineDatabase();
+      }
+    } catch (err) {
+      console.error("Failed to seed database:", err);
+    }
   }
   return _sqlite!;
 }
