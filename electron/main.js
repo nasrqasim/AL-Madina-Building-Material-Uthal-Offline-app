@@ -15,6 +15,8 @@ if (!fs.existsSync(erpDataDir)) {
 process.env.ALMADINA_DATA_DIR = erpDataDir;
 process.env.NODE_ENV = app.isPackaged ? "production" : "development";
 process.env.PORT = "3000";
+process.env.NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET || "almadina-erp-offline-secret-key-2026";
+process.env.NEXTAUTH_URL = process.env.NEXTAUTH_URL || "http://127.0.0.1:3000";
 
 let mainWindow = null;
 

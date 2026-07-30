@@ -6,9 +6,14 @@ import { generateInvoiceJournalEntries, updateInventoryFromInvoice, recalculateP
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
   try {
-    const session = await getServerSession(authOptions);
-    const role = session?.user?.role;
-    const normalizedRole = (role || "").toLowerCase().replace(/\s+/g, "");
+    let normalizedRole = "";
+    try {
+      const session = await getServerSession(authOptions);
+      const role = session?.user?.role;
+      normalizedRole = (role || "").toLowerCase().replace(/\s+/g, "");
+    } catch (sessionErr) {
+      console.warn("Session check skipped:", sessionErr);
+    }
 
     const row = await offlineDB.invoices.get(params.id);
     if (!row) return fail("Invoice not found", 404);
@@ -19,17 +24,23 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
       }
     }
 
-    return ok(row);
+    return ok({ ...row, _id: (row as any).id || (row as any)._id });
   } catch (e) {
+    console.error("API Error [invoices GET id]:", e);
     return fail((e as Error).message);
   }
 }
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   try {
-    const session = await getServerSession(authOptions);
-    const role = session?.user?.role;
-    const normalizedRole = (role || "").toLowerCase().replace(/\s+/g, "");
+    let normalizedRole = "";
+    try {
+      const session = await getServerSession(authOptions);
+      const role = session?.user?.role;
+      normalizedRole = (role || "").toLowerCase().replace(/\s+/g, "");
+    } catch (sessionErr) {
+      console.warn("Session check skipped:", sessionErr);
+    }
 
     if (normalizedRole === "sales_user" || normalizedRole === "salesuser") {
       const existing = await offlineDB.invoices.get(params.id);
@@ -56,13 +67,22 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       }
     }
 
+    // Extract partyId cleanly (string or object)
+    const partyId = typeof payload.partyId === "object" && payload.partyId !== null 
+      ? (payload.partyId.id || payload.partyId._id) 
+      : payload.partyId;
+
+    if (partyId) {
+      payload.partyId = partyId;
+    }
+
     // Handle walk-in / cash payment auto-fill
     if (payload.partyId) {
       const party = await offlineDB.parties.get(payload.partyId) as any;
       const isWalkIn = party && (party.name || party.companyName || "").toLowerCase().includes("walk-in");
       const isCashPayment = payload.paymentMethod === "Cash" || payload.paymentMethod === "Card";
       
-      if (isWalkIn || (isCashPayment && !payload.isOnCredit)) {
+      if (isWalkIn || (isCashPayment && !payload.isCreditBill && !payload.isOnCredit)) {
         payload.amountReceived = payload.totalAmount;
         payload.balance = 0;
       }
@@ -100,7 +120,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         }
         
         if (walkInVendor) {
-          payload.partyId = walkInVendor._id || walkInVendor.id;
+          payload.partyId = (walkInVendor as any)._id || (walkInVendor as any).id;
         }
       }
       
@@ -113,9 +133,11 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 
     const updatedInvoice = {
       ...payload,
+      id: params.id,
+      _id: params.id,
       updatedAt: new Date().toISOString()
     };
-    await offlineDB.invoices.update(params.id, updatedInvoice);
+    await offlineDB.invoices.put(updatedInvoice);
     const row = await offlineDB.invoices.get(params.id);
 
     if (row) {
@@ -130,19 +152,24 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     if (oldPartyId && oldPartyId !== newPartyId) {
       await recalculatePartyBalance(oldPartyId);
     }
-    // Note: generateInvoiceJournalEntries already calls recalculatePartyBalance for newPartyId
 
     return ok(row);
-  } catch (e) {
-    return fail((e as Error).message);
+  } catch (e: any) {
+    console.error("API Error [invoices PUT id]:", e);
+    return fail(e?.message || "Failed to update invoice", 500);
   }
 }
 
 export async function DELETE(_: Request, { params }: { params: { id: string } }) {
   try {
-    const session = await getServerSession(authOptions);
-    const role = session?.user?.role;
-    const normalizedRole = (role || "").toLowerCase().replace(/\s+/g, "");
+    let normalizedRole = "";
+    try {
+      const session = await getServerSession(authOptions);
+      const role = session?.user?.role;
+      normalizedRole = (role || "").toLowerCase().replace(/\s+/g, "");
+    } catch (sessionErr) {
+      console.warn("Session check skipped:", sessionErr);
+    }
 
     if (normalizedRole === "sales_user" || normalizedRole === "salesuser") {
       const existing = await offlineDB.invoices.get(params.id);
@@ -154,6 +181,7 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
     // Get the invoice before deletion to reverse its effects
     const invoice = await offlineDB.invoices.get(params.id);
     const partyId = (invoice as any)?.partyId;
+    const invNo = (invoice as any)?.invoiceNo;
 
     // Reverse inventory BEFORE deleting the invoice
     if (invoice) {
@@ -165,9 +193,11 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
     
     // Delete associated journal entries
     const allJournalEntries = await offlineDB.journalEntries.toArray();
-    const entriesToDelete = allJournalEntries.filter((je: any) => je.invoiceId === params.id);
+    const entriesToDelete = allJournalEntries.filter((je: any) => 
+      je.invoiceId === params.id || (invNo && je.voucherNo === invNo)
+    );
     for (const entry of entriesToDelete) {
-      await offlineDB.journalEntries.delete(entry.id);
+      if (entry.id) await offlineDB.journalEntries.delete(entry.id);
     }
     
     // Recalculate party balance after deletion
@@ -176,9 +206,11 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
     }
 
     return ok({ deleted: true });
-  } catch (e) {
-    return fail((e as Error).message);
+  } catch (e: any) {
+    console.error("API Error [invoices DELETE id]:", e);
+    return fail(e?.message || "Failed to delete invoice", 500);
   }
 }
 
 export const dynamic = "force-dynamic";
+

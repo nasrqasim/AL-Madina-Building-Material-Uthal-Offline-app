@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { offlineDB } from "@/lib/dexie";
 
 export const authOptions: NextAuthOptions = {
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: process.env.NEXTAUTH_SECRET || "almadina-erp-offline-secret-key-2026",
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
   providers: [

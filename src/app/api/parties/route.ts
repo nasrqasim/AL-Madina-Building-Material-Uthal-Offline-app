@@ -6,9 +6,14 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 
 export async function GET(req: Request) {
-  const session = await getServerSession(authOptions);
-  const role = session?.user?.role;
-  const normalizedRole = (role || "").toLowerCase().replace(/\s+/g, "");
+  let normalizedRole = "";
+  try {
+    const session = await getServerSession(authOptions);
+    const role = session?.user?.role;
+    normalizedRole = (role || "").toLowerCase().replace(/\s+/g, "");
+  } catch (sessionErr) {
+    console.warn("Session check skipped:", sessionErr);
+  }
 
   const { searchParams } = new URL(req.url);
   const typeParam = searchParams.get("type");
@@ -24,7 +29,7 @@ export async function GET(req: Request) {
   }
   
   // Sort by createdAt descending
-  parties.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  parties.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
   
   const rowsWithStats = await Promise.all(parties.map(async (r: any) => {
     if (r.type === "Customer") {
@@ -46,9 +51,14 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    const role = session?.user?.role;
-    const normalizedRole = (role || "").toLowerCase().replace(/\s+/g, "");
+    let normalizedRole = "";
+    try {
+      const session = await getServerSession(authOptions);
+      const role = session?.user?.role;
+      normalizedRole = (role || "").toLowerCase().replace(/\s+/g, "");
+    } catch (sessionErr) {
+      console.warn("Session check skipped:", sessionErr);
+    }
 
     const body = await req.json();
 

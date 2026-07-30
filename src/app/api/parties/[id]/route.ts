@@ -2,21 +2,24 @@ import { fail, ok } from "@/lib/api";
 import { offlineDB } from "@/lib/dexie";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
-
-// TODO: Update these service functions to use IndexedDB
-// import { recalculatePartyBalance, getCustomerAdvanceStats } from "@/services/posting/invoicePostingHelper";
+import { recalculatePartyBalance, getCustomerAdvanceStats } from "@/lib/offline/postingService";
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   try {
-    const session = await getServerSession(authOptions);
-    const role = session?.user?.role;
-    const normalizedRole = (role || "").toLowerCase().replace(/\s+/g, "");
+    let normalizedRole = "";
+    try {
+      const session = await getServerSession(authOptions);
+      const role = session?.user?.role;
+      normalizedRole = (role || "").toLowerCase().replace(/\s+/g, "");
+    } catch (sessionErr) {
+      console.warn("Session check skipped:", sessionErr);
+    }
 
     const url = new URL(req.url);
     const refresh = url.searchParams.get("refresh") === "1";
 
     if (refresh) {
-      // TODO: await recalculatePartyBalance(params.id);
+      await recalculatePartyBalance(params.id);
     }
 
     const row = await offlineDB.parties.get(params.id);
@@ -31,10 +34,10 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     // Calculate advance stats for customers
     let advanceStats = null;
     if ((row as any).type === "Customer") {
-      // TODO: advanceStats = await getCustomerAdvanceStats(params.id);
+      advanceStats = await getCustomerAdvanceStats(params.id);
     }
 
-    return ok({ ...(row as any), advanceStats });
+    return ok({ ...(row as any), _id: (row as any).id || (row as any)._id, advanceStats });
   } catch (e) {
     return fail((e as Error).message);
   }
@@ -42,9 +45,14 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   try {
-    const session = await getServerSession(authOptions);
-    const role = session?.user?.role;
-    const normalizedRole = (role || "").toLowerCase().replace(/\s+/g, "");
+    let normalizedRole = "";
+    try {
+      const session = await getServerSession(authOptions);
+      const role = session?.user?.role;
+      normalizedRole = (role || "").toLowerCase().replace(/\s+/g, "");
+    } catch (sessionErr) {
+      console.warn("Session check skipped:", sessionErr);
+    }
 
     if (normalizedRole === "sales_user" || normalizedRole === "salesuser") {
       const existing = await offlineDB.parties.get(params.id);
@@ -63,14 +71,14 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 
     const updatedParty = {
       ...body,
+      id: params.id,
+      _id: params.id,
       updatedAt: new Date().toISOString()
     };
-    await offlineDB.parties.update(params.id, updatedParty);
+    await offlineDB.parties.put(updatedParty);
+    await recalculatePartyBalance(params.id);
     const row = await offlineDB.parties.get(params.id);
     if (!row) return fail("Party not found", 404);
-    
-    // TODO: Automatically recalculate the balance using the updated openingBalance
-    // await recalculatePartyBalance(params.id);
     
     return ok(row);
   } catch (e) {
@@ -80,9 +88,14 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 
 export async function DELETE(_: Request, { params }: { params: { id: string } }) {
   try {
-    const session = await getServerSession(authOptions);
-    const role = session?.user?.role;
-    const normalizedRole = (role || "").toLowerCase().replace(/\s+/g, "");
+    let normalizedRole = "";
+    try {
+      const session = await getServerSession(authOptions);
+      const role = session?.user?.role;
+      normalizedRole = (role || "").toLowerCase().replace(/\s+/g, "");
+    } catch (sessionErr) {
+      console.warn("Session check skipped:", sessionErr);
+    }
 
     if (normalizedRole === "sales_user" || normalizedRole === "salesuser") {
       const existing = await offlineDB.parties.get(params.id);
@@ -99,3 +112,4 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
 }
 
 export const dynamic = "force-dynamic";
+
