@@ -1,8 +1,7 @@
 "use client";
-import { APP_NAME, COMPANY_NAME, COMPANY_SHORT, COMPANY_TAGLINE, DEFAULT_COMPANY_ADDRESS_LINE, DEFAULT_COMPANY_FORM } from "@/lib/company";
-
 import React from "react";
 import Image from "next/image";
+import { COMPANY_NAME } from "@/lib/company";
 
 interface ThermalReceiptProps {
   data: any;
@@ -13,12 +12,26 @@ interface ThermalReceiptProps {
   timeStr: string;
 }
 
-function formatQty(val: any): string {
-  if (val === undefined || val === null) return "0";
+/** Helper to convert any value safely to a number, defaulting to 0 */
+function safeNum(val: any): number {
+  if (val === undefined || val === null || val === "") return 0;
   const num = Number(val);
-  if (isNaN(num)) return String(val);
+  return isNaN(num) ? 0 : num;
+}
+
+/** Helper to format currency values safely to 2 decimal places */
+function fmtMoney(val: any): string {
+  return safeNum(val).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+/** Helper to format quantities cleanly (e.g., 3.5 or 1) */
+function fmtQty(val: any): string {
+  const num = safeNum(val);
   if (Number.isInteger(num)) return num.toString();
-  return parseFloat(num.toFixed(4)).toString();
+  return parseFloat(num.toFixed(2)).toString();
 }
 
 export default function ThermalReceipt({
@@ -29,223 +42,283 @@ export default function ThermalReceipt({
   dateStr,
   timeStr,
 }: ThermalReceiptProps) {
-  const totalQty = (items || []).reduce((acc, item) => acc + (Number(item.quantity || item.qty || item.cartons) || 1), 0);
-  const itemCount = (items || []).length;
+  const itemsList = items || [];
+  const itemCount = itemsList.length;
 
-  const grossTotal = Math.round(data.subtotal || data.total || 0);
-  const discount = Math.round(data.discountAmount || 0);
-  const netTotal = Math.round(data.total || data.amount || 0);
-  const amountReceived = Math.round(data.amountReceived || data.receivedAmount || netTotal);
-  const cashBack = amountReceived - netTotal;
+  // Compute total quantity dynamically across all items & selling units
+  const totalQty = itemsList.reduce((acc, item) => {
+    const qty = safeNum(item.quantity || item.qty || item.cartons || item.orderedQty || 1);
+    return acc + qty;
+  }, 0);
 
-  const carService = Math.round(data.carService || 0);
-  const carServiceDiscount = Math.round(data.carServiceDiscount || 0);
-  
-  const itemsDiscount = (items || []).reduce((acc: number, item: any) => {
-    const gross = (Number(item.qty || item.cartons || 1) * Number(item.rate || item.unitPrice || 0));
-    const net = Number(item.netAmount || item.total || item.amount || 0);
+  // Financial calculations with safe fallbacks
+  const rawSubtotal = safeNum(data.subtotal || data.subTotal);
+  const rawTotal = safeNum(data.total || data.totalAmount || data.amount);
+  const grossTotal = rawSubtotal > 0 ? rawSubtotal : rawTotal;
+
+  const discount = safeNum(data.discountAmount || data.discount);
+  const netTotal = rawTotal > 0 ? rawTotal : Math.max(0, grossTotal - discount);
+
+  const amountReceived = safeNum(data.amountReceived || data.receivedAmount || (data.paymentMethod === "Cash" ? netTotal : 0));
+  const cashBack = Math.max(0, amountReceived - netTotal);
+
+  // Calculate total savings (discount)
+  const itemsDiscount = itemsList.reduce((acc: number, item: any) => {
+    const qty = safeNum(item.quantity || item.qty || item.cartons || 1);
+    const rate = safeNum(item.rate || item.unitPrice || item.price);
+    const gross = qty * rate;
+    const net = safeNum(item.netAmount || item.total || item.amount);
     return acc + Math.max(0, gross - net);
   }, 0);
 
-  const customerName = (data.customer && data.customer.trim() && data.customer !== "Search Customer...")
-    ? data.customer
-    : (data.supplier && data.supplier.trim())
-    ? data.supplier
-    : (data.partyName && data.partyName.trim())
-    ? data.partyName
-    : "Walk-in Customer";
+  const totalSavings = discount > 0 ? discount : itemsDiscount;
 
-  const phoneNo = (companyInfo?.phone && companyInfo.phone.trim() !== "-")
-    ? companyInfo.phone
-    : "03108444612";
+  // Determine main item unit for column header (e.g. Price/Ctn, Price/Pcs, Price/Feet)
+  const mainUnit = itemsList.length > 0
+    ? (itemsList[0].unit || "Ctn").replace(/^Per\s+/i, "")
+    : "Ctn";
+
+  const customerName =
+    data.customer && data.customer.trim() && data.customer !== "Search Customer..."
+      ? data.customer
+      : data.supplier && data.supplier.trim()
+      ? data.supplier
+      : data.partyName && data.partyName.trim()
+      ? data.partyName
+      : "Walk-in Customer";
+
+  const phoneNo =
+    companyInfo?.phone && companyInfo.phone.trim() !== "-"
+      ? companyInfo.phone
+      : companyInfo?.mobile || "-";
+
+  const operatorName =
+    data.operatorName || data.cashier || data.salesPerson || companyInfo?.userName || "Bilal khan";
+
+  const salesPerson = data.salesPerson || data.salesman || "-";
+  const paymentType = data.paymentMethod || data.paymentMode || data.paymentTerms || "Cash";
 
   return (
-    <div className="thermal-receipt-container text-black bg-white p-2 font-mono text-[13px] font-black leading-tight w-[80mm] max-w-full mx-auto" style={{ color: '#000000' }}>
-      {/* Logo */}
-      {config.showLogo && companyInfo?.logo && (
-        <div className="flex justify-center mb-2">
-          <Image 
-            src={companyInfo.logo} 
-            alt="Company Logo" 
-            width={100}
-            height={40}
-            unoptimized
-            className="h-10 w-auto object-contain grayscale" 
+    <div
+      className="thermal-receipt-container text-black bg-white mx-auto font-sans text-[12px] leading-tight box-border"
+      style={{
+        width: "80mm",
+        maxWidth: "100%",
+        color: "#000000",
+        backgroundColor: "#ffffff",
+        padding: "4mm 3mm",
+        fontFamily: "Arial, 'Helvetica Neue', Helvetica, sans-serif",
+      }}
+    >
+      {/* ─── 1. COMPANY LOGO ─── */}
+      {(config?.showLogo !== false || companyInfo?.logo) && (
+        <div className="flex justify-center mb-1">
+          <img
+            src={companyInfo?.logo || "/logo.png"}
+            alt="Company Logo"
+            className="h-12 w-auto object-contain grayscale"
+            onError={(e) => {
+              // Hide image if failed to load
+              (e.target as HTMLElement).style.display = "none";
+            }}
           />
         </div>
       )}
 
-      {/* Company Title */}
-      <div className="text-center mb-1">
-        <h2 className="font-black uppercase tracking-tight" style={{ fontSize: '16px', lineHeight: '1.2', color: '#000000' }}>
-          {companyInfo?.companyName || COMPANY_NAME}
-        </h2>
-        {companyInfo?.address && (
-          <p className="text-[11px] font-black leading-tight mb-0.5" style={{ color: '#000000' }}>{companyInfo.address}</p>
-        )}
-        <p className="text-[12px] font-black text-black">Tel: {phoneNo}</p>
+      {/* ─── 2. COMPANY NAME & TEL ─── */}
+      <div className="text-center mb-2">
+        <h1
+          className="font-bold uppercase tracking-tight text-black leading-tight"
+          style={{ fontSize: "22px", fontFamily: "Arial, sans-serif" }}
+        >
+          {companyInfo?.companyName || COMPANY_NAME || "AL HADEED TRADERS"}
+        </h1>
+        <p className="text-[12px] font-normal text-black mt-0.5">
+          Tel: {phoneNo}
+        </p>
       </div>
 
-      {/* High-Contrast Bordered Header for Receipt Type */}
-      <div className="border-t-2 border-b-2 border-black text-black text-center py-1 font-black uppercase tracking-wider my-2 text-[13px]">
+      {/* ─── 3. FULL-WIDTH BLACK TITLE BAR ─── */}
+      <div
+        className="w-full bg-black text-white text-center py-1 font-bold uppercase tracking-wider text-[13px] my-2"
+        style={{ backgroundColor: "#000000", color: "#ffffff" }}
+      >
         {data.receiptType || "Sale Receipt"}
       </div>
 
-      {/* Structured Meta Info Section */}
-      <div className="text-[12px] text-black my-2 border-b-2 border-black pb-2 space-y-2">
-        <div className="flex justify-between items-center text-[13px] border-b border-dashed border-black pb-1.5">
-          <span className="font-bold">Receipt No:</span>
-          <span className="text-[14px] font-black">{data.invoiceNo || data.poNumber || data.referenceNo || data.receiptNo || data.voucherNo || "6928"}</span>
+      {/* ─── 4. CUSTOMER INFORMATION SECTION ─── */}
+      <div className="text-[12px] text-black my-2 space-y-1 font-sans">
+        {/* Receipt No */}
+        <div className="flex items-center">
+          <span className="italic font-normal w-24">Receipt No.</span>
+          <span className="font-bold text-[13px] text-black">
+            {data.invoiceNo || data.receiptNo || data.poNumber || "8210"}
+          </span>
         </div>
-        
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[12px]">
-          <div>
-            <span className="text-[10px] font-bold uppercase tracking-tight block">Date</span>
-            <span className="font-black">{dateStr}</span>
-          </div>
-          <div className="text-right">
-            <span className="text-[10px] font-bold uppercase tracking-tight block">Time</span>
-            <span className="font-black">{timeStr}</span>
-          </div>
-          
-          <div>
-            <span className="text-[10px] font-bold uppercase tracking-tight block">Customer</span>
-            <span className="font-black break-words block max-w-[120px]">{customerName}</span>
-          </div>
-          <div className="text-right">
-            <span className="text-[10px] font-bold uppercase tracking-tight block">Cashier</span>
-            <span className="font-black">{data.operatorName || data.salesPerson || companyInfo?.userName || "Admin"}</span>
-          </div>
 
-          <div>
-            <span className="text-[10px] font-bold uppercase tracking-tight block">Payment</span>
-            <span className="font-black uppercase">{data.paymentMethod || data.paymentMode || "Cash"}</span>
+        {/* Date & Time */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            <span className="italic font-normal w-12">Date</span>
+            <span className="font-bold text-black">{dateStr}</span>
           </div>
-          <div className="text-right">
-            <span className="text-[10px] font-bold uppercase tracking-tight block">Vehicle No</span>
-            <span className="font-black uppercase">{data.regNo || "-"}</span>
-          </div>
-
-          <div>
-            <span className="text-[10px] font-bold uppercase tracking-tight block">Start KM</span>
-            <span className="font-black">{data.startKms !== undefined && data.startKms !== null ? data.startKms : "-"}</span>
-          </div>
-          <div className="text-right">
-            <span className="text-[10px] font-bold uppercase tracking-tight block">End KM</span>
-            <span className="font-black">{data.endKms !== undefined && data.endKms !== null ? data.endKms : "-"}</span>
+          <div className="flex items-center">
+            <span className="italic font-normal mr-1.5">Time</span>
+            <span className="font-bold text-black">{timeStr}</span>
           </div>
         </div>
-      </div>
 
-      {/* Items Table Headers */}
-      <div className="border-b-2 border-black pb-1 mb-1 text-[12px] font-black text-black">
-        <div className="grid grid-cols-12">
-          <span className="col-span-6 text-left">Description</span>
-          <span className="col-span-2 text-center">Qty</span>
-          <span className="col-span-2 text-right">Price</span>
-          <span className="col-span-2 text-right">Total</span>
+        {/* Operator Name */}
+        <div className="flex items-center">
+          <span className="italic font-normal w-24">Operator Name:</span>
+          <span className="font-bold text-black">{operatorName}</span>
+        </div>
+
+        {/* Sales Person */}
+        <div className="flex items-center">
+          <span className="italic font-normal w-24">Sales Person</span>
+          <span className="font-bold text-black">{salesPerson}</span>
+        </div>
+
+        {/* Customer Name */}
+        <div className="flex items-center">
+          <span className="italic font-normal w-24">Customer Name</span>
+          <span className="font-bold text-black uppercase">{customerName}</span>
+        </div>
+
+        {/* Payment Type */}
+        <div className="flex items-center">
+          <span className="italic font-normal w-24">Payment Type</span>
+          <span className="font-bold text-black uppercase">{paymentType}</span>
         </div>
       </div>
 
-      {/* Items List */}
-      <div className="space-y-2 mb-2 text-[12px] font-black text-black">
-        {(items || []).map((item: any, i: number) => {
-          const desc = item.description || item.itemName || "Item";
-          const ordered = Number(item.qty || item.cartons || item.orderedQty || 1);
-          
-          const isReceived = item.isReceived !== false;
-          const delivered = isReceived ? ordered : Number(item.deliveredQty || 0);
-          const pending = isReceived ? 0 : Math.max(0, ordered - delivered);
+      {/* ─── 5. PRODUCT TABLE HEADER ─── */}
+      <div className="border-t border-b border-black py-1 my-2 text-[12px] font-bold text-black">
+        <div className="grid grid-cols-12 items-center">
+          <span className="col-span-5 text-left italic font-bold">Description</span>
+          <span className="col-span-2 text-right italic font-bold">Qty</span>
+          <span className="col-span-2.5 text-right italic font-bold pr-1">Price/{mainUnit}</span>
+          <span className="col-span-2.5 text-right italic font-bold">Total</span>
+        </div>
+      </div>
 
-          const price = Math.round(item.rate || item.unitPrice || 0);
-          const total = Math.round(item.netAmount || item.total || 0);
-          
-          let statusText = "[✓ Received]";
-          if (!isReceived) {
-            if (pending === 0) statusText = "[✓ Delivered]";
-            else if (delivered > 0) statusText = `[Part: ${delivered}/${ordered}]`;
-            else statusText = "[✗ Pending]";
-          }
+      {/* ─── 6. DYNAMIC PRODUCT ITEMS ─── */}
+      <div className="space-y-2 mb-2 text-[12px] text-black">
+        {itemsList.map((item: any, i: number) => {
+          const desc = item.description || item.itemName || item.name || "Item";
+          const qty = safeNum(item.quantity || item.qty || item.cartons || item.orderedQty || 1);
+          const rate = safeNum(item.rate || item.unitPrice || item.price);
+          const netAmt = safeNum(item.netAmount || item.total || item.amount || qty * rate);
+          const unitLabel = item.unit ? item.unit.replace(/^Per\s+/i, "") : "";
 
           return (
-            <div key={i} className="border-b border-dashed border-black pb-1.5">
-              <div className="flex justify-between items-start">
-                <span className="text-left font-black text-[12px] text-black leading-snug">{desc}</span>
-                <span className="text-[10px] bg-slate-100 px-1 py-0.5 rounded font-black shrink-0 ml-2">{statusText}</span>
+            <div key={i} className="border-b border-gray-300 pb-1 font-sans">
+              {/* Item Description Line */}
+              <div className="text-left font-normal text-[12px] text-black leading-snug">
+                {desc}
               </div>
-              <div className="grid grid-cols-12 text-[12px] text-black font-black mt-0.5">
-                <span className="col-span-6"></span>
-                <span className="col-span-2 text-center">{formatQty(ordered)} {item.unit?.replace(/^Per\s+/i, '') || ''}</span>
-                <span className="col-span-2 text-right">{price.toLocaleString()}</span>
-                <span className="col-span-2 text-right font-black">{total.toLocaleString()}</span>
+              {/* Quantities, Unit Price, and Line Total */}
+              <div className="grid grid-cols-12 text-[12px] text-black mt-0.5 items-center">
+                <span className="col-span-5"></span>
+                <span className="col-span-2 text-right font-bold">
+                  {fmtQty(qty)} {unitLabel ? <span className="text-[10px] font-normal">{unitLabel}</span> : null}
+                </span>
+                <span className="col-span-2.5 text-right font-bold pr-1">
+                  {rate > 0 ? Math.round(rate) : "-"}
+                </span>
+                <span className="col-span-2.5 text-right font-bold">
+                  {Math.round(netAmt)}
+                </span>
               </div>
             </div>
           );
         })}
-        {items.length === 0 && (
-          <div className="text-center py-2 text-black font-black">No items found</div>
+
+        {itemsList.length === 0 && (
+          <div className="text-center py-2 text-black font-normal italic">
+            No items found
+          </div>
         )}
       </div>
 
-      {/* Item & Qty Summary Row */}
-      <div className="border-t-2 border-b-2 border-black py-1.5 my-2 text-[12px] font-black text-black flex justify-between">
-        <span>Item(s): {itemCount}</span>
-        <span>Total Qty: {formatQty(totalQty)}</span>
+      {/* ─── 7. ITEM & QTY SUMMARY BAR ─── */}
+      <div className="border-t border-b border-black py-1 my-2 text-[12px] font-bold text-black flex justify-between">
+        <span>
+          Item(s) <span className="font-bold ml-1">{itemCount}</span>
+        </span>
+        <span>
+          Total Qty <span className="font-bold ml-1">{fmtQty(totalQty)}</span>
+        </span>
       </div>
 
-      {/* Financial Summary */}
-      <div className="space-y-1.5 text-[12px] font-black text-black my-2 text-right">
-        <div className="flex justify-between">
-          <span>Gross Total</span>
-          <span>{grossTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+      {/* ─── 8. TOTALS SECTION ─── */}
+      <div className="space-y-1 text-[12px] text-black my-2">
+        {/* Gross Total */}
+        <div className="flex justify-between items-center">
+          <span className="font-bold text-black">Gross Total</span>
+          <span className="font-bold text-black">{fmtMoney(grossTotal)}</span>
         </div>
-        {itemsDiscount > 0 && (
-          <div className="flex justify-between">
-            <span>Product Discount</span>
-            <span>-{itemsDiscount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-          </div>
-        )}
-        {carService > 0 && (
-          <div className="flex justify-between">
-            <span>Car Service Charges</span>
-            <span>+{carService.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-          </div>
-        )}
-        {carServiceDiscount > 0 && (
-          <div className="flex justify-between">
-            <span>Car Wash Discount</span>
-            <span>-{carServiceDiscount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-          </div>
-        )}
-        {discount > 0 && (
-          <div className="flex justify-between">
-            <span>Additional Discount</span>
-            <span>-{discount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-          </div>
-        )}
-        <div className="flex justify-between text-[14px] font-black pt-2 pb-1 border-t-2 border-b-2 border-black uppercase my-1" style={{ fontSize: '14px' }}>
-          <span>Net Total PKR</span>
-          <span>{netTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+
+        {/* Discount */}
+        <div className="flex justify-between items-center">
+          <span className="font-bold text-black">Discount</span>
+          <span className="font-bold text-black">{fmtMoney(discount)}</span>
         </div>
-        <div className="flex justify-between pt-1">
-          <span>Amount Received</span>
-          <span>{amountReceived.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+
+        {/* Net Total PKR - LARGEST AND BOLDEST TEXT */}
+        <div className="flex justify-between items-center py-1 border-t border-b border-black my-1">
+          <span
+            className="font-black uppercase tracking-tight text-black"
+            style={{ fontSize: "16px", fontWeight: "900" }}
+          >
+            Net Total PKR
+          </span>
+          <span
+            className="font-black text-black"
+            style={{ fontSize: "18px", fontWeight: "900" }}
+          >
+            {fmtMoney(netTotal)}
+          </span>
         </div>
-        <div className="flex justify-between">
-          <span>Cash Back PKR</span>
-          <span>{cashBack >= 0 ? cashBack.toLocaleString(undefined, { minimumFractionDigits: 2 }) : "0.00"}</span>
+
+        {/* Amount Received */}
+        <div className="flex justify-between items-center pt-0.5">
+          <span className="font-bold text-black">Amount Received</span>
+          <span className="font-bold text-black">{fmtMoney(amountReceived)}</span>
+        </div>
+
+        {/* Cash Back PKR */}
+        <div className="flex justify-between items-center">
+          <span className="font-bold text-black">Cash Back PKR</span>
+          <span className="font-bold text-black">{fmtMoney(cashBack)}</span>
         </div>
       </div>
 
-      {/* Visit Note */}
-      <div className="text-center font-black my-3 text-[12px] uppercase text-black">
-        * Thanks For Your Visit *
+      {/* ─── 9. VISIT NOTE & SAVINGS ─── */}
+      <div className="text-center font-bold my-3 text-[12px] text-black">
+        <div>*Thanks For Your Visit*</div>
+        {totalSavings > 0 && (
+          <div className="mt-0.5 font-bold text-[12px]">
+            You Saved Rs. {Math.round(totalSavings)}
+          </div>
+        )}
       </div>
 
-      {/* Software By Footer */}
-      <div className="text-center text-[10px] font-black text-black border-t-2 border-black pt-1.5 mt-2">
-        Software By: Roonjha Developers : 03152914836
+      {/* ─── 10. VERY BOTTOM SOFTWARE FOOTER ─── */}
+      <div className="border-t border-black pt-1.5 mt-2 text-center">
+        <p
+          className="font-bold text-black text-center"
+          style={{
+            fontFamily: "Arial, sans-serif",
+            fontSize: "13px",
+            fontWeight: "bold",
+          }}
+        >
+          Software By: Roonjha Developers - 03152914836
+        </p>
       </div>
     </div>
   );
 }
+

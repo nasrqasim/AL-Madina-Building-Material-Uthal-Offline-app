@@ -281,7 +281,7 @@ export default function BlackCopperS4C({
       <div className="z-10 text-center text-[10px] font-bold border-t border-slate-200 pt-2 mt-4 flex justify-between items-center text-slate-400">
         <span>* Thanks For Your Visit *</span>
         <span className="font-extrabold text-slate-500 bg-slate-100 px-2 py-0.5 rounded shadow-sm">
-          Software by Roonjha Developers and 03152914836
+          Software By: Roonjha Developers - 03152914836
         </span>
       </div>
     </div>

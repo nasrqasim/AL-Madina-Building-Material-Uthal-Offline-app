@@ -309,7 +309,7 @@ export default function InventoryLedgerReportPage() {
             <p className="text-sm font-bold">Generating inventory ledger...</p>
           </div>
         ) : selectedItemId ? (
-          // DETAILED ITEM LEDGER VIEW (Switcher Techno Style)
+          // DETAILED ITEM LEDGER VIEW
           data.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-24 text-slate-400 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-800/50 mx-4">
               <Box size={48} className="mb-4 opacity-30" />
